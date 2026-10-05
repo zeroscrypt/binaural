@@ -1,0 +1,150 @@
+# xcodegen spec for the Swift implementation (macOS + iOS).
+#
+# Generated project: apple/Binaural.xcodeproj — never committed, run `xcodegen generate`.
+#
+# This machine has no Apple Developer account (`security find-identity -v -p codesigning`
+# reports 0 identities). Nothing here may require a certificate: the documented
+# verification commands pass CODE_SIGNING_ALLOWED=NO, and the ad-hoc identity "-"
+# below lets the macOS products link without any signing identity at all.
+# iOS is only ever addressed through the iphonesimulator SDK, never a device.
+
+name: Binaural
+
+options:
+  bundleIdPrefix: app.binaural
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "14.0"
+    iOS: "17.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    ALWAYS_SEARCH_USER_PATHS: NO
+    CLANG_ENABLE_MODULES: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    # frequencies.json is data, not source: keep it out of indexing.
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
+
+targets:
+  # ------------------------------------------------------------------ core ---
+  # One multiplatform framework so both apps and the tests run the same code.
+  BinauralCore:
+    type: framework
+    supportedDestinations: [macOS, iOS]
+    scheme: false
+    sources:
+      - path: Sources/Core
+    settings:
+      base:
+        PRODUCT_NAME: BinauralCore
+        PRODUCT_BUNDLE_IDENTIFIER: app.binaural.core
+        GENERATE_INFOPLIST_FILE: YES
+        DEFINES_MODULE: YES
+        SKIP_INSTALL: YES
+        DYLIB_INSTALL_NAME_BASE: "@rpath"
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+
+  # ------------------------------------------------------------- unit tests ---
+  # macOS slice of BinauralCore; reads frequencies.json straight from the source
+  # tree via #filePath (no bundled copy, so counts always track the edited file).
+  BinauralCoreTests:
+    type: bundle.unit-test
+    platform: macOS
+    scheme: false
+    sources:
+      - path: Tests/CoreTests
+    dependencies:
+      - target: BinauralCore
+    settings:
+      base:
+        PRODUCT_NAME: BinauralCoreTests
+        PRODUCT_BUNDLE_IDENTIFIER: app.binaural.coretests
+        GENERATE_INFOPLIST_FILE: YES
+
+  # ----------------------------------------------------------------- macOS ---
+  Binaural:
+    type: application
+    platform: macOS
+    scheme: false
+    sources:
+      - path: Sources/macOS
+      # The single source of truth for the frequency reference: a Copy Files phase
+      # copies it out of the Python package into the bundle, i.e. from
+      # $(SRCROOT)/../src/binaural/data/frequencies.json. Never duplicate it under
+      # apple/ — the reference is edited constantly and a second copy would drift.
+      - path: ../src/binaural/data/frequencies.json
+        buildPhase:
+          copyFiles:
+            destination: resources
+    dependencies:
+      - target: BinauralCore
+    settings:
+      base:
+        PRODUCT_NAME: Binaural
+        PRODUCT_BUNDLE_IDENTIFIER: app.binaural.mac
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        COMBINE_HIDPI_IMAGES: YES
+        ENABLE_HARDENED_RUNTIME: NO
+
+  # ------------------------------------------------------------------- iOS ---
+  Binaural-iOS:
+    type: application
+    platform: iOS
+    scheme: false
+    sources:
+      - path: Sources/iOS
+      # Same copy phase as the macOS app: one file, two bundles.
+      - path: ../src/binaural/data/frequencies.json
+        buildPhase:
+          copyFiles:
+            destination: resources
+    dependencies:
+      - target: BinauralCore
+    settings:
+      base:
+        PRODUCT_NAME: Binaural-iOS
+        PRODUCT_BUNDLE_IDENTIFIER: app.binaural.ios
+        GENERATE_INFOPLIST_FILE: YES
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+
+schemes:
+  # Library + tests. `test` is what proves parity with the Python implementation.
+  BinauralCore:
+    build:
+      targets:
+        BinauralCore: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - BinauralCoreTests
+
+  Binaural:
+    build:
+      targets:
+        Binaural: all
+    run:
+      config: Debug
+
+  Binaural-iOS:
+    build:
+      targets:
+        Binaural-iOS: all
+    run:
+      config: Debug
+    test:
+      config: Debug
