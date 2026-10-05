@@ -28,7 +28,9 @@ class Session:
     last_preset: str | None = None
     #: Minutes before playback stops by itself; 0 = play indefinitely.
     timer_minutes: int = DEFAULT_TIMER_MINUTES
-    #: Index of the selected preset category (see main_window.PRESET_CATEGORIES).
+    #: Preset category id, persisted for the two-level preset picker (SPEC §5 F3).
+    #: There is no allowed-value list anywhere yet — main_window.PRESET_CATEGORIES does not
+    #: exist — so load() keeps whatever string was stored instead of discarding it.
     preset_category: str = "relaxation"
 
 

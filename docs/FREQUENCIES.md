@@ -4,6 +4,10 @@ The complete reference shipped with the app: **99 entries in 9 categories**, sto
 [`src/binaural/data/frequencies.json`](../src/binaural/data/frequencies.json) and rendered in the
 app under *Help → Frequency reference*.
 
+That file is the only copy in the repository. Both implementations read it — the Python app from
+beside its own module, the Swift app (`apple/`) through a copy-files phase pointing at the same
+path. `docs/CONTRACT.md` rule 10 forbids duplicating it.
+
 Nothing here is ranked or filtered out. Categories exist only so that 99 numbers do not become an
 unreadable wall.
 

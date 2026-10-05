@@ -1,7 +1,12 @@
 # Контракт API
 
-Единый источник сигнатур для всех исполнителей. **Менять контракт может только
-координатор** — если контракт мешает, напиши почему, но не переопределяй молча.
+Единый источник сигнатур для всех исполнителей — **обеих** реализаций: `src/` на Python и
+`apple/` на Swift. **Менять контракт может только координатор** — если контракт мешает, напиши
+почему, но не переопределяй молча.
+
+Исполнители обязаны давать одинаковые результаты. Допустимы только отклонения, зафиксированные
+письменно: для Swift это `apple/DESIGN.md` (список из четырёх пунктов), для Python — правка
+этого файла по согласованию.
 
 Спецификация: [`docs/SPEC.md`](SPEC.md).
 
@@ -230,6 +235,10 @@ playback_toggled = Signal(bool)
 ## 7. `binaural.core.session`
 
 ```python
+TIMER_OFF: int = 0
+DEFAULT_TIMER_MINUTES: int = 15       # SPEC §2.1: исследования длятся 5–15 минут
+TIMER_CHOICES: tuple[int, ...] = (0, 5, 10, 15, 20, 30, 45, 60, 90, 120)
+
 @dataclass
 class Session:
     left_hz: float = 205.0
@@ -238,10 +247,23 @@ class Session:
     channels_swapped: bool = False
     headphone_check_acknowledged: bool = False
     last_preset: str | None = None
+    timer_minutes: int = DEFAULT_TIMER_MINUTES   # 0 = play indefinitely
+    preset_category: str = "relaxation"
 
 def save(session: Session) -> None: ...      # QSettings, org "binaural", app "binaural"
 def load() -> Session: ...
 ```
+
+Правила чтения, обязательные для любой реализации:
+
+- отсутствующий ключ → дефолт, а не ошибка;
+- `volume` зажимается в `0…1`;
+- `timer_minutes` зажимается в `0…1440` (больше суток — опечатка в файле настроек);
+- `preset_category` — свободная строка: разрешённого списка пока нет
+  (`main_window.PRESET_CATEGORIES` не существует), поэтому читаемое значение не отбрасывается.
+
+Swift-версия хранит те же поля теми же именами, но в `Codable`-JSON по явному URL, а не в
+`QSettings` — см. отклонение 1 в `apple/DESIGN.md`.
 
 ---
 
@@ -256,3 +278,13 @@ def load() -> Session: ...
 6. Тесты обязательны для `core/`, `audio/platform`, `data`.
 7. Прогон: `.venv/bin/python -m pytest` — должен быть зелёным.
 8. Никаких новых зависимостей без согласования.
+9. **Две реализации — один контракт.** Всё, что описано здесь, обязано соблюдать и `src/` (Python),
+   и `apple/` (Swift): одинаковые значения частот, одинаковые счётчики справочника, одинаковые
+   дефолты сессии. Расхождение — это либо баг, либо задокументированное отклонение в
+   `apple/DESIGN.md`; «тихого» расхождения не бывает.
+10. `src/binaural/data/frequencies.json` — **единственная копия** справочника. Дублировать его
+    в `apple/` или где-либо ещё запрещено: вторую копию никто не будет обновлять.
+11. Прогон Swift: `cd apple && xcodegen generate && xcodebuild -project Binaural.xcodeproj
+    -scheme BinauralCore -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test`
+    — должен быть зелёным. Сертификата Apple Developer нет, поэтому `CODE_SIGNING_ALLOWED=NO`
+    не обсуждается, а iOS собирается только под симулятор.

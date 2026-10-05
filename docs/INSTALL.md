@@ -193,7 +193,7 @@ sudo pacman -S --needed xcb-util-cursor xcb-util-keysyms xcb-util-wm xcb-util-im
 With no display there is no window to open. For tests, CI, or anything non-interactive:
 
 ```bash
-QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q
+QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest
 ```
 
 `offscreen` keeps Qt fully functional minus the actual window. Use it for tests; it is not a

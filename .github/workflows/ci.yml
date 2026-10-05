@@ -133,7 +133,7 @@ jobs:
 
       - name: Tests, explicit -q and no cache
         if: always()
-        run: python -m pytest -q --cache-clear
+        run: python -m pytest --cache-clear
 
       # The audio backend is a Qt plugin loaded through dlopen; a packaging mistake would
       # otherwise only show up on a user's machine as "no audio output".

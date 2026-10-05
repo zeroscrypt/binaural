@@ -152,10 +152,14 @@ already implemented and what is still being built.
   **[docs/FREQUENCIES.md](docs/FREQUENCIES.md)**.
 - **Light and dark theme**, native Qt widgets, HiDPI, full keyboard navigation.
 - **English and Russian interface**, switchable at runtime — see [Language](#language).
-- **macOS and Linux** from one codebase.
+- **macOS and Linux** from one codebase, Windows next.
+- **Two implementations** — the Python/Qt app above, plus a native Swift app for macOS and iOS
+  under [`apple/`](apple/README.md). They share the frequency reference file and the API
+  contract, never source code.
 
 Explicitly out of scope: 3D/HRTF positioning, overlaying onto files or radio, spectrum analysis,
-mobile and Windows, recording or streaming.
+recording or streaming. iOS is in scope through `apple/` rather than through Python; Android is
+not planned.
 
 ---
 
@@ -256,6 +260,10 @@ The same disclaimer is shown in the app under *Help → About*.
 **Building from source** — Python 3.10 or newer (developed against 3.12) plus `pip`. PySide6
 6.5+ (Essentials and Addons) is pulled in automatically; `numpy` comes with the `dev` extra.
 
+**Building the Swift implementation (`apple/`)** — Xcode 27 (Swift 6.4) and `xcodegen`
+(`brew install xcodegen`). No Apple Developer account is needed to build and test; deploying to
+a physical iPhone is what needs one.
+
 ---
 
 ## Development
@@ -270,7 +278,7 @@ python3 -m venv .venv
 Run the tests:
 
 ```bash
-.venv/bin/python -m pytest -q
+.venv/bin/python -m pytest
 ```
 
 Run the app from the checkout:
@@ -286,8 +294,24 @@ They talk through Qt signals. See `docs/CONTRACT.md` for the API contract.
 On a headless Linux box the app needs an offscreen Qt platform:
 
 ```bash
-QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q
+QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest
 ```
+
+### The native Swift implementation (`apple/`)
+
+The second implementation is written in Swift and built with Xcode. It reads the same
+`src/binaural/data/frequencies.json` — there is deliberately no second copy of the reference.
+
+```bash
+cd apple
+xcodegen generate
+xcodebuild -project Binaural.xcodeproj -scheme BinauralCore \
+  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test
+```
+
+`CODE_SIGNING_ALLOWED=NO` is required: no Apple Developer certificate is configured. What M1
+delivered, what M2 owes and the signing constraints are written up in
+[apple/README.md](apple/README.md) and `apple/DESIGN.md`.
 
 ---
 
@@ -299,12 +323,14 @@ Alpha. Honest breakdown of what exists in the tree today:
 |---|---|
 | `core/oscillator.py` — phase-continuous stereo oscillator, click-free ramps | implemented, tested |
 | `core/engine.py` — `QAudioSink` output, volume, start/stop | implemented, tested |
-| `core/session.py` — persisted last frequencies, volume, channel-swap flag | implemented, tested |
+| `core/session.py` — last frequencies, volume, swap flag, playback timer, preset category | implemented, tested |
 | `audio/platform/` — device enumeration and classification (CoreAudio, `pactl`/`pw-cli`/`amixer`) | implemented, tested |
 | `audio/headphones.py` — heuristics plus the perceptual L/R test sequence | implemented, tested |
 | `data/frequencies.json` — 99 entries, 9 categories, bilingual | implemented, tested |
 | `ui/` — main window, reference dialog, headphone-check dialogs | in progress |
 | `app.py`, packaging, `install.sh` | in progress |
+| `apple/` — Swift foundation: beat math, oscillator, synthesiser, catalogue, session | implemented, 73 parity tests |
+| `apple/` — live audio, real UI, iOS Simulator test run | not started (M2) |
 
 ---
 
@@ -315,13 +341,23 @@ Alpha. Honest breakdown of what exists in the tree today:
 - Main window: frequency controls, live beat/carrier readout, preset chips
 - Headphone-check and L/R-test dialogs wired to the existing detection code
 - Frequency reference dialog with search, category filters and evidence badges
+- Settings dialog with the language switch inside it, a headphone-check button in the main
+  window, the playback timer and two-level presets — `Session.timer_minutes` and
+  `Session.preset_category` are already persisted, they simply have no control yet
 - Light/dark theme, keyboard shortcuts, accessibility rules from the spec
 
 **P2 — after that**
 
-- Session restore on launch and WAV export of a session
+- WAV export of a session
 - Optional `miniaudio` fallback output where `QAudioSink` is unavailable
-- 15-minute session timer with a smooth fade-out, matching the duration used in studies
+- Smooth fade-out when the timer expires
+- Windows: a WASAPI backend behind `audio/platform/`, a PyInstaller build, `install.ps1`
+
+**Swift (`apple/`)**
+
+- **M2** — live audio, headphone detection, the real UI, EN/RU, tests on the iOS Simulator
+- After parity — drop the *release* build of the Python app for macOS; keep running it from
+  source, since that is how the Python side is developed
 
 ---
 
