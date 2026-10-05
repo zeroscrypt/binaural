@@ -157,10 +157,22 @@ for _icon_name, _icon_subdir in (
 try:
     from PyInstaller.utils.hooks import collect_submodules
 
+    # SRC must be importable *before* the collection runs, otherwise
+    # collect_submodules silently returns [] (it does not raise) and every
+    # dynamically imported module — binaural.locales.ru is one — is dropped
+    # from the bundle. Insert unconditionally, not in the except branch.
+    sys.path.insert(0, str(SRC))
     binaural_hiddenimports = collect_submodules("binaural")
+    if not binaural_hiddenimports:
+        # Belt and braces: the catalogue is imported through
+        # importlib.import_module(), which static analysis cannot follow.
+        binaural_hiddenimports = [
+            "binaural.locales",
+            "binaural.locales.ru",
+        ]
 except Exception:  # pragma: no cover
     sys.path.insert(0, str(SRC))
-    binaural_hiddenimports = []
+    binaural_hiddenimports = ["binaural.locales", "binaural.locales.ru"]
 
 hiddenimports = list(qt_hiddenimports) + list(binaural_hiddenimports)
 

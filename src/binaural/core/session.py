@@ -10,6 +10,14 @@ ORGANIZATION = "binaural"
 APPLICATION = "binaural"
 
 
+#: Playback timer in minutes; 0 means "no timer — play until stopped".
+TIMER_OFF: int = 0
+#: SPEC §2.1: studies stimulate for 5–15 minutes, so 15 is the default session.
+DEFAULT_TIMER_MINUTES: int = 15
+#: Preset durations offered in the timer control (minutes; 0 = off).
+TIMER_CHOICES: tuple[int, ...] = (0, 5, 10, 15, 20, 30, 45, 60, 90, 120)
+
+
 @dataclass
 class Session:
     left_hz: float = 205.0
@@ -18,6 +26,10 @@ class Session:
     channels_swapped: bool = False
     headphone_check_acknowledged: bool = False
     last_preset: str | None = None
+    #: Minutes before playback stops by itself; 0 = play indefinitely.
+    timer_minutes: int = DEFAULT_TIMER_MINUTES
+    #: Index of the selected preset category (see main_window.PRESET_CATEGORIES).
+    preset_category: str = "relaxation"
 
 
 def _settings() -> QSettings:
@@ -59,6 +71,15 @@ def load() -> Session:
         return fallback
 
     preset = settings.value("session/last_preset")
+    category = settings.value("session/preset_category")
+
+    def _int(key: str, fallback: int) -> int:
+        raw = settings.value(key)
+        try:
+            return int(round(float(raw)))
+        except (TypeError, ValueError):
+            return fallback
+
     return Session(
         left_hz=_float("left_hz", defaults.left_hz),
         right_hz=_float("right_hz", defaults.right_hz),
@@ -68,4 +89,7 @@ def load() -> Session:
             "headphone_check_acknowledged", defaults.headphone_check_acknowledged
         ),
         last_preset=None if preset is None else str(preset),
+        # A timer longer than a day is a typo in the settings file, not a wish.
+        timer_minutes=max(0, min(1440, _int("session/timer_minutes", defaults.timer_minutes))),
+        preset_category=str(category) if category else defaults.preset_category,
     )

@@ -32,7 +32,15 @@ DIST_DIR="${ROOT}/dist"
 TARGETS="auto"
 CHECKSUMS_ONLY=0
 CLEAN=0
-PYTHON="${PYTHON:-python3}"
+# Prefer the project venv when PYTHON is not given: PySide6 and PyInstaller are
+# installed there, and a bare `python3` on a dev machine usually has neither.
+# The platform scripts get --python forwarded below; without it they would fall
+# back to their own `python3` default and fail the PyInstaller preflight.
+if [ -z "${PYTHON:-}" ] && [ -x "${ROOT}/.venv/bin/python" ]; then
+    PYTHON="${ROOT}/.venv/bin/python"
+else
+    PYTHON="${PYTHON:-python3}"
+fi
 
 die()  { printf 'error: %s\n' "$*" >&2; exit 1; }
 step() { printf '==> %s\n' "$*"; }
@@ -232,7 +240,8 @@ One of: ${ALL_PLATFORMS}"
         macos-*)
             step "building ${_target}"
             # shellcheck disable=SC2086
-            sh "${SCRIPT_DIR}/build_macos.sh" $CLEAN_FLAG || die "the macOS build failed"
+            sh "${SCRIPT_DIR}/build_macos.sh" $CLEAN_FLAG --python "$PYTHON" \
+                || die "the macOS build failed"
             # Both formats on purpose:
             #  * .tar.gz is what install.sh fetches (name must match exactly);
             #  * .zip is what a macOS user double-clicks, and tar's handling of the
@@ -257,7 +266,7 @@ One of: ${ALL_PLATFORMS}"
         linux-*)
             step "building ${_target}"
             # shellcheck disable=SC2086
-            sh "${SCRIPT_DIR}/build_linux.sh" $CLEAN_FLAG --arch "$_arch" \
+            sh "${SCRIPT_DIR}/build_linux.sh" $CLEAN_FLAG --arch "$_arch" --python "$PYTHON" \
                 || die "the Linux build failed"
             BUILT="${BUILT} ${EXE_NAME}-${VERSION}-${_target}.tar.gz"
             ;;
