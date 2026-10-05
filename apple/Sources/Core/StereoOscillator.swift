@@ -12,8 +12,12 @@ import Foundation
 ///
 /// Not `Sendable` on purpose: it owns mutable audio state and is meant to be confined
 /// to whichever thread drives it. Marking it `@unchecked Sendable` would hide a race
-/// rather than fix one. When an audio thread arrives (M2), confine this object to it
-/// and publish only `leftHz`/`rightHz`/gain across the boundary.
+/// rather than fix one.
+///
+/// M2 honoured that: `AudioEngine` creates the oscillator **on the render callback's
+/// own thread** and no other thread ever touches it, so there is nothing to race on.
+/// Frequencies, gain, pan and the sample rate travel the other way as plain values
+/// through `ParameterMailbox` — see its documentation for the handover.
 ///
 /// Sample buffers are `[Float]`, as CONTRACT §1 requires ("float32-like samples");
 /// all internal arithmetic stays `Double`.
@@ -121,11 +125,39 @@ public final class StereoOscillator {
     /// Render `frames` samples per channel and advance both phases.
     ///
     /// Never throws, never logs: called from the audio callback.
+    ///
+    /// Allocates two arrays, so it is the right entry point for tests, previews and
+    /// offline rendering — but *not* for a real-time callback, where the heap traffic
+    /// is exactly what must not happen. Live output uses
+    /// ``render(frames:into:intoRight:)`` below with storage it owns.
     public func render(frames: Int) -> (left: [Float], right: [Float]) {
         guard frames > 0 else { return ([], []) }
 
         var left = [Float](repeating: 0, count: frames)
         var right = [Float](repeating: 0, count: frames)
+        left.withUnsafeMutableBufferPointer { leftBuffer in
+            right.withUnsafeMutableBufferPointer { rightBuffer in
+                render(frames: frames, into: leftBuffer, intoRight: rightBuffer)
+            }
+        }
+        return (left, right)
+    }
+
+    /// Render `frames` samples per channel into storage the caller already owns.
+    ///
+    /// Identical maths, identical phase and fade state, and **no allocation** — the
+    /// M2 addition that makes the oscillator usable from an `AVAudioSourceNode` render
+    /// callback, where "no allocation in the hot loop" (CONTRACT §1) is a hard rule.
+    ///
+    /// The shorter of the two buffers decides how much is written: a partially filled
+    /// buffer is left alone rather than overrun.
+    public func render(
+        frames: Int,
+        into left: UnsafeMutableBufferPointer<Float>,
+        intoRight right: UnsafeMutableBufferPointer<Float>
+    ) {
+        let count = min(frames, left.count, right.count)
+        guard count > 0 else { return }
 
         let inverseRate = 1.0 / Double(_sampleRate)
         let stepLeft = _leftHz * inverseRate
@@ -139,7 +171,7 @@ public final class StereoOscillator {
         var phaseLeft = _phaseLeft
         var phaseRight = _phaseRight
 
-        for index in 0..<frames {
+        for index in 0..<count {
             // The phase already carries the frequency through its increment
             // (f / sampleRate), so the argument is 2*pi*phase only.
             left[index] = Float(gain * panLeft * sin(2 * Double.pi * phaseLeft))
@@ -163,6 +195,5 @@ public final class StereoOscillator {
         _phaseLeft = phaseLeft
         _phaseRight = phaseRight
         _gain = gain
-        return (left, right)
     }
 }

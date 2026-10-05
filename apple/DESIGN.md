@@ -1,8 +1,17 @@
-# apple/ — M1 design (the Swift foundation)
+# apple/ — design notes
+
+This file is the contract for the next milestone. Read `docs/SPEC.md` (behaviour) and
+`docs/CONTRACT.md` (shared API) first; the Python reference is `src/binaural/`.
+
+* **§1–§6 — M1, the Swift foundation.** Unchanged, still the record of that milestone.
+* **§7 onwards — M2.** Appended as each phase lands; M1's history above is not rewritten.
+
+---
+
+# Part I — M1 (the Swift foundation)
 
 Status: **Milestone 1.** Foundation only — the parts that must be *provably* equal to the
-Python implementation. UI is deliberately M2. Read `docs/SPEC.md` (behaviour) and
-`docs/CONTRACT.md` (shared API) first; the Python reference is `src/binaural/`.
+Python implementation. UI is deliberately M2.
 
 ## 1. Modules and responsibilities
 
@@ -208,3 +217,245 @@ devices, so a named destination cannot resolve and nothing can be booted. The
 for the simulator. `xcodebuild -downloadPlatform iOS` turns this into a run-on-simulator
 check; no other change is needed. Adding `iOS` to the test target's
 `supportedDestinations` is a one-line spec change for whoever has a runtime.
+---
+
+# Part II — M2
+
+## 7. M2-a: live audio, i18n, main window
+
+### 7.1 What landed
+
+```
+Sources/Core/
+├── AudioEngine.swift          # AVAudioEngine + AVAudioSourceNode, RenderParameters,
+│                              # ParameterMailbox, AudioRenderContext, AudioFailure
+├── FrequencyGrid.swift        # 1–20000 Hz, 0.1 step, slider mapping, frequency text
+├── L10n.swift                 # LanguageCode, PreferenceStore, L10n
+├── SessionStore.swift         # where the session document lives (see §7.5)
+├── Locales/
+│   ├── RussianCatalogue.swift     # generated from src/binaural/locales/ru.py
+│   └── RussianWindowAdditions.swift  # the one key ru.py does not have yet
+└── StereoOscillator.swift     # + render(frames:into:intoRight:) — see §7.2
+Sources/macOS/
+├── BinauralMacApp.swift       # @main, delegate, menu bar, View → Language
+├── MainWindowController.swift # §7 window + MainWindow (Space / ↑↓ / ←→)
+├── FrequencyControlView.swift # one ear: caption, display, exact field, log slider
+├── BeatDisplayView.swift      # BEAT / CARRIER + the §F1 hint
+└── HeadphoneIndicatorView.swift
+Tools/generate_russian_catalogue.py   # regenerates the catalogue from ru.py
+Tests/CoreTests/               # + L10nTests, L10nKeysTests, AudioEngineTests,
+                               #   FrequencyGridTests, SessionStoreTests,
+                               #   StereoOscillatorBufferTests  → 148 tests
+Tests/MacTests/                # BinauralMacTests — 21 window tests, new target
+```
+
+`148 + 21 = 169` tests, of which the 73 M1 parity tests are a strict subset.
+
+### 7.2 The audio thread handover — the design and why it is correct
+
+**The problem.** The main thread mutates frequencies, gain, pan and the sample rate while
+`AVAudioEngine`'s render callback reads them. `StereoOscillator` is deliberately non-`Sendable`
+(M1) and CONTRACT rule 5 forbids reaching into it from elsewhere, so something has to carry
+those four values across.
+
+**The mechanism.** Two pieces, and only two:
+
+1. `RenderParameters` — a `Sendable` value type of `Double`/`Int`. Nothing else crosses.
+2. `ParameterMailbox` — one writer (main), one reader (audio), guarded by a single
+   `NSLock` used with **`lock.try()`**, a non-blocking try.
+
+**Why it is correct.**
+
+* The reader copies the *whole struct* while holding the lock, so it can never observe a
+  half-updated pair of frequencies. No torn read, no version counter, no ABA problem.
+* If the try fails the callback does **not** block and does **not** spin: it renders the
+  previous block's parameters. The failure window is the few nanoseconds `publish` spends
+  copying 32 bytes, so the cost is at most one stale block (~5 ms at 512 frames/44.1 kHz)
+  on the rarest interleaving. Blocking the real-time thread instead is how you get a
+  dropout, which is far worse than one block of a parameter arriving late.
+* The lock is `NSLock`, documented thread-safe, so `Sendable` is *derived* rather than
+  asserted — the only `@unchecked Sendable` in the file is `ParameterMailbox`'s own
+  storage claim, and its comment carries the memory-safety argument. `StereoOscillator`
+  stays un-`Sendable` and un-annotated.
+
+**Where the oscillator lives.** `AudioRenderContext` is the render block's captured state,
+and it **creates the `StereoOscillator` itself, on first use — which is the audio thread.**
+`init` takes no oscillator, so no reference can be smuggled in from the main thread. Every
+read and write of the oscillator therefore happens on one thread, and `AVAudioEngine` never
+runs a node's render block concurrently. `AudioRenderContext` is `@unchecked Sendable`
+purely so a `@Sendable` block can capture it, and its comment explains exactly that.
+
+**The allocation rule.** `render(frames:)` allocates two arrays per call, which is fine for
+tests and offline rendering but not for a real-time thread. M2 adds
+`render(frames:into:intoRight:)` — same maths, same state, writes into caller-owned
+storage. `render(frames:)` now delegates to it, so there is **one** implementation and the
+73 M1 tests still prove what the audio thread actually runs
+(`StereoOscillatorBufferTests.testBufferRenderMatchesTheArrayRender` pins the equality).
+`AudioRenderContext` keeps one pair of scratch buffers and grows them only when a larger
+block arrives.
+
+**No AppKit, no long locks.** The render block touches nothing but the context, the mailbox
+and its own scratch memory. The gain is applied by the oscillator, not by scaling buffers.
+
+### 7.3 Click-free play/stop and frequency changes
+
+Both go through the M1 accumulating fade, never a jump:
+
+* **Frequency change** → `setFrequencies`, which never resets phase. `testFrequencyChangeKeepsPhaseContinuous`
+  checks the sample either side of the seam against the tone's own slew.
+* **Play** → the published gain goes 0 → `volume`; the oscillator ramps it in over
+  `BeatMath.defaultRampSeconds` (30 ms, inside SPEC F2's 20–50 ms).
+* **Stop** → the published gain goes to 0 and the engine **keeps running**, so the tail
+  fades out instead of being cut. Tearing the engine down and re-creating the oscillator
+  would restart the phase from zero — precisely the discontinuity F2 rules out.
+  `shutdown()` (on quit) is what actually detaches the node.
+* **Mute** → the gain target, same path. It is deliberately *not* session state: `Session`
+  has no such field and none was invented.
+
+### 7.4 i18n
+
+`L10n.tr(_:_:)` in `Sources/Core`, main-actor isolated (it is UI state; only the UI reads
+it). English is the source language and has **no table**, which is how "a missing EN key
+returns the key itself" is structural rather than a check someone has to remember.
+
+* `RussianCatalogue.swift` is **generated** from `src/binaural/locales/ru.py` by
+  `Tools/generate_russian_catalogue.py`, which parses the Python AST (so implicit string
+  concatenation is resolved exactly as `i18n.tr` sees it) and keeps ru.py's order and
+  section comments. **171 keys**, asserted by count. Never hand-edit it.
+* `RussianWindowAdditions.swift` holds `{"Mute": "Без звука"}` — the one key the Swift
+  window needs that `ru.py` does not have, because `main_window.py` has no mute button.
+  Two dictionaries rather than one so the generated file stays byte-identical to a
+  regeneration; `L10n.tr` tries the additions first, then the port, then the key.
+* Language persists in `UserDefaults` under `ui/language` — the same key Python uses in
+  `QSettings`. First run falls back to the system locale, then English
+  (`resolveInitialLanguage(locale:)`).
+* Switchable live: `setLanguage` posts `L10n.languageDidChange`; the window and the menu
+  bar re-read their captions through it. No relaunch.
+
+**The parity test** mirrors `tests/test_i18n.py` and closes the loop in both directions:
+`L10nKeysTests` scans `Sources/**/*.swift` for every literal that reaches `tr(`, plus the
+`AudioFailure` keys (which are named constants, the `_ERROR_SOURCES` rule), and fails if a
+literal is not on the referenced-key list *or* if a listed key is referenced nowhere. An
+untranslated string cannot be added quietly.
+
+### 7.5 Session storage — the M2 decision DESIGN §5.1 left open
+
+**`~/Library/Application Support/app.binaural.mac/session.json`**, written atomically.
+
+*Why not `UserDefaults`:* the session is a **document**, not a preference. CONTRACT §7 pins
+its fields and their clamps, it grows (presets, timer), and it is the thing a future
+export/import would move. `UserDefaults` is for small preferences whose storage format the
+app should not depend on, and it would mean a second on-disk shape next to the documented
+JSON one. Application Support is the documented macOS home for exactly this: backed up,
+not synced, not cluttering `~`.
+
+*Why not the QSettings ini Python uses:* Swift has no QSettings and Core must stay
+platform-independent, so `Session` stays `Codable` (M1 deviation 1, unchanged). Only the
+location is decided here.
+
+Reads never throw: a missing or damaged file yields `Session.standard`, per CONTRACT §7.
+Writes return `Bool` — persistence is a convenience, never a blocker.
+
+### 7.6 The main window (SPEC §7)
+
+Two `FrequencyControlView`s that share nothing, so changing one cannot move the other
+(`testChangingOneChannelLeavesTheOtherAlone`). Each is caption + large display +
+exact-entry field + logarithmic slider; all the value rules live in `FrequencyGrid`, so they
+are testable without AppKit. `BeatDisplayView` recomputes `|fL − fR|` and `(fL + fR) / 2` on
+every change and shows the §F1 hint outside 0.5–100 Hz. Transport row: Play/Stop, volume,
+mute. `HeadphoneIndicatorView` is always visible.
+
+**Keyboard.** `MainWindow.performKeyEquivalent` handles Space, `↑`/`↓` (nudge the active
+channel by 0.1 Hz) and `←`/`→` (switch channel) — *in the window*, not as menu key
+equivalents, because a menu item cannot promise that a focused text field keeps the same
+keys, which is what SPEC §7.2 requires. The window defers to `NSTextInput` for Space and to
+`NSSlider` for the arrows.
+
+**`FrequencyGrid.quantized` uses `%.1f`, not `(hz * 10).rounded() / 10`.** The
+multiplication shortcut disagrees with CPython on ties, and ties are common here: every
+`x.x5` value is one, and `4.35 * 10` lands one ulp above the halfway point, so it rounds to
+4.4 where `round(4.35, 1)` says 4.3. `%.1f` prints the correctly rounded decimal form of
+the double — the same thing CPython computes. Verified equal on 50 000 random values and on
+all 57 144 `x.x5` ties in 1–20000 Hz; `FrequencyGridTests` pins the representative cases.
+The format allocates, which is why it is never on the audio thread.
+
+### 7.7 Testing notes
+
+* `AudioEngineTests` drives `AudioRenderContext` directly with hand-built `AudioBufferList`s
+  (planar, interleaved, mono, surround) — hermetic, no device, no sound. `AudioBufferList`
+  ends in a flexible trailing array, so the fixture allocates by buffer count; an
+  `AVAudioPCMBuffer` cannot express the 4-channel planar case.
+* The two tests that touch a real `AVAudioEngine` **skip** when there is no device, and the
+  sample-rate test releases its probe engine before starting the one under test — two live
+  engines contend over the HAL and the second one to start stalls the test host.
+* `BinauralMacTests` is a new target: `BinauralMacTests` runs *inside* the app
+  (`TEST_HOST`), so `AppDelegate` detects XCTest and does nothing — otherwise the delegate
+  would put a real window on screen during the run, where a stray event reaches a slider and
+  **writes to the user's own session file**. Found the hard way; the guard is a test now
+  (`testSavingAnUnwritableStoreDoesNotBreakTheWindow` and the session round-trip tests all
+  use a temporary directory).
+
+### 7.8 Deviations recorded in M2-a
+
+1. **`StereoOscillator.render(frames:)` allocates.** CONTRACT §1 says render is "called
+   only from the audio stream, without allocations in the hot loop". The M1 signature
+   returns `[Float]`, so it must allocate; Python's `readData` has the same shape. Fixed by
+   *adding* `render(frames:into:intoRight:)`, which is allocation-free and which the M1
+   method now delegates to — one implementation, both callers, no behavioural change and no
+   divergence the tests could miss.
+2. **`AudioRenderContext` is `@unchecked Sendable`.** The only such annotation among the new
+   types, and it is there so a `@Sendable` render block can capture the context. The
+   argument is in its doc comment: the oscillator is created on the audio thread and touched
+   only there, so no other thread can observe it. `StereoOscillator` itself remains
+   un-`Sendable`, as M1 intended.
+3. **`ParameterMailbox` is `@unchecked Sendable`.** It holds an `NSLock` plus a
+   `RenderParameters` value; the lock is documented thread-safe and the payload is a value
+   type, so the annotation restates a fact the compiler cannot see through the class
+   boundary. Its doc comment carries the same argument.
+4. **`Mute` is a Swift-only catalogue key.** SPEC F2 requires mute; `ru.py` has no such key
+   because `main_window.py` has no mute button. Recorded in
+   `RussianWindowAdditions.swift` rather than by editing the generated file.
+5. **`FrequencyGrid.quantized` is `%.1f`-based, not multiply-based.** Not a divergence from
+   Python — it is the *fix* that makes it match Python where a naive port would not (§7.6).
+
+### 7.9 What M2-a does NOT do (all M2-b)
+
+Presets (SPEC F3), the frequency reference dialog (§6), the headphone check and the
+perceptual L/R test (§4, `audio/platform/macos.py` + `audio/headphones.py`), Settings,
+About, the timer (F5), the menu-bar item, and the Release build. The seams they need are
+in place and named:
+
+| M2-b piece | Where it attaches |
+|---|---|
+| Presets | `Session.presetCategory`, `AudioEngine.setFrequencies`, the window's spare row |
+| Headphone check | `MainWindowController.setHeadphoneState(_:deviceName:)`, `AudioEngine.setPan(left:right:)` |
+| Reference dialog | `FrequencyCatalogue` — unchanged since M1 |
+| Timer | `Session.timerMinutes`; a smooth stop is `engine.stop()`, which already fades |
+| Menu bar | `TrayController`'s Python counterpart |
+| Language in Settings | `L10n.setLanguage(_:)` — already live from the menu |
+
+The headphone indicator shows **"Unknown device"** until M2-b supplies detection: it is the
+honest state for "nothing has looked at the device yet", it is what the Python window
+starts with, and the indicator is never hidden.
+
+## 8. Build and verify (M2)
+
+The M1 commands (§6) still hold, plus one:
+
+```
+cd apple && xcodegen generate
+xcodebuild -project Binaural.xcodeproj -scheme BinauralCore -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test   # 148
+xcodebuild -project Binaural.xcodeproj -scheme Binaural     -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test   # +21 window tests
+xcodebuild -project Binaural.xcodeproj -scheme Binaural     -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project Binaural.xcodeproj -scheme Binaural-iOS -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+```
+
+**Smoke test** (a build that crashes on launch is not a passing build):
+
+```
+APP=$(find ~/Library/Developer/Xcode/DerivedData/Binaural-*/Build/Products/Debug -maxdepth 1 -name 'Binaural.app' | head -1)
+open "$APP" && sleep 4 && pgrep -fl 'Binaural.app/Contents/MacOS' && pkill -f 'Binaural.app/Contents/MacOS'
+```
+
+The iOS command keeps `generic/platform=iOS Simulator` for the reason in §6: no runtime is
+installed. iOS compiles, links and embeds the JSON; it never gates macOS.

@@ -66,6 +66,28 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.binaural.coretests
         GENERATE_INFOPLIST_FILE: YES
 
+  # --------------------------------------------------------- macOS UI tests ---
+  # Window-level behaviour: two independent channels, live beat readout, Space, the
+  # language switch and the session round-trip. Everything these check is the glue
+  # between AppKit and BinauralCore, so they run the real MainWindowController rather
+  # than a stand-in.
+  BinauralMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    scheme: false
+    sources:
+      - path: Tests/MacTests
+    dependencies:
+      - target: BinauralCore
+      - target: Binaural
+    settings:
+      base:
+        PRODUCT_NAME: BinauralMacTests
+        PRODUCT_BUNDLE_IDENTIFIER: app.binaural.mactests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Binaural.app/Contents/MacOS/Binaural"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
   # ----------------------------------------------------------------- macOS ---
   Binaural:
     type: application
@@ -137,8 +159,15 @@ schemes:
     build:
       targets:
         Binaural: all
+        # `[test]` builds the bundle for testing without adding it to `build` actions,
+        # which would make `xcodebuild build` fail on a test-only target.
+        BinauralMacTests: [test]
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - BinauralMacTests
 
   Binaural-iOS:
     build:

@@ -98,6 +98,9 @@ apple/Binaural.xcodeproj/
 xcuserdata/
 DerivedData/
 .swiftpm/
+# Coverage instrumentation from `xcodebuild ... test` with gatherCoverageData (M2).
+*.profraw
+*.profdata
 
 # ---- Explicitly NOT ignored -------------------------------------------------
 # Listed so the intent is visible if someone tries to 'fix' this file:
