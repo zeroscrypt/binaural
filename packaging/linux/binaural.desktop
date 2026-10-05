@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=Binaural
+GenericName=Binaural Beat Generator
+Comment=Binaural beat generator: two independent frequencies, one perceived difference
+Comment[ru]=Генератор бинауральных биений: две частоты, одно воспринимаемое биение
+Exec=binaural
+Icon=binaural
+Terminal=false
+Categories=AudioVideo;Audio;Utility;
+Keywords=binaural;beats;brainwave;entrainment;audio;generator;focus;meditation;
+StartupNotify=true
+StartupWMClass=binaural

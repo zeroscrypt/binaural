@@ -1,0 +1,244 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Qt refuses to open a real window without a display. offscreen gives the widgets a
+  # backing store and lets the whole suite run headless on both runners.
+  QT_QPA_PLATFORM: offscreen
+  # Qt's own logging goes to stderr and is noisy enough to hide pytest output.
+  QT_LOGGING_RULES: "qt.qpa.*=false"
+  PYTHONWARNINGS: ignore
+
+jobs:
+  # -----------------------------------------------------------------------------
+  # install.sh must work when piped, so CI exercises it exactly the way a user would:
+  # `curl … | sh`. The dry-run flags are safe on a CI runner; a real install into
+  # $RUNNER_TEMP proves the download/unpack/symlink path without touching $HOME.
+  # -----------------------------------------------------------------------------
+  installer:
+    name: install.sh (posix shells)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install POSIX shells for the syntax matrix
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends dash ksh
+
+      - name: Syntax check under every POSIX-ish shell
+        run: |
+          for shell in sh dash bash ksh; do
+            echo "--- $shell -n install.sh"
+            "$shell" -n install.sh
+          done
+
+      - name: Self-documenting flags
+        run: |
+          set -eu
+          sh install.sh --help    > /dev/null
+          sh install.sh --version > /dev/null
+          sh install.sh --dry-run
+          # --uninstall on a clean machine must succeed, not fail.
+          sh install.sh --uninstall
+
+      - name: Piped invocation must not read stdin
+        run: |
+          set -eu
+          # If the script read stdin it would swallow its own remaining text here and
+          # die with a parse error partway through.
+          curl -fsSL "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/raw/${GITHUB_SHA}/install.sh" \
+            | sh -s -- --dry-run
+
+      - name: Real install from source into a temp prefix
+        run: |
+          set -eu
+          prefix="${RUNNER_TEMP}/binaural-ci"
+          sh install.sh \
+            --source \
+            --prefix="$prefix" \
+            --bin-dir="$prefix/bin" \
+            --no-path-edit \
+            --no-verify
+          test -x "$prefix/bin/binaural"
+          # The fallback must not leave anything in $HOME.
+          test ! -e "$HOME/.binaural"
+          "$prefix/bin/binaural" --version || echo "(--version is not handled by the app yet)"
+          sh install.sh --uninstall --prefix="$prefix" --bin-dir="$prefix/bin" --no-path-edit
+          test ! -e "$prefix"
+
+      - name: shellcheck (advisory)
+        run: |
+          sudo apt-get install -y --no-install-recommends shellcheck
+          shellcheck --shell=sh --severity=warning install.sh scripts/*.sh || true
+
+  # -----------------------------------------------------------------------------
+  # The real test matrix (CONTRACT §7: `.venv/bin/python -m pytest` must stay green).
+  # -----------------------------------------------------------------------------
+  test:
+    name: pytest ${{ matrix.python }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      # Qt's xcb platform plugin dlopen()s these at import time. Without them the tests
+      # fail with "could not load the Qt platform plugin xcb".
+      - name: Qt runtime libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 \
+            libgl1 \
+            libxkbcommon-x11-0 \
+            libdbus-1-3 \
+            libxcb-cursor0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-shape0 \
+            libxcb-xinerama0 \
+            libxcb-xkb1 \
+            libxkbcommon0 \
+            libfontconfig1 \
+            libfreetype6
+
+      - name: Install the project
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Tests
+        run: python -m pytest
+
+      - name: Tests, explicit -q and no cache
+        if: always()
+        run: python -m pytest -q --cache-clear
+
+      # The audio backend is a Qt plugin loaded through dlopen; a packaging mistake would
+      # otherwise only show up on a user's machine as "no audio output".
+      - name: QtMultimedia is importable
+        run: |
+          python - <<'PY'
+          from PySide6.QtMultimedia import QAudioSink, QMediaDevices  # noqa: F401
+          print("QtMultimedia backend is present")
+          PY
+
+  # -----------------------------------------------------------------------------
+  # Build artifact. Manual only: a release needs all four platforms, and PyInstaller
+  # cannot cross-compile, so each target runs on a runner of its own.
+  # -----------------------------------------------------------------------------
+  build-release:
+    name: pyinstaller ${{ matrix.target }}
+    if: github.event_name == 'workflow_dispatch'
+    needs: [test]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            os: ubuntu-latest
+            arch: x64
+          # macos-13 is Intel; macos-latest is Apple silicon.
+          - target: macos-x64
+            os: macos-13
+            arch: x64
+          - target: macos-arm64
+            os: macos-latest
+            arch: arm64
+          # No public arm64 Linux runner: build this one on a self-hosted x64 box with
+          # docker buildx + QEMU, or add a native arm64 runner.
+          - target: linux-arm64
+            os: ubuntu-latest
+            arch: arm64
+            continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Qt runtime libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libxkbcommon-x11-0 libdbus-1-3 libfontconfig1
+
+      - name: Install the project and PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]" pyinstaller
+
+      - name: Build
+        run: sh scripts/make_release.sh --target ${{ matrix.target }}
+
+      - name: Sanity-check the archive
+        run: |
+          set -eu
+          ls -la dist/
+          test -f dist/SHA256SUMS
+          # The archive must contain a runnable entry point plus the frequency data.
+          tar -tzf dist/*.tar.gz | head -40
+          tar -tzf dist/*.tar.gz | grep -q 'binaural/data/frequencies.json'
+
+      - name: Upload the artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaural-${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
+
+  # -----------------------------------------------------------------------------
+  # The installer is POSIX sh, so it must keep parsing on a strict shell too.
+  # -----------------------------------------------------------------------------
+  strict-posix:
+    name: install.sh under dash and ksh
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dash and ksh
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends dash ksh
+
+      - name: Parse and run under dash
+        run: |
+          dash -n install.sh
+          dash install.sh --version
+          dash install.sh --dry-run
+          dash install.sh --uninstall
+
+      - name: Parse and run under ksh
+        run: |
+          ksh -n install.sh
+          ksh install.sh --version
+          ksh install.sh --dry-run
+          ksh install.sh --uninstall

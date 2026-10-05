@@ -1,0 +1,1662 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "id": "brainwave",
+      "order": 1,
+      "icon": "🧠",
+      "color": "#7C3AED",
+      "label_en": "Brainwave Entrainment",
+      "label_ru": "Мозговые волны",
+      "description_en": "Entrainment by EEG brainwave band: Delta…Gamma ranges plus typical single values",
+      "description_ru": "Синхронизация по диапазонам мозговых волн: дельта…гамма и типовые значения"
+    },
+    {
+      "id": "schumann",
+      "order": 2,
+      "icon": "🌍",
+      "color": "#059669",
+      "label_en": "Schumann Resonance",
+      "label_ru": "Резонанс Шумана",
+      "description_en": "The 7.83 Hz Earth–ionosphere resonance and its overtones",
+      "description_ru": "Резонанс «Земля — ионосфера» 7,83 Гц и его обертоны"
+    },
+    {
+      "id": "planetary",
+      "order": 3,
+      "icon": "🪐",
+      "color": "#8B5CF6",
+      "label_en": "Planetary Frequencies",
+      "label_ru": "Планетарные частоты",
+      "description_en": "Tones attributed to Sun, Moon and planets in sound-healing and astroacoustic practice",
+      "description_ru": "Тоны Солнца, Луны и планет в звукотерапии и астроакустических практиках"
+    },
+    {
+      "id": "solfeggio",
+      "order": 4,
+      "icon": "🎵",
+      "color": "#A78BFA",
+      "label_en": "Solfeggio",
+      "label_ru": "Сольфеджио",
+      "description_en": "The nine-tone Solfeggio series 174…963 Hz with their attributed meanings",
+      "description_ru": "Девять тонов сольфеджио 174…963 Гц с приписываемыми значениями"
+    },
+    {
+      "id": "tuning",
+      "order": 5,
+      "icon": "🎼",
+      "color": "#0D9488",
+      "label_en": "Tuning & Reference",
+      "label_ru": "Тюнинг и эталоны",
+      "description_en": "Tuning references: 432 vs 440 Hz, the Om tone and the 111 Hz tone",
+      "description_ru": "Эталоны настройки: 432 против 440 Гц, тон «Ом» и тон 111 Гц"
+    },
+    {
+      "id": "research",
+      "order": 6,
+      "icon": "🔬",
+      "color": "#6C8EEF",
+      "label_en": "Research & Studies",
+      "label_ru": "Исследования",
+      "description_en": "Beats that are actual objects of peer-reviewed studies (gamma, alpha, theta, delta)",
+      "description_ru": "Биения, которые действительно изучаются: гамма, альфа, тета, дельта"
+    },
+    {
+      "id": "rife",
+      "order": 7,
+      "icon": "⚡",
+      "color": "#6D28D9",
+      "label_en": "Rife & Therapeutic",
+      "label_ru": "Частоты Райфа",
+      "description_en": "Numeric therapeutic frequencies attributed to Royal Rife, grouped by purpose",
+      "description_ru": "Терапевтические частоты, приписываемые Рою Райфу, сгруппированные по назначению"
+    },
+    {
+      "id": "nasa",
+      "order": 8,
+      "icon": "🚀",
+      "color": "#4F46E5",
+      "label_en": "Space & Consciousness",
+      "label_ru": "Космос и сознание",
+      "description_en": "Frequencies claimed by space-program and consciousness-oriented sources",
+      "description_ru": "Частоты, заявляемые источниками, связанными с космическими программами и сознанием"
+    },
+    {
+      "id": "healing",
+      "order": 9,
+      "icon": "✨",
+      "color": "#34D399",
+      "label_en": "Healing & Energy",
+      "label_ru": "Исцеление и энергетика",
+      "description_en": "Sound therapy and energy-medicine practices: tones, space harmonisation, grounding",
+      "description_ru": "Звукотерапия и энергетическая медицина: тоны, гармонизация пространства, заземление"
+    }
+  ],
+  "frequencies": [
+    {
+      "id": "brainwave-delta",
+      "category": "brainwave",
+      "label": "Delta 0.5–4 Hz",
+      "beat_min": 0.5,
+      "beat_max": 4.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Deep sleep without dreams; tissue repair, growth hormone release, immune support, deep physical restoration",
+      "effect_ru": "Глубокий сон без сновидений: восстановление тканей, выброс гормона роста, укрепление иммунитета, самовосстановление организма",
+      "evidence": "well-studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "delta",
+        "band",
+        "sleep",
+        "recovery"
+      ]
+    },
+    {
+      "id": "brainwave-theta",
+      "category": "brainwave",
+      "label": "Theta 4–8 Hz",
+      "beat_min": 4.0,
+      "beat_max": 8.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Meditation, REM sleep, hypnagogia; creativity, emotional processing, memory consolidation, deep relaxation, access to the subconscious",
+      "effect_ru": "Медитация, REM-сон, гипнагогия: креативность, эмоциональная переработка, консолидация памяти, глубокая релаксация, доступ к подсознанию",
+      "evidence": "well-studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "theta",
+        "band",
+        "meditation",
+        "memory"
+      ]
+    },
+    {
+      "id": "brainwave-alpha",
+      "category": "brainwave",
+      "label": "Alpha 8–13 Hz",
+      "beat_min": 8.0,
+      "beat_max": 13.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Relaxed alertness; stress reduction, flow state, sustained focus without tension, serotonin support, pre-sleep state",
+      "effect_ru": "Расслабленная бдительность: снижение стресса, «поток», сосредоточенность без напряжения, рост серотонина, состояние перед засыпанием",
+      "evidence": "well-studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "alpha",
+        "band",
+        "focus",
+        "relaxation"
+      ]
+    },
+    {
+      "id": "brainwave-beta",
+      "category": "brainwave",
+      "label": "Beta 13–30 Hz",
+      "beat_min": 13.0,
+      "beat_max": 30.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Active thinking; concentration, alertness, problem solving, energy. Prolonged high beta can raise anxiety and over-arousal",
+      "effect_ru": "Активное мышление: концентрация, бодрость, решение задач, энергия. Долгий высокий beta → тревожность, гипервозбуждение",
+      "evidence": "well-studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "beta",
+        "band",
+        "focus",
+        "energy"
+      ]
+    },
+    {
+      "id": "brainwave-gamma",
+      "category": "brainwave",
+      "label": "Gamma 30–100 Hz",
+      "beat_min": 30.0,
+      "beat_max": 100.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Higher cognitive processing; binding perception into a single whole, insight, memory retrieval, sharper awareness. 40 Hz is studied in neurodegeneration research",
+      "effect_ru": "Высшая когнитивная обработка: «сшивание» восприятия в единое целое, инсайт, извлечение памяти, обострение восприятия. 40 Гц изучается в исследованиях болезни Альцгеймера (нейросенсорная стимуляция)",
+      "evidence": "well-studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "gamma",
+        "band",
+        "cognition",
+        "research"
+      ]
+    },
+    {
+      "id": "brainwave-1-94",
+      "category": "brainwave",
+      "label": "Delta 1.94 Hz",
+      "beat_hz": 1.94,
+      "carrier_hz": 200.0,
+      "effect_en": "Deep-sleep point value of the delta band; physical restoration and growth hormone release",
+      "effect_ru": "Типовое значение дельта-диапазона для глубокого сна: восстановление организма, выброс гормона роста",
+      "evidence": "studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "delta",
+        "sleep",
+        "recovery"
+      ]
+    },
+    {
+      "id": "brainwave-4",
+      "category": "brainwave",
+      "label": "Theta 4 Hz",
+      "beat_hz": 4.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Theta entry point; meditation onset, hypnagogia, memory consolidation",
+      "effect_ru": "Нижняя граница тета: вход в медитацию, гипнагогия, консолидация памяти",
+      "evidence": "studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "theta",
+        "meditation",
+        "memory"
+      ]
+    },
+    {
+      "id": "brainwave-10",
+      "category": "brainwave",
+      "label": "Alpha 10 Hz",
+      "beat_hz": 10.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Relaxed alertness, calm focus, stress reduction — the most used alpha point value",
+      "effect_ru": "Расслабленная бдительность, спокойная концентрация, снижение стресса — самое применяемое значение в альфа-диапазоне",
+      "evidence": "well-studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "alpha",
+        "focus",
+        "relaxation"
+      ]
+    },
+    {
+      "id": "brainwave-12",
+      "category": "brainwave",
+      "label": "Alpha 12 Hz",
+      "beat_hz": 12.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Upper alpha band; meditative absorption, drowsiness, pre-sleep state",
+      "effect_ru": "Верхняя граница альфы: медитативное поглощение, сонливость, предзасыпание",
+      "evidence": "studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "alpha",
+        "meditation",
+        "sleep"
+      ]
+    },
+    {
+      "id": "brainwave-14",
+      "category": "brainwave",
+      "label": "Beta 14 Hz",
+      "beat_hz": 14.0,
+      "carrier_hz": 200.0,
+      "effect_en": "First step into the beta band; light alertness, active thinking onset",
+      "effect_ru": "Первый шаг в бета-диапазон: лёгкая бодрость, вход в активное мышление",
+      "evidence": "studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "beta",
+        "focus",
+        "energy"
+      ]
+    },
+    {
+      "id": "brainwave-20",
+      "category": "brainwave",
+      "label": "Beta 20 Hz",
+      "beat_hz": 20.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Active thinking; concentration, alertness, task solving. Long exposure may raise physiological arousal",
+      "effect_ru": "Активное мышление: концентрация, бодрость, решение задач. Длительная экспозиция может повышать физиологическое возбуждение",
+      "evidence": "well-studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "beta",
+        "focus",
+        "energy"
+      ]
+    },
+    {
+      "id": "brainwave-40",
+      "category": "brainwave",
+      "label": "Gamma 40 Hz",
+      "beat_hz": 40.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Gamma point value used in sensory-neural stimulation research on neurodegeneration",
+      "effect_ru": "Значение гамма-диапазона, используемое в исследованиях нейросенсорной стимуляции при нейродегенерации",
+      "evidence": "well-studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "gamma",
+        "research",
+        "cognition"
+      ]
+    },
+    {
+      "id": "schumann-7-83",
+      "category": "schumann",
+      "label": "Schumann 7.83 Hz",
+      "beat_hz": 7.83,
+      "carrier_hz": 200.0,
+      "effect_en": "Fundamental Earth–ionosphere resonance; attributed sense of grounding, balance, normalisation of biorhythms",
+      "effect_ru": "Основной резонанс «Земля — ионосфера»; приписываемое ощущение заземления, уравновешенность, нормализация биоритмов",
+      "evidence": "studied",
+      "source": "Schumann resonance measurements (see docs/SPEC.md §6.4); human effects are reported only",
+      "tags": [
+        "schumann",
+        "grounding",
+        "earth"
+      ]
+    },
+    {
+      "id": "schumann-14-3",
+      "category": "schumann",
+      "label": "Schumann 14.3 Hz",
+      "beat_hz": 14.3,
+      "carrier_hz": 200.0,
+      "effect_en": "First overtone of the Schumann resonance; grounding and a sense of orientation",
+      "effect_ru": "первый обертон резонанса Шумана: заземление и ощущение ориентации",
+      "evidence": "reported",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "schumann",
+        "overtone",
+        "grounding"
+      ]
+    },
+    {
+      "id": "schumann-20-8",
+      "category": "schumann",
+      "label": "Schumann 20.8 Hz",
+      "beat_hz": 20.8,
+      "carrier_hz": 200.0,
+      "effect_en": "Second overtone of the Schumann resonance; grounding and a sense of orientation",
+      "effect_ru": "второй обертон резонанса Шумана: заземление и ощущение ориентации",
+      "evidence": "reported",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "schumann",
+        "overtone",
+        "grounding"
+      ]
+    },
+    {
+      "id": "schumann-27-3",
+      "category": "schumann",
+      "label": "Schumann 27.3 Hz",
+      "beat_hz": 27.3,
+      "carrier_hz": 200.0,
+      "effect_en": "Third overtone of the Schumann resonance; grounding and a sense of orientation",
+      "effect_ru": "третий обертон резонанса Шумана: заземление и ощущение ориентации",
+      "evidence": "reported",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "schumann",
+        "overtone",
+        "grounding"
+      ]
+    },
+    {
+      "id": "schumann-33-8",
+      "category": "schumann",
+      "label": "Schumann 33.8 Hz",
+      "beat_hz": 33.8,
+      "carrier_hz": 200.0,
+      "effect_en": "Fourth overtone of the Schumann resonance; grounding and a sense of orientation",
+      "effect_ru": "четвёртый обертон резонанса Шумана: заземление и ощущение ориентации",
+      "evidence": "reported",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "schumann",
+        "overtone",
+        "grounding"
+      ]
+    },
+    {
+      "id": "planetary-sun",
+      "category": "planetary",
+      "label": "Sun 126.22 Hz",
+      "beat_hz": 126.22,
+      "carrier_hz": 200.0,
+      "effect_en": "Tone attributed to Sun: support, wholeness, confidence",
+      "effect_ru": "Тон, приписываемый планете Солнце: опора, целостность, уверенность",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "astroacoustic",
+        "sun"
+      ]
+    },
+    {
+      "id": "planetary-moon",
+      "category": "planetary",
+      "label": "Moon 210.42 Hz",
+      "beat_hz": 210.42,
+      "carrier_hz": 200.0,
+      "effect_en": "Tone attributed to Moon: emotions, intuition, the feminine principle",
+      "effect_ru": "Тон, приписываемый планете Луна: эмоции, интуиция, женское начало",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "astroacoustic",
+        "moon"
+      ]
+    },
+    {
+      "id": "planetary-mercury",
+      "category": "planetary",
+      "label": "Mercury 141.27 Hz",
+      "beat_hz": 141.27,
+      "carrier_hz": 200.0,
+      "effect_en": "Tone attributed to Mercury: speech, communication, analytics",
+      "effect_ru": "Тон, приписываемый планете Меркурий: речь, коммуникация, аналитика",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "astroacoustic",
+        "mercury"
+      ]
+    },
+    {
+      "id": "planetary-venus",
+      "category": "planetary",
+      "label": "Venus 221.23 Hz",
+      "beat_hz": 221.23,
+      "carrier_hz": 200.0,
+      "effect_en": "Tone attributed to Venus: harmony, relationships, love",
+      "effect_ru": "Тон, приписываемый планете Венера: гармония, отношения, любовь",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "astroacoustic",
+        "venus"
+      ]
+    },
+    {
+      "id": "planetary-mars",
+      "category": "planetary",
+      "label": "Mars 144.72 Hz",
+      "beat_hz": 144.72,
+      "carrier_hz": 200.0,
+      "effect_en": "Tone attributed to Mars: will, action, energy",
+      "effect_ru": "Тон, приписываемый планете Марс: воля, действие, энергия",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "astroacoustic",
+        "mars"
+      ]
+    },
+    {
+      "id": "planetary-jupiter",
+      "category": "planetary",
+      "label": "Jupiter 183.58 Hz",
+      "beat_hz": 183.58,
+      "carrier_hz": 200.0,
+      "effect_en": "Tone attributed to Jupiter: growth, abundance, expansion",
+      "effect_ru": "Тон, приписываемый планете Юпитер: рост, изобилие, расширение",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "astroacoustic",
+        "jupiter"
+      ]
+    },
+    {
+      "id": "planetary-saturn",
+      "category": "planetary",
+      "label": "Saturn 147.85 Hz",
+      "beat_hz": 147.85,
+      "carrier_hz": 200.0,
+      "effect_en": "Tone attributed to Saturn: discipline, structure, boundaries",
+      "effect_ru": "Тон, приписываемый планете Сатурн: дисциплина, структура, границы",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "astroacoustic",
+        "saturn"
+      ]
+    },
+    {
+      "id": "planetary-neptune",
+      "category": "planetary",
+      "label": "Neptune 211.44 Hz",
+      "beat_hz": 211.44,
+      "carrier_hz": 200.0,
+      "effect_en": "Tone attributed to Neptune: dreams, spirituality, dissolution",
+      "effect_ru": "Тон, приписываемый планете Нептун: мечты, духовность, растворение",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "astroacoustic",
+        "neptune"
+      ]
+    },
+    {
+      "id": "planetary-pluto",
+      "category": "planetary",
+      "label": "Pluto 144.25 Hz",
+      "beat_hz": 144.25,
+      "carrier_hz": 200.0,
+      "effect_en": "Tone attributed to Pluto: transformation, depth",
+      "effect_ru": "Тон, приписываемый планете Плутон: трансформация, глубина",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "astroacoustic",
+        "pluto"
+      ]
+    },
+    {
+      "id": "planetary-earth",
+      "category": "planetary",
+      "label": "Earth 194.18 Hz",
+      "beat_hz": 194.18,
+      "carrier_hz": 200.0,
+      "effect_en": "Tone attributed to Earth: grounding, stability",
+      "effect_ru": "Тон, приписываемый планете Земля: заземление, устойчивость",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "astroacoustic",
+        "earth"
+      ]
+    },
+    {
+      "id": "solfeggio-174",
+      "category": "solfeggio",
+      "label": "174 Hz — Foundation",
+      "beat_hz": 174.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Foundation: pain relief, a sense of safety, deep relaxation",
+      "effect_ru": "Основа: обезболивание, ощущение безопасности, глубокое расслабление",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "solfeggio",
+        "pain",
+        "safety"
+      ]
+    },
+    {
+      "id": "solfeggio-285",
+      "category": "solfeggio",
+      "label": "285 Hz — Regeneration",
+      "beat_hz": 285.0,
+      "carrier_hz": 285.0,
+      "effect_en": "Regeneration: tissue regeneration, healing",
+      "effect_ru": "Восстановление: регенерация тканей, заживление",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "solfeggio",
+        "healing",
+        "regeneration"
+      ]
+    },
+    {
+      "id": "solfeggio-396",
+      "category": "solfeggio",
+      "label": "396 Hz — Release",
+      "beat_hz": 396.0,
+      "carrier_hz": 396.0,
+      "effect_en": "Release: letting go of guilt and fear",
+      "effect_ru": "Освобождение: снятие вины и страха",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "solfeggio",
+        "release",
+        "emotional"
+      ]
+    },
+    {
+      "id": "solfeggio-417",
+      "category": "solfeggio",
+      "label": "417 Hz — Change",
+      "beat_hz": 417.0,
+      "carrier_hz": 417.0,
+      "effect_en": "Change: untying stuck situations, making change easier",
+      "effect_ru": "Изменение: разрешение застрявших ситуаций, облегчение перемен",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "solfeggio",
+        "change",
+        "transition"
+      ]
+    },
+    {
+      "id": "solfeggio-528",
+      "category": "solfeggio",
+      "label": "528 Hz — Miracles / Transformation",
+      "beat_hz": 528.0,
+      "carrier_hz": 528.0,
+      "effect_en": "Miracles / Transformation: transformation, claimed “DNA repair”, energy increase",
+      "effect_ru": "Чудеса / трансформация: преобразование, «ремонт ДНК» (заявляется), повышение энергии",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "solfeggio",
+        "transformation",
+        "dna"
+      ]
+    },
+    {
+      "id": "solfeggio-639",
+      "category": "solfeggio",
+      "label": "639 Hz — Connections",
+      "beat_hz": 639.0,
+      "carrier_hz": 639.0,
+      "effect_en": "Connections: harmonising relationships, mutual understanding",
+      "effect_ru": "Связи: гармонизация отношений, взаимопонимание",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "solfeggio",
+        "relationships",
+        "harmony"
+      ]
+    },
+    {
+      "id": "solfeggio-741",
+      "category": "solfeggio",
+      "label": "741 Hz — Expression",
+      "beat_hz": 741.0,
+      "carrier_hz": 741.0,
+      "effect_en": "Expression: purity of consciousness, finding solutions, cleansing",
+      "effect_ru": "Выражение: чистота сознания, поиск решений, очищение",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "solfeggio",
+        "expression",
+        "solutions"
+      ]
+    },
+    {
+      "id": "solfeggio-852",
+      "category": "solfeggio",
+      "label": "852 Hz — Order",
+      "beat_hz": 852.0,
+      "carrier_hz": 852.0,
+      "effect_en": "Order: intuition, return to spiritual order",
+      "effect_ru": "Порядок: интуиция, возврат к духовному порядку",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "solfeggio",
+        "order",
+        "intuition"
+      ]
+    },
+    {
+      "id": "solfeggio-963",
+      "category": "solfeggio",
+      "label": "963 Hz — Oneness",
+      "beat_hz": 963.0,
+      "carrier_hz": 963.0,
+      "effect_en": "Oneness: divine consciousness, illumination",
+      "effect_ru": "Единство: божественное сознание, озарение",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "solfeggio",
+        "oneness",
+        "consciousness"
+      ]
+    },
+    {
+      "id": "tuning-432",
+      "category": "tuning",
+      "label": "432 Hz — natural tuning",
+      "beat_hz": 432.0,
+      "carrier_hz": 432.0,
+      "effect_en": "Alternative to the ISO 440 reference; attributed gentleness, relaxation, “oneness with nature”",
+      "effect_ru": "Альтернатива эталону ISO 440; приписываются мягкость, расслабленность, «согласованность с природой»",
+      "evidence": "reported",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "reference",
+        "432"
+      ]
+    },
+    {
+      "id": "tuning-440",
+      "category": "tuning",
+      "label": "440 Hz — ISO 16 reference",
+      "beat_hz": 440.0,
+      "carrier_hz": 440.0,
+      "effect_en": "The international standard tuning reference for A4; a neutral pitch, not a therapeutic claim",
+      "effect_ru": "Международный стандарт настройки для ноты A4; нейтральный эталон, а не терапевтическое заявление",
+      "evidence": "studied",
+      "source": "ISO 16 standard tuning reference (A4 = 440 Hz)",
+      "tags": [
+        "tonal",
+        "reference",
+        "iso16"
+      ]
+    },
+    {
+      "id": "tuning-417",
+      "category": "tuning",
+      "label": "417 Hz — Solfeggio tone",
+      "beat_hz": 417.0,
+      "carrier_hz": 417.0,
+      "effect_en": "Solfeggio tone and pitch; attributed to untying stuck situations and easing change (see the Solfeggio category)",
+      "effect_ru": "Тон сольфеджио и нота; приписывается разрешению застрявших ситуаций и облегчению перемен (см. категорию «Сольфеджио»)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "reference",
+        "solfeggio"
+      ]
+    },
+    {
+      "id": "tuning-136-1",
+      "category": "tuning",
+      "label": "136.1 Hz — Om tone",
+      "beat_hz": 136.1,
+      "carrier_hz": 200.0,
+      "effect_en": "The “Om” tone, used as a year-of-the-Earth base; meditative ground, stability",
+      "effect_ru": "Тон «Ом», используемый как основа года Земли; медитативная база, устойчивость",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "reference",
+        "om"
+      ]
+    },
+    {
+      "id": "tuning-111",
+      "category": "tuning",
+      "label": "111 Hz — sacred frequency",
+      "beat_hz": 111.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Attributed activation and a sense of space opening up",
+      "effect_ru": "Приписывается активация и ощущение раскрытия пространства",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "tonal",
+        "reference",
+        "activation"
+      ]
+    },
+    {
+      "id": "research-40",
+      "category": "research",
+      "label": "40 Hz — gamma entrainment",
+      "beat_hz": 40.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Gamma stimulation; a subject of neurodegeneration research (sensory-neural stimulation) and of attention studies",
+      "effect_ru": "Гамма-стимуляция: объект исследований нейродегенерации (нейросенсорная стимуляция) и исследований внимания",
+      "evidence": "well-studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "gamma",
+        "research",
+        "attention"
+      ]
+    },
+    {
+      "id": "research-10",
+      "category": "research",
+      "label": "10 Hz — alpha entrainment",
+      "beat_hz": 10.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Alpha entrainment; among the most studied beats, used for relaxation and sustained attention",
+      "effect_ru": "Альфа-энтрейнмент; одно из самых изученных биений, применяется для релаксации и устойчивого внимания",
+      "evidence": "well-studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "alpha",
+        "research",
+        "attention"
+      ]
+    },
+    {
+      "id": "research-4",
+      "category": "research",
+      "label": "4 Hz — theta entrainment",
+      "beat_hz": 4.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Theta entrainment; applied in sleep and meditation studies",
+      "effect_ru": "Тета-энтрейнмент; применяется в исследованиях сна и медитации",
+      "evidence": "studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "theta",
+        "research",
+        "meditation"
+      ]
+    },
+    {
+      "id": "research-2",
+      "category": "research",
+      "label": "2 Hz — delta entrainment",
+      "beat_hz": 2.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Delta entrainment; low-frequency work in sleep studies",
+      "effect_ru": "Дельта-энтрейнмент; низкочастотные работы в исследованиях сна",
+      "evidence": "studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "delta",
+        "research",
+        "sleep"
+      ]
+    },
+    {
+      "id": "rife-72",
+      "category": "rife",
+      "label": "Rife 72 Hz",
+      "beat_hz": 72.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's infection sets as an antibacterial / antiviral frequency (foundation antibacterial tone)",
+      "effect_ru": "Приписывается Райфом в наборы для инфекций как антибактериальная / противовирусная (foundation antibacterial tone)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "infection"
+      ]
+    },
+    {
+      "id": "rife-76",
+      "category": "rife",
+      "label": "Rife 76 Hz",
+      "beat_hz": 76.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's infection sets as an antibacterial / antiviral frequency (general infection set)",
+      "effect_ru": "Приписывается Райфом в наборы для инфекций как антибактериальная / противовирусная (general infection set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "infection"
+      ]
+    },
+    {
+      "id": "rife-80",
+      "category": "rife",
+      "label": "Rife 80 Hz",
+      "beat_hz": 80.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's infection sets as an antibacterial / antiviral frequency (microbial set)",
+      "effect_ru": "Приписывается Райфом в наборы для инфекций как антибактериальная / противовирусная (microbial set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "infection"
+      ]
+    },
+    {
+      "id": "rife-83",
+      "category": "rife",
+      "label": "Rife 83 Hz",
+      "beat_hz": 83.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's infection sets as an antibacterial / antiviral frequency (microbial set)",
+      "effect_ru": "Приписывается Райфом в наборы для инфекций как антибактериальная / противовирусная (microbial set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "infection"
+      ]
+    },
+    {
+      "id": "rife-87",
+      "category": "rife",
+      "label": "Rife 87 Hz",
+      "beat_hz": 87.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's infection sets as an antibacterial / antiviral frequency (general bacterial set)",
+      "effect_ru": "Приписывается Райфом в наборы для инфекций как антибактериальная / противовирусная (general bacterial set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "infection"
+      ]
+    },
+    {
+      "id": "rife-100",
+      "category": "rife",
+      "label": "Rife 100 Hz",
+      "beat_hz": 100.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's infection sets as an antibacterial / antiviral frequency (broad infection set)",
+      "effect_ru": "Приписывается Райфом в наборы для инфекций как антибактериальная / противовирусная (broad infection set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "infection"
+      ]
+    },
+    {
+      "id": "rife-101",
+      "category": "rife",
+      "label": "Rife 101 Hz",
+      "beat_hz": 101.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's infection sets as an antibacterial / antiviral frequency (broad infection set)",
+      "effect_ru": "Приписывается Райфом в наборы для инфекций как антибактериальная / противовирусная (broad infection set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "infection"
+      ]
+    },
+    {
+      "id": "rife-105",
+      "category": "rife",
+      "label": "Rife 105 Hz",
+      "beat_hz": 105.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's infection sets as an antibacterial / antiviral frequency (bacterial set)",
+      "effect_ru": "Приписывается Райфом в наборы для инфекций как антибактериальная / противовирусная (bacterial set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "infection"
+      ]
+    },
+    {
+      "id": "rife-115",
+      "category": "rife",
+      "label": "Rife 115 Hz",
+      "beat_hz": 115.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's infection sets as an antibacterial / antiviral frequency (fungal and yeast set)",
+      "effect_ru": "Приписывается Райфом в наборы для инфекций как антибактериальная / противовирусная (fungal and yeast set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "infection"
+      ]
+    },
+    {
+      "id": "rife-120",
+      "category": "rife",
+      "label": "Rife 120 Hz",
+      "beat_hz": 120.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's infection sets as an antibacterial / antiviral frequency (broad-spectrum infection set)",
+      "effect_ru": "Приписывается Райфом в наборы для инфекций как антибактериальная / противовирусная (broad-spectrum infection set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "infection"
+      ]
+    },
+    {
+      "id": "rife-127",
+      "category": "rife",
+      "label": "Rife 127 Hz",
+      "beat_hz": 127.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's infection sets as an antibacterial / antiviral frequency (viral set)",
+      "effect_ru": "Приписывается Райфом в наборы для инфекций как антибактериальная / противовирусная (viral set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "infection"
+      ]
+    },
+    {
+      "id": "rife-140",
+      "category": "rife",
+      "label": "Rife 140 Hz",
+      "beat_hz": 140.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's infection sets as an antibacterial / antiviral frequency (viral and infection set)",
+      "effect_ru": "Приписывается Райфом в наборы для инфекций как антибактериальная / противовирусная (viral and infection set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "infection"
+      ]
+    },
+    {
+      "id": "rife-152",
+      "category": "rife",
+      "label": "Rife 152 Hz",
+      "beat_hz": 152.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's inflammation sets as an anti-inflammatory frequency (general inflammation set)",
+      "effect_ru": "Приписывается Райфом в наборы для воспалений как противовоспалительная (general inflammation set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "inflammation"
+      ]
+    },
+    {
+      "id": "rife-155",
+      "category": "rife",
+      "label": "Rife 155 Hz",
+      "beat_hz": 155.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's inflammation sets as an anti-inflammatory frequency (inflammation and swelling set)",
+      "effect_ru": "Приписывается Райфом в наборы для воспалений как противовоспалительная (inflammation and swelling set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "inflammation"
+      ]
+    },
+    {
+      "id": "rife-160",
+      "category": "rife",
+      "label": "Rife 160 Hz",
+      "beat_hz": 160.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's inflammation sets as an anti-inflammatory frequency (inflammation of soft tissue set)",
+      "effect_ru": "Приписывается Райфом в наборы для воспалений как противовоспалительная (inflammation of soft tissue set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "inflammation"
+      ]
+    },
+    {
+      "id": "rife-165",
+      "category": "rife",
+      "label": "Rife 165 Hz",
+      "beat_hz": 165.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's inflammation sets as an anti-inflammatory frequency (chronic inflammation set)",
+      "effect_ru": "Приписывается Райфом в наборы для воспалений как противовоспалительная (chronic inflammation set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "inflammation"
+      ]
+    },
+    {
+      "id": "rife-212",
+      "category": "rife",
+      "label": "Rife 212 Hz",
+      "beat_hz": 212.0,
+      "carrier_hz": 212.0,
+      "effect_en": "Listed in Rife's inflammation sets as an anti-inflammatory frequency (inflammation set)",
+      "effect_ru": "Приписывается Райфом в наборы для воспалений как противовоспалительная (inflammation set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "inflammation"
+      ]
+    },
+    {
+      "id": "rife-230",
+      "category": "rife",
+      "label": "Rife 230 Hz",
+      "beat_hz": 230.0,
+      "carrier_hz": 230.0,
+      "effect_en": "Listed in Rife's inflammation sets as an anti-inflammatory frequency (inflammatory process set)",
+      "effect_ru": "Приписывается Райфом в наборы для воспалений как противовоспалительная (inflammatory process set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "inflammation"
+      ]
+    },
+    {
+      "id": "rife-174",
+      "category": "rife",
+      "label": "Rife 174 Hz",
+      "beat_hz": 174.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's pain sets as an analgesic frequency (general analgesic set)",
+      "effect_ru": "Приписывается Райфом в наборы для боли как обезболивающая (general analgesic set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "pain"
+      ]
+    },
+    {
+      "id": "rife-176",
+      "category": "rife",
+      "label": "Rife 176 Hz",
+      "beat_hz": 176.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's pain sets as an analgesic frequency (pain and discomfort set)",
+      "effect_ru": "Приписывается Райфом в наборы для боли как обезболивающая (pain and discomfort set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "pain"
+      ]
+    },
+    {
+      "id": "rife-180",
+      "category": "rife",
+      "label": "Rife 180 Hz",
+      "beat_hz": 180.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's pain sets as an analgesic frequency (pain and tension set)",
+      "effect_ru": "Приписывается Райфом в наборы для боли как обезболивающая (pain and tension set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "pain"
+      ]
+    },
+    {
+      "id": "rife-190",
+      "category": "rife",
+      "label": "Rife 190 Hz",
+      "beat_hz": 190.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's pain sets as an analgesic frequency (pain relief set)",
+      "effect_ru": "Приписывается Райфом в наборы для боли как обезболивающая (pain relief set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "pain"
+      ]
+    },
+    {
+      "id": "rife-200",
+      "category": "rife",
+      "label": "Rife 200 Hz",
+      "beat_hz": 200.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's pain sets as an analgesic frequency (pain and inflammation set)",
+      "effect_ru": "Приписывается Райфом в наборы для боли как обезболивающая (pain and inflammation set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "pain"
+      ]
+    },
+    {
+      "id": "rife-250",
+      "category": "rife",
+      "label": "Rife 250 Hz",
+      "beat_hz": 250.0,
+      "carrier_hz": 250.0,
+      "effect_en": "Listed in Rife's pain sets as an analgesic frequency (recovery and pain set)",
+      "effect_ru": "Приписывается Райфом в наборы для боли как обезболивающая (recovery and pain set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "pain"
+      ]
+    },
+    {
+      "id": "rife-141",
+      "category": "rife",
+      "label": "Rife 141 Hz",
+      "beat_hz": 141.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's nervous-system sets as a calming / support frequency (nervous system calming set)",
+      "effect_ru": "Приписывается Райфом в наборы для нервной системы как успокаивающая / поддерживающая (nervous system calming set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "nervous"
+      ]
+    },
+    {
+      "id": "rife-144",
+      "category": "rife",
+      "label": "Rife 144 Hz",
+      "beat_hz": 144.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's nervous-system sets as a calming / support frequency (nervous tension set)",
+      "effect_ru": "Приписывается Райфом в наборы для нервной системы как успокаивающая / поддерживающая (nervous tension set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "nervous"
+      ]
+    },
+    {
+      "id": "rife-148",
+      "category": "rife",
+      "label": "Rife 148 Hz",
+      "beat_hz": 148.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's nervous-system sets as a calming / support frequency (nervous system support set)",
+      "effect_ru": "Приписывается Райфом в наборы для нервной системы как успокаивающая / поддерживающая (nervous system support set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "nervous"
+      ]
+    },
+    {
+      "id": "rife-154",
+      "category": "rife",
+      "label": "Rife 154 Hz",
+      "beat_hz": 154.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's nervous-system sets as a calming / support frequency (fatigue and nerves set)",
+      "effect_ru": "Приписывается Райфом в наборы для нервной системы как успокаивающая / поддерживающая (fatigue and nerves set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "nervous"
+      ]
+    },
+    {
+      "id": "rife-186",
+      "category": "rife",
+      "label": "Rife 186 Hz",
+      "beat_hz": 186.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's nervous-system sets as a calming / support frequency (nervous tension set)",
+      "effect_ru": "Приписывается Райфом в наборы для нервной системы как успокаивающая / поддерживающая (nervous tension set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "nervous"
+      ]
+    },
+    {
+      "id": "rife-204",
+      "category": "rife",
+      "label": "Rife 204 Hz",
+      "beat_hz": 204.0,
+      "carrier_hz": 204.0,
+      "effect_en": "Listed in Rife's nervous-system sets as a calming / support frequency (nervous system support set)",
+      "effect_ru": "Приписывается Райфом в наборы для нервной системы как успокаивающая / поддерживающая (nervous system support set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "nervous"
+      ]
+    },
+    {
+      "id": "rife-156",
+      "category": "rife",
+      "label": "Rife 156 Hz",
+      "beat_hz": 156.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's emotional sets as a mood / stress balance frequency (emotional balance set)",
+      "effect_ru": "Приписывается Райфом в наборы для эмоций как балансирующая настроение и стресс (emotional balance set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "emotional"
+      ]
+    },
+    {
+      "id": "rife-192",
+      "category": "rife",
+      "label": "Rife 192 Hz",
+      "beat_hz": 192.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's emotional sets as a mood / stress balance frequency (emotional release set)",
+      "effect_ru": "Приписывается Райфом в наборы для эмоций как балансирующая настроение и стресс (emotional release set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "emotional"
+      ]
+    },
+    {
+      "id": "rife-198",
+      "category": "rife",
+      "label": "Rife 198 Hz",
+      "beat_hz": 198.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Listed in Rife's emotional sets as a mood / stress balance frequency (stress and mood set)",
+      "effect_ru": "Приписывается Райфом в наборы для эмоций как балансирующая настроение и стресс (stress and mood set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "emotional"
+      ]
+    },
+    {
+      "id": "rife-210",
+      "category": "rife",
+      "label": "Rife 210 Hz",
+      "beat_hz": 210.0,
+      "carrier_hz": 210.0,
+      "effect_en": "Listed in Rife's emotional sets as a mood / stress balance frequency (harmony and mood set)",
+      "effect_ru": "Приписывается Райфом в наборы для эмоций как балансирующая настроение и стресс (harmony and mood set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "emotional"
+      ]
+    },
+    {
+      "id": "rife-226",
+      "category": "rife",
+      "label": "Rife 226 Hz",
+      "beat_hz": 226.0,
+      "carrier_hz": 226.0,
+      "effect_en": "Listed in Rife's emotional sets as a mood / stress balance frequency (fear and anxiety set)",
+      "effect_ru": "Приписывается Райфом в наборы для эмоций как балансирующая настроение и стресс (fear and anxiety set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "emotional"
+      ]
+    },
+    {
+      "id": "rife-216",
+      "category": "rife",
+      "label": "Rife 216 Hz",
+      "beat_hz": 216.0,
+      "carrier_hz": 216.0,
+      "effect_en": "Listed in Rife's general support sets as a vitality / tone frequency (general vitality set)",
+      "effect_ru": "Приписывается Райфом в общие наборы как тонизирующая / поддерживающая (general vitality set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "other"
+      ]
+    },
+    {
+      "id": "rife-222",
+      "category": "rife",
+      "label": "Rife 222 Hz",
+      "beat_hz": 222.0,
+      "carrier_hz": 222.0,
+      "effect_en": "Listed in Rife's general support sets as a vitality / tone frequency (circulation and vitality set)",
+      "effect_ru": "Приписывается Райфом в общие наборы как тонизирующая / поддерживающая (circulation and vitality set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "other"
+      ]
+    },
+    {
+      "id": "rife-240",
+      "category": "rife",
+      "label": "Rife 240 Hz",
+      "beat_hz": 240.0,
+      "carrier_hz": 240.0,
+      "effect_en": "Listed in Rife's general support sets as a vitality / tone frequency (tissue and vitality set)",
+      "effect_ru": "Приписывается Райфом в общие наборы как тонизирующая / поддерживающая (tissue and vitality set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "other"
+      ]
+    },
+    {
+      "id": "rife-244",
+      "category": "rife",
+      "label": "Rife 244 Hz",
+      "beat_hz": 244.0,
+      "carrier_hz": 244.0,
+      "effect_en": "Listed in Rife's general support sets as a vitality / tone frequency (general support set)",
+      "effect_ru": "Приписывается Райфом в общие наборы как тонизирующая / поддерживающая (general support set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "other"
+      ]
+    },
+    {
+      "id": "rife-260",
+      "category": "rife",
+      "label": "Rife 260 Hz",
+      "beat_hz": 260.0,
+      "carrier_hz": 260.0,
+      "effect_en": "Listed in Rife's general support sets as a vitality / tone frequency (detoxification set)",
+      "effect_ru": "Приписывается Райфом в общие наборы как тонизирующая / поддерживающая (detoxification set)",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "rife",
+        "other"
+      ]
+    },
+    {
+      "id": "nasa-432",
+      "category": "nasa",
+      "label": "432 Hz — claimed natural / space tuning",
+      "beat_hz": 432.0,
+      "carrier_hz": 432.0,
+      "effect_en": "Circulated as a “natural”, space-approved tuning for meditation and grounding; the approval claim itself is unverified",
+      "effect_ru": "Распространяется как «естественная», одобренная космической программой настройка для медитации и заземления; само заявление об одобрении не подтверждено",
+      "evidence": "reported",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "nasa",
+        "claimed",
+        "tonal"
+      ]
+    },
+    {
+      "id": "nasa-528",
+      "category": "nasa",
+      "label": "528 Hz — claimed consciousness tone",
+      "beat_hz": 528.0,
+      "carrier_hz": 528.0,
+      "effect_en": "Circulated as a consciousness and DNA-repair tone in space-oriented sources; no clinical support",
+      "effect_ru": "Распространяется как тон сознания и «ремонта ДНК» в источниках, связанных с космосом; клинической поддержки нет",
+      "evidence": "reported",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "nasa",
+        "claimed",
+        "tonal",
+        "consciousness"
+      ]
+    },
+    {
+      "id": "nasa-40",
+      "category": "nasa",
+      "label": "40 Hz — gamma, attention and consciousness research",
+      "beat_hz": 40.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Gamma entrainment; investigated for attention and for sensory-neural stimulation in neurodegeneration",
+      "effect_ru": "Гамма-энтрейнмент: исследуется для внимания и нейросенсорной стимуляции при нейродегенерации",
+      "evidence": "well-studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "nasa",
+        "gamma",
+        "attention",
+        "consciousness"
+      ]
+    },
+    {
+      "id": "nasa-10",
+      "category": "nasa",
+      "label": "10 Hz — alpha, alertness in demanding conditions",
+      "beat_hz": 10.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Alpha entrainment; studied for sustained alertness, attention and performance under load",
+      "effect_ru": "Альфа-энтрейнмент: изучается для устойчивой бдительности, внимания и работоспособности при нагрузке",
+      "evidence": "well-studied",
+      "source": "Peer-reviewed EEG literature (see docs/SPEC.md §2.1)",
+      "tags": [
+        "nasa",
+        "alpha",
+        "alertness"
+      ]
+    },
+    {
+      "id": "nasa-7-83",
+      "category": "nasa",
+      "label": "7.83 Hz — Earth resonance in space environments",
+      "beat_hz": 7.83,
+      "carrier_hz": 200.0,
+      "effect_en": "The Schumann resonance, used in space-oriented material as a grounding tone away from the ground reference",
+      "effect_ru": "Резонанс Шумана: в космических материалах используется как заземляющий тон в отсутствие земной опоры",
+      "evidence": "reported",
+      "source": "Schumann resonance measurements (see docs/SPEC.md §6.4); human effects are reported only",
+      "tags": [
+        "nasa",
+        "schumann",
+        "grounding"
+      ]
+    },
+    {
+      "id": "nasa-136-1",
+      "category": "nasa",
+      "label": "136.1 Hz — Om tone as a meditative anchor",
+      "beat_hz": 136.1,
+      "carrier_hz": 200.0,
+      "effect_en": "The “Om” tone; used in practice as an anchor for orientation and meditation in unfamiliar surroundings",
+      "effect_ru": "Тон «Ом»: в практиках используется как якорь для ориентации и медитации в непривычной обстановке",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "nasa",
+        "tonal",
+        "meditation"
+      ]
+    },
+    {
+      "id": "nasa-111",
+      "category": "nasa",
+      "label": "111 Hz — activation and spaciousness",
+      "beat_hz": 111.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Attributed activation and a sense of expanded space; a common tone in space-themed sound meditations",
+      "effect_ru": "Приписывается активация и ощущение расширения пространства; частый тон в «космических» звуковых медитациях",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "nasa",
+        "tonal",
+        "activation"
+      ]
+    },
+    {
+      "id": "healing-126-22",
+      "category": "healing",
+      "label": "Earth–Sun tone 126.22 Hz",
+      "beat_hz": 126.22,
+      "carrier_hz": 200.0,
+      "effect_en": "Tone used in sound healing for vitality, grounding and vitality of the body",
+      "effect_ru": "Тон в звукотерапии: жизненная сила, заземление, энергия тела",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "healing",
+        "tonal",
+        "grounding"
+      ]
+    },
+    {
+      "id": "healing-136-1",
+      "category": "healing",
+      "label": "Om tone 136.1 Hz",
+      "beat_hz": 136.1,
+      "carrier_hz": 200.0,
+      "effect_en": "Base tone of sound-healing practice; attributed meditative calm and stability",
+      "effect_ru": "Базовая тон звукотерапии: приписываются медитативный покой и устойчивость",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "healing",
+        "tonal",
+        "meditation"
+      ]
+    },
+    {
+      "id": "healing-194-18",
+      "category": "healing",
+      "label": "Earth tone 194.18 Hz",
+      "beat_hz": 194.18,
+      "carrier_hz": 200.0,
+      "effect_en": "Grounding and stability tone in sound-healing sessions",
+      "effect_ru": "Тон заземления и устойчивости на сессиях звукотерапии",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "healing",
+        "tonal",
+        "grounding"
+      ]
+    },
+    {
+      "id": "healing-111",
+      "category": "healing",
+      "label": "111 Hz — activation",
+      "beat_hz": 111.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Attributed activation and a sense of space opening in energy practice",
+      "effect_ru": "Приписывается активация и ощущение раскрытия пространства в энергетических практиках",
+      "evidence": "traditional",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "healing",
+        "tonal",
+        "activation"
+      ]
+    },
+    {
+      "id": "healing-432",
+      "category": "healing",
+      "label": "432 Hz — natural tuning",
+      "beat_hz": 432.0,
+      "carrier_hz": 432.0,
+      "effect_en": "Attributed softness, relaxation and harmony with nature",
+      "effect_ru": "Приписываются мягкость, расслабленность и согласованность с природой",
+      "evidence": "reported",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "healing",
+        "tonal",
+        "harmony"
+      ]
+    },
+    {
+      "id": "healing-128",
+      "category": "healing",
+      "label": "128 Hz — tuning fork / vibroacoustic base",
+      "beat_hz": 128.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Tuning-fork C, used as the base for vibroacoustic and sound-bath sessions",
+      "effect_ru": "Камертон «до», базовый тон для виброакустических сессий и звуковых ванн",
+      "evidence": "reported",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "healing",
+        "tonal",
+        "sound-bath"
+      ]
+    },
+    {
+      "id": "healing-261-6",
+      "category": "healing",
+      "label": "261.6 Hz — middle C anchor",
+      "beat_hz": 261.6,
+      "carrier_hz": 261.6,
+      "effect_en": "Middle C; used in sound-healing practice as a neutral anchor and reference",
+      "effect_ru": "Нота «до»; в звукотерапии используется как нейтральный якорь и эталон",
+      "evidence": "reported",
+      "source": "Traditional practice / alternative medicine literature",
+      "tags": [
+        "healing",
+        "tonal",
+        "reference"
+      ]
+    }
+  ]
+}

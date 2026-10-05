@@ -1,0 +1,100 @@
+# ---- Python bytecode --------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+
+# ---- Packaging / build ------------------------------------------------------
+# Never commit the .venv: the task brief for install.sh and the CI both rely on a clean
+# tree, and a vendored virtualenv makes every diff enormous.
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# PyInstaller writes both its working directory and the build tree. The generated
+# .spec file is ignored too, because it is an artefact of a specific PyInstaller run and
+# would drift from packaging/pyinstaller.spec, which is the one we keep under review.
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+MANIFEST
+
+# PyInstaller's own outputs
+*.manifest
+*.pkg
+*.app/
+
+# Generated spec files (packaging/pyinstaller.spec is tracked, this is not)
+/binaural.spec
+/*.spec
+/*.spec.bak
+
+# ---- Test / coverage --------------------------------------------------------
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+.nox/
+.hypothesis/
+
+# ---- Type checkers / linters ------------------------------------------------
+.mypy_cache/
+.dmypy.json
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+
+# ---- Editors and OS ---------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+Thumbs.db
+Desktop.ini
+*~
+*.swp
+*.swo
+*.bak
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.nvim.lua
+
+# ---- Local environment ------------------------------------------------------
+# install.sh writes its metadata here; nothing else belongs in it.
+.binaural/
+*.local/
+
+# ---- Release artefacts (committed by hand, never built) ---------------------
+# scripts/make_release.sh produces these in dist/, which is already ignored. Left in
+# place so a stray manual build in the repo root stays out of git as well.
+SHA256SUMS
+*.tar.gz
+*.zip
+
+# ---- Credentials / OSGi -----------------------------------------------------
+*.pem
+*.key
+*.p12
+*.mobileprovision
+
+# ---- Explicitly NOT ignored -------------------------------------------------
+# Listed so the intent is visible if someone tries to 'fix' this file:
+#   src/       — the application package, tracked
+#   tests/     — the test suite, tracked
+#   docs/      — SPEC.md, CONTRACT.md, tracked
+#   packaging/ — pyinstaller.spec, .desktop, Info.plist, tracked
+#   scripts/   — build_macos.sh, build_linux.sh, make_release.sh, tracked
+#   install.sh — the curl|sh installer, tracked
