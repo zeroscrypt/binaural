@@ -69,6 +69,7 @@ __all__ = [
     "LrTestDialog",
     "ReferenceDialog",
     "AboutDialog",
+    "SettingsDialog",
 ]
 
 TRANSLATION_CONTEXT = "BinauralDialogs"
@@ -694,3 +695,4 @@ from .about import AboutDialog  # noqa: E402
 from .headphone_check import HeadphoneCheckDialog  # noqa: E402
 from .lr_test import LrTestDialog  # noqa: E402
 from .reference import ReferenceDialog  # noqa: E402
+from .settings import SettingsDialog  # noqa: E402

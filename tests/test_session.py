@@ -6,7 +6,13 @@ import pytest
 
 QtCore = pytest.importorskip("PySide6.QtCore")
 
-from binaural.core.session import Session, load, save  # noqa: E402
+from binaural.core.session import (  # noqa: E402
+    DEFAULT_PRESET_CATEGORY,
+    DEFAULT_TIMER_MINUTES,
+    Session,
+    load,
+    save,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -30,6 +36,24 @@ def test_defaults_match_contract():
     assert session.channels_swapped is False
     assert session.headphone_check_acknowledged is False
     assert session.last_preset is None
+    assert session.timer_minutes == DEFAULT_TIMER_MINUTES
+    assert session.preset_category == DEFAULT_PRESET_CATEGORY
+
+
+def test_roundtrip_keeps_the_timer_and_the_preset_category():
+    """SPEC §5 F5: the timer and the preset category survive a restart."""
+    original = Session(timer_minutes=45, preset_category="work")
+    save(original)
+    restored = load()
+    assert restored.timer_minutes == 45
+    assert restored.preset_category == "work"
+
+
+def test_timer_is_clamped_on_load():
+    save(Session(timer_minutes=9999))
+    assert load().timer_minutes == 1440
+    save(Session(timer_minutes=-5))
+    assert load().timer_minutes == 0
 
 
 def test_load_without_saved_state_returns_defaults():

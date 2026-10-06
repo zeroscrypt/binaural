@@ -9,12 +9,15 @@ the engine and reacts to the engine's signals.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+import time
+
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QKeyEvent
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
     QButtonGroup,
+    QComboBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -31,7 +34,14 @@ from PySide6.QtWidgets import (
 from .. import i18n
 from ..audio.headphones import HeadphoneReport, detect, swap_channels
 from ..core.oscillator import DEFAULT_CARRIER_HZ
-from ..core.session import Session, load as load_session, save as save_session
+from ..core.playback_timer import PlaybackTimer, closest_choice
+from ..core.session import (
+    TIMER_CHOICES,
+    TIMER_OFF,
+    Session,
+    load as load_session,
+    save as save_session,
+)
 from . import theme
 from .presets import (
     PRESET_CATEGORIES,
@@ -53,6 +63,9 @@ _CONTEXT = "MainWindow"
 NUDGE_HZ = 0.1
 SLIDER_STEPS = 100
 VOLUME_STEPS = 100
+#: How often the countdown is refreshed. A second is what the label shows, so ticking
+#: faster would burn CPU to redraw the same digits.
+TICK_SECONDS_MS = 1000
 
 #: Ear captions as catalogue keys — the strings live in one place so
 #: ``retranslate()`` can put them back after a language switch.
@@ -69,6 +82,26 @@ def tr(text: str, *args: str) -> str:
     from ..i18n import tr as _tr
 
     return _tr(text, *args, context=_CONTEXT)
+
+
+def timer_choice_title(minutes: int) -> str:
+    """The caption of one duration choice: "Off", or "15 min" in the current language.
+
+    Shared by the window and the settings dialog: two controls offering two different
+    wordings for the same value would be a second source of truth.
+    """
+    if minutes == TIMER_OFF:
+        return tr("Off")
+    return tr("%1 min", _format_hz(minutes))
+
+
+def _now() -> float:
+    """The clock the playback timer counts down against.
+
+    A monotonic clock, not the wall clock: NTP stepping the system time backwards must
+    not add minutes to a running session.
+    """
+    return time.monotonic()
 
 
 class MainWindow(QMainWindow):
@@ -95,6 +128,15 @@ class MainWindow(QMainWindow):
         # SPEC §5 F3: the stored category decides which presets the chips show; an
         # unknown one falls back to the default rather than emptying the row.
         self._selected_category = resolved_category(self._session.preset_category)
+        # SPEC §5 F5: the session's own duration, armed when playback starts.
+        self._timer_minutes = closest_choice(self._session.timer_minutes)
+        self._playback_timer = PlaybackTimer.off()
+        self._ticker = QTimer(self)
+        self._ticker.setInterval(TICK_SECONDS_MS)
+        self._ticker.timeout.connect(self.tick_timer)
+        self._headphone_report: HeadphoneReport | None = None
+        # Kept so the settings dialog cannot outlive the window it edits.
+        self._settings_dialog = None
 
         self.setWindowTitle(tr("Binaural"))
         self.setMinimumSize(720, 620)
@@ -125,6 +167,9 @@ class MainWindow(QMainWindow):
 
         # --- transport ----------------------------------------------------
         central_layout.addLayout(self._build_transport())
+
+        # --- playback timer (SPEC §5 F5) -----------------------------------
+        central_layout.addLayout(self._build_timer())
 
         # --- presets ------------------------------------------------------
         central_layout.addStretch(1)
@@ -196,6 +241,66 @@ class MainWindow(QMainWindow):
         row.addWidget(self._save_preset_button)
 
         return row
+
+    def _build_timer(self) -> QHBoxLayout:
+        """The playback timer of SPEC §5 F5: a duration picker and a visible countdown.
+
+        ``TIMER_CHOICES`` is the only source of the offered durations and ``0`` is off,
+        so a session timer and a settings timer can never offer two different sets. The
+        countdown is *text*, not a ring: SPEC §7.2 wants reduced-motion respected, and a
+        label needs no animation at all. While the timer is off the label is empty and
+        hidden rather than reading ``00:00``, which would look like a finished session.
+        """
+        row = QHBoxLayout()
+        row.setSpacing(theme.SPACE_MD)
+
+        self._timer_caption = QLabel(tr("Timer"), self)
+        self._timer_caption.setFont(theme.font("body"))
+        row.addWidget(self._timer_caption)
+
+        self._timer_select = QComboBox(self)
+        self._timer_select.setMinimumHeight(44)
+        self._timer_select.setAccessibleName(tr("Timer"))
+        self._timer_select.setAccessibleDescription(
+            tr("How long a session plays before it stops by itself.")
+        )
+        self._timer_select.activated.connect(self._on_timer_activated)
+        row.addWidget(self._timer_select)
+        self._rebuild_timer_choices()
+
+        self._countdown = QLabel("", self)
+        self._countdown.setFont(theme.font("body"))
+        self._countdown.setMinimumWidth(72)
+        self._countdown.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self._countdown.setStyleSheet(f"color: {theme.color('muted-fg')};")
+        self._countdown.setAccessibleName(tr("Time left"))
+        self._countdown.setVisible(False)
+        row.addWidget(self._countdown)
+
+        row.addStretch(1)
+        return row
+
+    def _rebuild_timer_choices(self, *, select: int | None = None) -> None:
+        """Refill the duration picker, keeping ``select`` minutes highlighted.
+
+        Rebuilt rather than patched: every caption is translated, so a language switch
+        changes all of them, and the selection has to survive that (SPEC §7.4).
+        """
+        wanted = self._timer_minutes if select is None else select
+        self._timer_select.blockSignals(True)
+        try:
+            self._timer_select.clear()
+            for choice in TIMER_CHOICES:
+                self._timer_select.addItem(timer_choice_title(choice))
+                self._timer_select.setItemData(
+                    self._timer_select.count() - 1, choice, Qt.ItemDataRole.UserRole
+                )
+            index = self._timer_select.findData(wanted, Qt.ItemDataRole.UserRole)
+            self._timer_select.setCurrentIndex(index if index >= 0 else 0)
+        finally:
+            self._timer_select.blockSignals(False)
 
     def _build_presets(self) -> QWidget:
         """The two-level preset control of SPEC §5 F3.
@@ -418,6 +523,17 @@ class MainWindow(QMainWindow):
         self._about_action.triggered.connect(self.show_about)
         self._help_menu.addAction(self._about_action)
 
+        # SPEC §7 dialog #4. On macOS the first menu is the application menu, so this is
+        # where "Settings…" belongs; Cmd+, is also the convention on both platforms.
+        self._settings_action = QAction(tr("&Settings…"), self)
+        self._settings_action.setShortcut("Ctrl+,")
+        self._settings_action.setShortcutContext(
+            Qt.ShortcutContext.ApplicationShortcut
+        )
+        self._settings_action.triggered.connect(self.open_settings)
+        self._view_menu.addSeparator()
+        self._view_menu.addAction(self._settings_action)
+
     def set_language(self, code: str) -> str:
         """Switch the UI language from the View menu. Returns the active code."""
         return i18n.set_language(code)
@@ -462,6 +578,17 @@ class MainWindow(QMainWindow):
             tr("Output level from 0 to 100 percent. Not medical advice: keep it low.")
         )
 
+        # SPEC §5 F5: the countdown is plain text, so a language switch re-reads it and
+        # the choice captions; the selected duration has to survive both.
+        self._timer_caption.setText(tr("Timer"))
+        self._timer_select.setAccessibleName(tr("Timer"))
+        self._timer_select.setAccessibleDescription(
+            tr("How long a session plays before it stops by itself.")
+        )
+        self._countdown.setAccessibleName(tr("Time left"))
+        self._rebuild_timer_choices()
+        self._show_countdown()
+
         self._save_preset_button.setText(tr("Save preset"))
         self._save_preset_button.setAccessibleName(tr("Save preset"))
         self._save_preset_button.setAccessibleDescription(
@@ -497,6 +624,7 @@ class MainWindow(QMainWindow):
         self._reference_action.setText(tr("Frequency &reference…"))
         self._check_action.setText(tr("&Check headphones…"))
         self._about_action.setText(tr("&About"))
+        self._settings_action.setText(tr("&Settings…"))
 
     def _connect_engine(self) -> None:
         for signal, slot in (
@@ -515,7 +643,11 @@ class MainWindow(QMainWindow):
         return bool(self._session.headphone_check_acknowledged)
 
     def _restore_session(self) -> None:
-        """Show the stored frequencies, volume, swap flag and preset category (SPEC F5)."""
+        """Show the stored frequencies, volume, swap flag, timer and preset category.
+
+        SPEC §5 F5: the last set of frequencies, the volume, the swap flag, **the timer**
+        and the preset category all come back.
+        """
         self._suppress = True
         try:
             self._left.set_value(self._session.left_hz, emit=False)
@@ -523,6 +655,8 @@ class MainWindow(QMainWindow):
             self._volume.setValue(int(round(self._session.volume * VOLUME_STEPS)))
         finally:
             self._suppress = False
+        self._timer_minutes = closest_choice(self._session.timer_minutes)
+        self._rebuild_timer_choices()
         self.select_preset_category(self._session.preset_category)
         self._mark_preset(self._session.last_preset)
         self._on_channels_changed()
@@ -536,6 +670,7 @@ class MainWindow(QMainWindow):
             channels_swapped=self._channels_swapped,
             headphone_check_acknowledged=self._session.headphone_check_acknowledged,
             last_preset=self._session.last_preset,
+            timer_minutes=self._timer_minutes,
             # The chips show a resolved id, so that is what a save writes back: a stored
             # value the registry does not know must not survive as an unselectable row.
             preset_category=self._selected_category,
@@ -674,6 +809,7 @@ class MainWindow(QMainWindow):
             self._on_engine_error(tr("Could not start audio output."))
             return
         self._set_playing(True)
+        self.arm_timer()
 
     def stop_playback(self) -> None:
         if self._oscillator is not None:
@@ -690,6 +826,9 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
         self._set_playing(False)
+        # One place ends a session: the button, the keyboard and the timer expiry all
+        # come through here, so the timer can never outlive the audio it was counting.
+        self.disarm_timer()
 
     def _on_engine_started(self) -> None:
         self._set_playing(True)
@@ -725,16 +864,130 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
+    def set_volume(self, level: float) -> None:
+        """Set the output level programmatically — what Settings and a test call.
+
+        Goes through the same slider the user drags, so a value set here and a value set
+        there end up in identical code and identical saving.
+        """
+        self._volume.blockSignals(True)
+        try:
+            self._volume.setValue(
+                int(round(max(0.0, min(1.0, float(level))) * VOLUME_STEPS))
+            )
+        finally:
+            self._volume.blockSignals(False)
+        self._on_volume_changed(self._volume.value())
+        self.save_session()
+
+    def volume(self) -> float:
+        """The current output level, 0..1."""
+        return self._volume.value() / VOLUME_STEPS
+
+    # ----------------------------------------------------------- playback timer
+
+    def timer_minutes(self) -> int:
+        """The duration a new session will run for; ``0`` = play until stopped."""
+        return self._timer_minutes
+
+    def select_timer_minutes(self, minutes: int) -> int:
+        """Choose the session duration and re-arm a running session with it.
+
+        Returns the value actually applied: a stored duration need not be one of
+        ``TIMER_CHOICES`` (the session clamps to 0…1440, not to the offered set), and a
+        control can only offer what it offers.
+        """
+        wanted = closest_choice(int(minutes))
+        changed = wanted != self._timer_minutes
+        self._timer_minutes = wanted
+        # Only rebuild when the value really moved: a pick from the picker must not
+        # clear the very widget that is delivering the signal.
+        if changed:
+            self._rebuild_timer_choices(select=wanted)
+        if self._playing:
+            self.arm_timer()
+        else:
+            self._show_countdown()
+        self.save_session()
+        return wanted
+
+    def _on_timer_activated(self, index: int) -> None:
+        """The user picked a duration in the picker."""
+        raw = self._timer_select.itemData(index, Qt.ItemDataRole.UserRole)
+        if raw is None:
+            return
+        self.select_timer_minutes(int(raw))
+
+    def arm_timer(self, now: float | None = None) -> PlaybackTimer:
+        """Arm the timer for the selected duration and start the countdown.
+
+        ``TIMER_OFF`` minutes is "off": the countdown hides and nothing is scheduled, so
+        "play until stopped" costs nothing. Returns the armed timer.
+        """
+        moment = _now() if now is None else float(now)
+        self._playback_timer = PlaybackTimer.for_minutes(self._timer_minutes, started_at=moment)
+        if self._playback_timer.is_enabled:
+            self._ticker.start()
+        self._show_countdown(moment)
+        return self._playback_timer
+
+    def disarm_timer(self) -> None:
+        """Stop counting. The selected duration stays; only the countdown goes."""
+        self._playback_timer = PlaybackTimer.off()
+        self._ticker.stop()
+        self._show_countdown()
+
+    def playback_timer(self) -> PlaybackTimer:
+        """The timer as it stands — what the countdown is derived from."""
+        return self._playback_timer
+
+    def tick_timer(self, now: float | None = None) -> None:
+        """One tick of the countdown.
+
+        The clock is a parameter rather than read inline, so expiry is testable to the
+        second instead of by waiting a minute for it.
+        """
+        moment = _now() if now is None else float(now)
+        if not self._playback_timer.is_enabled:
+            return
+        if self._playback_timer.has_expired(moment):
+            # SPEC §7: the stop fades out, so the session does not end with a click.
+            self.stop_playback()
+            self.retranslate()
+        else:
+            self._show_countdown(moment)
+
+    def _show_countdown(self, now: float | None = None) -> None:
+        text = self._playback_timer.countdown_text(_now() if now is None else now)
+        self._countdown.setText(text)
+        self._countdown.setVisible(bool(text))
+        self._countdown.setAccessibleDescription(
+            tr("Time left: %1", text) if text else tr("The timer is off.")
+        )
+
+    def countdown_text(self) -> str:
+        """What the countdown label currently reads; empty while the timer is off."""
+        return self._countdown.text()
+
     # -------------------------------------------------------------- headphone
 
     def set_headphone_report(self, report: HeadphoneReport | None) -> None:
         """Feed the status indicator and the channel-swap decision."""
+        self._headphone_report = report
         self.status_indicator.set_report(report)
         if report is not None:
             self.set_channels_swapped(bool(getattr(report, "channels_swapped", False)))
 
+    def headphone_report(self) -> HeadphoneReport | None:
+        """The verdict the app is currently acting on, or ``None``."""
+        return self._headphone_report
+
     def run_headphone_check(self) -> None:
-        """Re-run the detection dialog (SPEC §4.3). Reachable from Help."""
+        """Re-run the detection dialog (SPEC §4.3).
+
+        The one entry point for every manual re-check: the *Help* menu item and the
+        settings dialog both land here, so they cannot drift apart.
+        """
         dialog_class = self._dialog_class("HeadphoneCheckDialog")
         if dialog_class is None:
             # No dialogs layer: keep the status bar truthful with the heuristic.
@@ -745,11 +998,61 @@ class MainWindow(QMainWindow):
         report = dialog.report()
         if isinstance(report, HeadphoneReport):
             self.set_headphone_report(report)
-            # §4.3: the check must not be repeated on every start.
+            # §4.3: the dialog is shown once, until it has been confirmed — a re-run
+            # from Settings or the menu is the user asking for it again.
             self._session.headphone_check_acknowledged = bool(dialog.acknowledged())
             self.save_session()
 
     # ------------------------------------------------------------------ dialogs
+
+    def open_settings(self) -> None:
+        """Cmd/Ctrl+, — the settings dialog of SPEC §7.
+
+        The wiring lives here rather than in the caller: this is the only place where
+        "settings writes into the window" is decided, so the menu item and a test cannot
+        end up with a dialog whose controls move nothing.
+        """
+        dialog = self.make_settings_dialog()
+        if dialog is None:
+            # No dialogs layer: say so and carry on. A modal box here would be a wall,
+            # and the app must keep working without the optional dialogs package.
+            self.statusBar().showMessage(
+                tr("Settings are not available in this build."), 4000
+            )
+            return
+        dialog.exec()
+
+    def make_settings_dialog(self):
+        """Build the settings dialog already wired to this window.
+
+        Every control goes through the window's own entry points — ``set_volume``,
+        ``select_timer_minutes``, ``run_headphone_check`` — so a value changed in
+        Settings and a value changed in the window take identical code and identical
+        saving. ``None`` when the dialogs package is unavailable.
+        """
+        dialog_class = self._dialog_class("SettingsDialog")
+        if dialog_class is None:
+            return None
+
+        dialog = dialog_class(
+            self,
+            language=i18n.language(),
+            timer_minutes=self._timer_minutes,
+            volume=self.volume(),
+            headphone_report=self._headphone_report,
+        )
+        dialog.volume_changed.connect(self.set_volume)
+        dialog.timer_selected.connect(self.select_timer_minutes)
+        dialog.headphone_check_requested.connect(self._check_headphones_from_settings)
+        self._settings_dialog = dialog
+        return dialog
+
+    def _check_headphones_from_settings(self) -> None:
+        """Settings asked for the check; feed the verdict back into its row."""
+        self.run_headphone_check()
+        dialog = self._settings_dialog
+        if dialog is not None:
+            dialog.set_headphone_report(self._headphone_report)
 
     @staticmethod
     def _dialog_class(name: str):

@@ -64,6 +64,30 @@ MESSAGES: dict[str, str] = {
     ),
     "Name:": "Название:",
     "Preset applied: difference %1 Hz": "Пресет применён: разность %1 Гц",
+    # --- playback timer (SPEC §5 F5) --------------------------------------
+    "Timer": "Таймер",
+    "Off": "Выкл.",
+    "%1 min": "%1 мин",
+    "How long a session plays before it stops by itself.": (
+        "Сколько длится сессия до автоматической остановки."
+    ),
+    "How long a new session plays before it stops by itself.": (
+        "Сколько будет длиться новая сессия до автоматической остановки."
+    ),
+    "Time left": "Осталось времени",
+    "Time left: %1": "Осталось времени: %1",
+    "The timer is off.": "Таймер выключен.",
+    # --- settings dialog (SPEC §7) ----------------------------------------
+    "Settings": "Настройки",
+    "Settings are not available in this build.": "Настройки недоступны в этой сборке.",
+    "Switch the interface language straight away.": (
+        "Переключает язык интерфейса сразу же."
+    ),
+    "Run the headphone check again": "Повторить проверку наушников",
+    "Re-reads the default audio output device and offers the L/R test.": (
+        "Перечитывает устройство аудиовыхода по умолчанию и предлагает тест L/R."
+    ),
+    "Close the settings": "Закрыть настройки",
     "Active channel: %1": "Активный канал: %1",
     "Error": "Ошибка",
     "Could not start audio output.": "Не удалось запустить аудиовыход.",
@@ -91,6 +115,7 @@ MESSAGES: dict[str, str] = {
     # --- menus (incl. the language switch) ---------------------------------
     "&View": "&Вид",
     "Language": "Язык",
+    "&Settings…": "&Настройки…",
     "&Help": "&Справка",
     "Frequency &reference…": "Справочник &частот…",
     "&Check headphones…": "Проверить &наушники…",
