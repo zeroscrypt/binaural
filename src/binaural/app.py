@@ -23,22 +23,43 @@ __all__ = ["main"]
 
 
 def _run_headphone_check(window: MainWindow) -> None:
-    """Show the startup check and feed the result back into the window.
+    """Run the startup check of SPEC §4 and feed the result back into the window.
 
     Never fatal: the dialog is optional and the detection degrades to UNKNOWN,
-    which the status indicator renders as "Unknown device" (SPEC §4). The check
-    is repeated every start — the user may have plugged in headphones since.
+    which the status indicator renders as "Unknown device".
+
+    **Detection runs on every start; the dialog does not.** The user may have
+    plugged in headphones since yesterday, and detection is a couple of device
+    property reads — but a modal dialog on every single launch is exactly the nag
+    §4.3 refuses to be. So the verdict always updates the status line, and the
+    dialog opens only while the warning has not been confirmed yet (§4.3). Once it
+    has, the check is re-run from *Settings* or from the Help menu.
     """
     try:
+        report = detect()
+        window.set_headphone_report(report)
+
+        if report.is_headphones:
+            # Nothing to warn about, and nothing to acknowledge.
+            if not window.headphone_check_acknowledged():
+                window.set_headphone_check_acknowledged(True)
+            return
+
+        if window.headphone_check_acknowledged():
+            # Already warned once. The indicator still says "Speakers detected" for
+            # as long as it is true — §4.3 wants the warning visible — but the user
+            # is not nagged on every start.
+            return
+
         dialog_class = window._dialog_class("HeadphoneCheckDialog")  # noqa: SLF001
         if dialog_class is None:
-            window.set_headphone_report(detect())
             return
         dialog = dialog_class(None, window._engine, window)  # noqa: SLF001
         dialog.exec()
-        report = dialog.report()
-        if isinstance(report, HeadphoneReport):
-            window.set_headphone_report(report)
+        result = dialog.report()
+        if isinstance(result, HeadphoneReport):
+            window.set_headphone_report(result)
+        window.set_headphone_check_acknowledged(bool(dialog.acknowledged()))
     except Exception:
         try:
             window.set_headphone_report(detect())

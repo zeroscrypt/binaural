@@ -642,6 +642,18 @@ class MainWindow(QMainWindow):
         """True when the user already confirmed the startup check."""
         return bool(self._session.headphone_check_acknowledged)
 
+    def set_headphone_check_acknowledged(self, acknowledged: bool) -> None:
+        """Remember that the §4.3 warning has been confirmed.
+
+        §4.3: the dialog appears once, until it has been confirmed. Detection keeps
+        running on every start; the dialog waits for the user to ask for it again.
+        """
+        acknowledged = bool(acknowledged)
+        if acknowledged == self._session.headphone_check_acknowledged:
+            return
+        self._session.headphone_check_acknowledged = acknowledged
+        self.save_session()
+
     def _restore_session(self) -> None:
         """Show the stored frequencies, volume, swap flag, timer and preset category.
 
@@ -998,10 +1010,9 @@ class MainWindow(QMainWindow):
         report = dialog.report()
         if isinstance(report, HeadphoneReport):
             self.set_headphone_report(report)
-            # §4.3: the dialog is shown once, until it has been confirmed — a re-run
-            # from Settings or the menu is the user asking for it again.
-            self._session.headphone_check_acknowledged = bool(dialog.acknowledged())
-            self.save_session()
+        # §4.3: the dialog is shown once, until it has been confirmed — a re-run from
+        # Settings or from the menu is the user asking for it again.
+        self.set_headphone_check_acknowledged(bool(dialog.acknowledged()))
 
     # ------------------------------------------------------------------ dialogs
 
