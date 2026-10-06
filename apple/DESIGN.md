@@ -874,6 +874,39 @@ highlighted — showing it would require a chip that does not exist. It exists b
 naive version of the relaunch test ("apply a preset, relaunch, expect it highlighted")
 passes only when the saved category happens to be the one containing the preset.
 
+## 15. M2-b item 7: the Release build (M2.md §11)
+
+`apple/build_release.sh` produces `apple/dist/Binaural.app`: Release configuration, a
+throwaway derived-data directory that is deleted on exit, and the finished bundle copied
+out. Three properties were worth deciding rather than inheriting from the Debug commands.
+
+**Unsigned, and saying so.** `security find-identity` reports 0 identities here, so the
+build passes `CODE_SIGNING_ALLOWED=NO`. Nothing fakes a signature and there is no
+notarisation step: `codesign -dv` on the result reports `adhoc` from the linker, which is
+not a Developer identity and is not presented as one. The script's own closing line tells
+the reader what they have — an app that runs for the person who built it, and that
+Gatekeeper will object to for anyone else. Distribution is not faked into existence.
+
+**Self-contained.** The point of copying the bundle out of the temporary build tree is that
+nothing left on disk points into DerivedData. The binary does carry one absolute path
+string, `DerivedData/Build/Intermediates.noindex/…/Objects-normal`, embedded by the Swift
+compiler as module-cache metadata; it is a recorded path, not a lookup, and the app runs
+with the build tree deleted. `BinauralCore.framework` is embedded in
+`Contents/Frameworks` and the binary is `x86_64 arm64`, so one build covers both Macs.
+
+**`frequencies.json` verified, not assumed.** The copy-files phase is the mechanism, but
+the deliverable is checked: the script `shasum`s the bundled copy against
+`src/binaural/data/frequencies.json` and `cmp`s them, and fails the build if they differ.
+CONTRACT rule 10 says the JSON lives once; this makes a second copy impossible to ship by
+accident rather than merely discouraged. `apple/dist/` is already gitignored, so the
+artefact cannot be committed by accident either.
+
+`--smoke` is the honest part of it. A build that crashes on launch is not a passing build,
+so the flag launches the bundle **that was just built** — not the Debug one, which is the
+easy mistake when both are around — waits, checks `pgrep` on that exact path, kills it, and
+diffs `~/Library/Logs/DiagnosticReports` before and after so a late crash fails too. The
+directory was empty of `Binaural*` reports before and after both runs.
+
 ## 8. Build and verify (M2)
 
 The M1 commands (§6) still hold, plus one:
@@ -884,6 +917,7 @@ xcodebuild -project Binaural.xcodeproj -scheme BinauralCore -destination 'platfo
 xcodebuild -project Binaural.xcodeproj -scheme Binaural     -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test   # +114 window tests
 xcodebuild -project Binaural.xcodeproj -scheme Binaural     -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -project Binaural.xcodeproj -scheme Binaural-iOS -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+./build_release.sh --smoke                                                            # dist/Binaural.app
 ```
 
 **Smoke test** (a build that crashes on launch is not a passing build):
