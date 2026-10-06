@@ -36,6 +36,12 @@ class Session:
     #: `core` must not import back, so load() keeps whatever string was stored instead of
     #: discarding it, and the chips fall back to the default for an unknown value.
     preset_category: str = DEFAULT_PRESET_CATEGORY
+    #: SPEC §7's "Lock difference" checkbox: while ticked, editing one channel moves the
+    #: other so the signed difference stays put. **Only the flag is stored** — the
+    #: difference itself is re-derived from `right_hz - left_hz` on load, so a document can
+    #: never hold a lock that contradicts the pair beside it. Additive: a session written
+    #: before the field existed loads as `False`.
+    difference_locked: bool = False
 
 
 def _settings() -> QSettings:
@@ -98,4 +104,7 @@ def load() -> Session:
         # A timer longer than a day is a typo in the settings file, not a wish.
         timer_minutes=max(0, min(1440, _int("session/timer_minutes", defaults.timer_minutes))),
         preset_category=str(category) if category else defaults.preset_category,
+        # Additive, so a settings file written before SPEC §7's checkbox has no key here
+        # and reads as the default rather than failing.
+        difference_locked=_bool("difference_locked", defaults.difference_locked),
     )

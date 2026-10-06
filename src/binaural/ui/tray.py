@@ -86,11 +86,12 @@ _TOGGLE_ON_CLICK = sys.platform != "darwin"
 _ICON_NAMES = ("binaural.png", "binaural.svg", "binaural.icns", "icon.png", "icon.icns")
 
 #: Where an icon may sit relative to a search root, see :func:`_search_roots`.
+#: Only the Linux packaging ships artwork: macOS is the Swift app (SPEC §3), so its
+#: packaging directory is gone and listing it here searched a path that cannot exist.
 _ICON_SUBDIRS = (
     "",
     "data",
     "packaging/linux",
-    "packaging/macos",
     "share/icons/hicolor/256x256/apps",
     "share/icons/hicolor/scalable/apps",
     "share/pixmaps",
