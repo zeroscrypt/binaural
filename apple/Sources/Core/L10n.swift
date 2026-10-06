@@ -162,13 +162,28 @@ public enum L10n {
             text = key
         case .ru:
             // Two lookups instead of a merged table: `all` would copy 170+ entries on
-            // every label. The additions are three entries and are tried first.
+            // every label. The additions are a handful of entries and are tried first.
             text = RussianWindowAdditions.messages[key]
                 ?? RussianCatalogue.messages[key]
                 ?? key
         }
         for (index, value) in arguments.enumerated() {
             text = text.replacingOccurrences(of: "%\(index + 1)", with: value)
+        }
+        return text
+    }
+
+    /// Translate `key` and fill `{name}` placeholders.
+    ///
+    /// The second Python idiom: `ru.py` carries both `%1` (Qt positional) and `{name}`
+    /// (`.format()`) placeholders, and `ui/dialogs/` uses the named form for anything
+    /// with more than two values — "Set left = {left} Hz and right = {right} Hz". Only
+    /// the placeholders named in `arguments` are replaced, so an unknown `{…}` left in a
+    /// translation stays visible instead of being silently deleted.
+    public static func tr(_ key: String, named arguments: [String: String]) -> String {
+        var text = tr(key)
+        for (name, value) in arguments.sorted(by: { $0.key < $1.key }) {
+            text = text.replacingOccurrences(of: "{\(name)}", with: value)
         }
         return text
     }

@@ -8,14 +8,21 @@ import BinauralCore
 /// The glyph is a painted typographic character, not an emoji: SPEC §7.3 allows emoji only
 /// inside reference data as category markers, never as UI chrome.
 ///
-/// The three states are the contract for M2-b, which ports the CoreAudio heuristic and
-/// the perceptual L/R test (`src/binaural/audio/platform/macos.py`,
-/// `audio/headphones.py`) and calls ``setState(_:)``. Until then the window shows
-/// `.unknown` — the honest state for "nothing has looked at the device yet", and the
-/// same text the Python window starts with.
+/// The three states are Python's three (`status_indicator.py`). M2-b feeds them from
+/// the CoreAudio heuristic and the perceptual L/R test
+/// (`src/binaural/audio/platform/macos.py`, `audio/headphones.py`) through
+/// ``apply(report:)``; before anything has looked at the device the window still shows
+/// `.unknown`, which is the honest state and the same text the Python window starts
+/// with.
 @MainActor
 final class HeadphoneIndicatorView: NSView {
 
+    /// What the check concluded, as the status line needs it.
+    ///
+    /// Python has three: headphones / speakers / unknown, and renders `Virtual` under
+    /// unknown. The icon and the words carry the meaning, never the colour alone
+    /// (SPEC §7.2), which is why `unknown` keeps its own caption rather than borrowing
+    /// the speakers one.
     enum State {
         case headphones
         case speakers
@@ -26,6 +33,17 @@ final class HeadphoneIndicatorView: NSView {
     private let label = NSTextField(labelWithString: "")
     private var state: State = .unknown
     private var deviceName = ""
+
+    /// The state a ``DeviceClass`` maps to, with the device name for the tooltip.
+    static func state(for deviceClass: DeviceClass, deviceName: String?) -> State {
+        switch deviceClass {
+        case .headphones: return .headphones
+        case .speakers: return .speakers
+        // A virtual device and an unreadable one are both "cannot tell", which is what
+        // Python's status indicator shows for them.
+        case .virtual, .unknown: return .unknown
+        }
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -76,6 +94,14 @@ final class HeadphoneIndicatorView: NSView {
         self.state = state
         self.deviceName = deviceName ?? ""
         apply(state)
+    }
+
+    /// Switch to whatever a report concluded, keeping the device name it carries.
+    func apply(report: HeadphoneReport) {
+        setState(
+            Self.state(for: report.verdict, deviceName: report.deviceName),
+            deviceName: report.deviceName
+        )
     }
 
     private func apply(_ state: State) {

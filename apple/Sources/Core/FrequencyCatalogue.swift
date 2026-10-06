@@ -167,7 +167,10 @@ public struct FrequencyEntry: Sendable, Equatable, Identifiable {
     }
 
     /// Format without a trailing `.0`, like Python's `%g`-based `_fmt`.
-    static func format(_ value: Double?) -> String {
+    ///
+    /// `public` because the macOS window formats the same numbers into its tooltips and
+    /// hints, and the app target is a separate module from `BinauralCore`.
+    public static func format(_ value: Double?) -> String {
         guard let value else { return "" }
         if value == value.rounded(), abs(value) < 1e15 {
             return String(Int(value))
