@@ -708,6 +708,60 @@ must not disagree about a disclaimer, and because the coordinator owns `src/` an
 For the coordinator: either `ru.py` should be brought to the SPEC wording, or SPEC §6.13
 should state that the catalogue wording is the canonical one.
 
+## 13. M2-b item 5: the menu-bar status item
+
+`Sources/macOS/StatusItemController.swift` — the Swift counterpart of Python's
+`TrayController` (`src/binaural/ui/tray.py`). Installed from launch, by the app delegate,
+right after the window is on screen.
+
+**The role is remote control.** The window can be hidden while the tone keeps playing, so
+what the window offers has to stay reachable. M2.md §9 asks for show/hide and Quit; Python's
+tray also carries Play/Stop, the headphone check and the frequency reference, and so does
+this one — a closed window must not take the app's controls with it. Every action asks the
+window or the coordinator; **the tray never touches the audio engine**, which is Python's
+"the window stays the single source of truth" rule.
+
+**The icon is an SF Symbol** (`waveform`, a template image), not artwork: nothing to ship,
+nothing to tint by hand, and it follows light/dark for free. SPEC §7.3 asks for SVG rather
+than emoji in the interface; a system symbol is the native form of that idea.
+
+**The captions are already in `ru.py`** — "Show Binaural", "Hide Binaural", "Frequency
+reference…" and both tooltips (`⏹ %1 / %2 Hz`, `▶ %1 / %2 Hz — beat %3 Hz`) were written
+for the Python tray, so **no new Russian was needed** for this item. The tooltip shows the
+window's own numbers, pushed out through `MainWindowController.setStatusItemHandler` — a
+second copy of the frequencies in the tray would be a second source of truth.
+
+### 13.1 What the tray required of the window
+
+Three changes, all of them the tray's price of admission:
+
+1. **`isReleasedWhenClosed = false`.** Otherwise `close()` destroys the window and the item's
+   *Show* has nothing to show.
+2. **A close hides instead of closing.** `windowShouldClose` answers `false` and the app
+   delegate turns the close into an `orderOut`. The window keeps the session state, the
+   running countdown and the engine's view of the world — all three must survive the window
+   being out of sight.
+3. **`applicationShouldTerminateAfterLastWindowClosed` returns `false`** *when the item is
+   installed*, which is Python's `app.setQuitOnLastWindowClosed(False)` decision. Without a
+   status item it still returns `true`, so a build that failed to install one quits normally
+   rather than becoming an invisible background process. The two "terminate" questions are
+   written next to each other on purpose: *closing the last window is not quitting; asking
+   to quit is quitting* — so `applicationShouldTerminate` is stated explicitly as well.
+
+**Verified live, not only in tests:** launch → the item installs (`hasStatusItem == true`
+traced at `applicationDidFinishLaunching`) → the window is closed → the process is still
+running with no window, which is only possible because the item exists.
+
+### 13.2 Testing a status item
+
+`NSStatusBar` needs a real login session, so the tests do **not** install an item. They
+drive the two halves separately: `buildMenu()` (captions, translation, routing, and a
+no-handler no-op) with no status bar at all, and the *window contract* the tray depends on
+(hide survives, close does not destroy, the transport is published). The install itself was
+verified by launching the app. Python's "never fatal" rule is why this split is honest rather
+than convenient: `isInstalled` is false until `install()`, and every action is a no-op
+without a handler.
+
 ## 8. Build and verify (M2)
 
 The M1 commands (§6) still hold, plus one:

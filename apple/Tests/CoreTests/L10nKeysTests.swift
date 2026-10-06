@@ -51,6 +51,10 @@ final class L10nKeysTests: XCTestCase {
         "Timer", "Off", "%1 min",
         // Settings dialog (SPEC §7)
         "Settings…", "Settings",
+        // menu-bar status item (SPEC §7; Python's TrayController). All four were already in
+        // ru.py for the tray, which is why none of them needed a Swift addition.
+        "Show Binaural", "Hide Binaural", "Frequency reference…",
+        "⏹ %1 / %2 Hz", "▶ %1 / %2 Hz — beat %3 Hz",
         // headphone check at launch (SPEC §4)
         "Headphones recommended", "Headphones detected", "Speakers detected",
         "Virtual audio device — cannot tell what is playing",

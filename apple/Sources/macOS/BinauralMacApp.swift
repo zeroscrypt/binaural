@@ -32,6 +32,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: HeadphoneCheckCoordinator?
     private var languageObserver: (any NSObjectProtocol)?
 
+    /// True while the status item is installed. Python's rule from `app.py`: with a tray
+    /// that can bring the window back, closing the last window must **not** quit; without
+    /// one it still has to.
+    private var hasStatusItem = false
+
     /// True when this process is a test host (`BinauralMacTests` runs inside the app).
     ///
     /// The window tests build their own `MainWindowController`, so the delegate's job
@@ -57,6 +62,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Shows a dialog modally — the one place `NSApp.runModal(for:)` is called from the
     /// delegate, so the modality rule has one home.
     private let presenter = ModalPresenter()
+
+    /// The menu-bar item, from launch (SPEC §7: the counterpart of Python's `TrayController`).
+    private let statusItem = StatusItemController()
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Language first: every caption below reads it. Stored choice wins, then the
@@ -112,12 +120,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.setHeadphoneCheckHandler { [weak self] in
             _ = self?.coordinator?.rerunFromUser()
         }
+
+        // The menu-bar item, from launch, and the wiring that makes it the *same* app
+        // rather than a second front end: every action asks the window or the coordinator,
+        // never the audio engine directly.
+        statusItem.onToggleWindow = { [weak controller] in controller?.toggleWindowVisibility() }
+        statusItem.onTogglePlayback = { [weak controller] in controller?.togglePlaybackFromKeyboard() }
+        statusItem.onCheckHeadphones = { [weak self] in _ = self?.coordinator?.rerunFromUser() }
+        statusItem.onOpenReference = { [weak self] in self?.openReference() }
+        statusItem.onQuit = { NSApp.terminate(nil) }
+        statusItem.install()
+        hasStatusItem = statusItem.isInstalled
+
+        controller.setWindowVisibilityHandler { [weak statusItem] visible in
+            statusItem?.setWindowVisible(visible)
+        }
+        controller.setWindowCloseHandler { [weak controller] in controller?.setWindowVisible(false) }
+        controller.setStatusItemHandler { [weak statusItem] playing, left, right, beat in
+            statusItem?.reportPlayback(
+                isPlaying: playing, leftHz: left, rightHz: right, beatHz: beat
+            )
+        }
+        controller.setWindowVisible(true)
         DispatchQueue.main.async {
             _ = check.runAtLaunch(acknowledged: controller.currentSession.headphoneCheckAcknowledged)
         }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        statusItem.uninstall()
         controller?.saveNow()
         // (Nothing to tear down under test: there is no controller.)
         controller?.tearDown()
@@ -128,8 +159,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         engine.shutdown()
     }
 
+    /// An explicit *Quit* must always work, tray or no tray.
+    ///
+    /// The default implementation already answers `terminateNow`, so this is the same
+    /// behaviour written down: it is stated next to the rule below, which is the one that
+    /// needs care, and having both in one place makes the pair readable — "closing the last
+    /// window is not quitting; asking to quit is quitting".
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        .terminateNow
+    }
+
+    /// With a status item installed, closing the last window must leave the app running —
+    /// that is the whole point of the item. Without one, closing the window quits, as
+    /// Python's `setQuitOnLastWindowClosed` decision does.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        return !hasStatusItem
     }
 
     // MARK: - Menu
@@ -205,6 +249,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func languageDidChange() {
         retranslateMenus()
+        // The status item's captions follow the language too (SPEC §7.4).
+        statusItem.retranslate()
     }
 
     private func retranslateMenus() {
@@ -213,6 +259,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         viewItem.title = L10n.tr("&View")
         languageItem.title = L10n.tr("Language")
         languageMenu.title = L10n.tr("Language")
+        statusItem.retranslate()
         helpItem.title = L10n.tr("&Help")
         referenceItem.title = L10n.tr("Frequency &reference…")
         checkHeadphonesItem.title = L10n.tr("&Check headphones…")

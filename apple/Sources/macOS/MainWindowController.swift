@@ -64,7 +64,12 @@ final class MainWindowController: NSWindowController {
             defer: false
         )
         window.minSize = NSSize(width: 720, height: 540)
+        // The tray can hide and show this window, so closing it must not destroy it.
+        // Without this, `close()` releases the controller and the status item's Show
+        // command would have nothing to show.
+        window.isReleasedWhenClosed = false
         super.init(window: window)
+        window.delegate = self
 
         buildContent()
         connect()
@@ -268,6 +273,7 @@ final class MainWindowController: NSWindowController {
     /// into the numbers — which is `HeadphoneDetector.swapChannels`'s whole reason for
     /// existing as a function.
     private func pushFrequencies() {
+        publishPlaybackState()
         let pair = HeadphoneDetector.swapChannels(
             leftHz: leftControl.value,
             rightHz: rightControl.value,
@@ -290,6 +296,7 @@ final class MainWindowController: NSWindowController {
             showError(engine.error)
         }
         retranslate()
+        publishPlaybackState()
     }
 
     /// Stop, through the fade.
@@ -676,6 +683,74 @@ final class MainWindowController: NSWindowController {
         muteToggled()
     }
 
+    // MARK: - Window visibility (the status item's job)
+
+    /// Put the window on screen without going through the status item — the seam the tray
+    /// tests need, since they are about the window's behaviour, not about AppKit activation.
+    func showAndActivateForTests() {
+        window?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Ask the window delegate's question the way AppKit would.
+    func windowShouldCloseForTests(_ window: NSWindow) -> Bool {
+        windowShouldClose(window)
+    }
+
+    /// Set by the app delegate: a status item exists, so closing must only hide.
+    private var onWindowCloseRequested: (() -> Void)?
+    func setWindowCloseHandler(_ handler: @escaping () -> Void) {
+        onWindowCloseRequested = handler
+    }
+
+    /// Show the window, or hide it if it is already on screen.
+    ///
+    /// The status item's Show/Hide, and what the *Window* menu would do if it existed. The
+    /// window is **ordered out**, never closed: it holds the session state, the running
+    /// countdown and the audio engine's view of the world, and all three must survive the
+    /// window being out of sight.
+    func toggleWindowVisibility() {
+        setWindowVisible(!isWindowOnScreen)
+    }
+
+    func setWindowVisible(_ visible: Bool) {
+        if visible {
+            window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            window?.orderOut(nil)
+        }
+        onVisibilityChanged?(visible)
+    }
+
+    var isWindowOnScreen: Bool { window?.isVisible ?? false }
+
+    /// The status item and the *Window* menu follow the window.
+    private var onVisibilityChanged: ((Bool) -> Void)?
+    func setWindowVisibilityHandler(_ handler: @escaping (Bool) -> Void) {
+        onVisibilityChanged = handler
+    }
+
+    /// Tell the status item what the transport and the frequencies are — Python's tray
+    /// tooltip, from the window's own numbers.
+    func setStatusItemHandler(_ handler: @escaping (Bool, Double, Double, Double) -> Void) {
+        onPlaybackChanged = handler
+    }
+
+    private var onPlaybackChanged: ((Bool, Double, Double, Double) -> Void)?
+
+    /// Push the current transport and frequencies to whoever is listening (the status item).
+    private func publishPlaybackState() {
+        guard let onPlaybackChanged else { return }
+        let left = leftControl.value
+        let right = rightControl.value
+        onPlaybackChanged(
+            engine.isRunning,
+            left,
+            right,
+            BeatMath.beatFrequency(leftHz: left, rightHz: right)
+        )
+    }
+
     // MARK: - Timer state the tests agree on
 
     /// The durations on offer, as captions — `Session.timerChoices` and nothing else,
@@ -694,6 +769,22 @@ final class MainWindowController: NSWindowController {
     func selectTimerMinutes(_ minutes: Int) {
         timerView.setMinutes(minutes)
         timerSelectionChanged(timerView.selectedMinutes)
+    }
+}
+
+extension MainWindowController: NSWindowDelegate {
+
+    /// Closing the window **hides** it.
+    ///
+    /// This is what makes the status item meaningful: with a tray item present the app keeps
+    /// running (Python does `setQuitOnLastWindowClosed(False)` for exactly this reason), and
+    /// a window that merely went away would leave no way back except the tray.
+    /// `performClose` is `orderOut` plus `isReleasedWhenClosed = false`, so this hook is
+    /// belt and braces — and it is also what keeps a stray close from tearing down the
+    /// session state the tray is still reporting.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        onWindowCloseRequested?()
+        return false
     }
 }
 
