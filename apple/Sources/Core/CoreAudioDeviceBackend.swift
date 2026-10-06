@@ -119,7 +119,15 @@ public struct CoreAudioDeviceBackend: AudioDeviceBackend {
         var written = UInt32(count * stride)
         // CoreAudio may write up to `size` bytes, which is exactly the array's own
         // storage: the buffer is allocated for `count` ids and no more.
-        let status = withUnsafeMutableBytes(of: &ids) { buffer -> OSStatus in
+        //
+        // `ids.withUnsafeMutableBytes { … }` rather than
+        // `withUnsafeMutableBytes(of: &ids) { … }`, and the difference is not cosmetic:
+        // the second form **crashes** on this toolchain (Swift 6.4, macOS 26) as soon as
+        // the closure touches the buffer — SIGBUS inside `swift_retain` on the way out of
+        // the call, inside `deviceIDs()`. It was found by the launch smoke test, because
+        // nothing else calls this function: the array's own method is the equivalent, does
+        // exactly the same thing, and is the documented way to get at an array's bytes.
+        let status = ids.withUnsafeMutableBytes { buffer -> OSStatus in
             guard let base = buffer.baseAddress else { return OSStatus(-1) }
             return AudioObjectGetPropertyData(
                 systemObject, &address, 0, nil, &written, base

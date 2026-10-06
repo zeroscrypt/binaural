@@ -277,6 +277,38 @@ final class AudioEngineTests: XCTestCase {
         )
     }
 
+    /// The render block must survive being called from the **CoreAudio IO thread**.
+    ///
+    /// This is the regression test for a real crash: the block used to be written inline
+    /// inside `start()`, a `@MainActor` method, so the closure inherited that isolation and
+    /// the compiler emitted a main-actor check at the top of it. On the IO thread that
+    /// check tripped `_dispatch_assert_queue` and the process died with `SIGTRAP` the first
+    /// time real audio rendered — which is why the app was stable in a test host (the block
+    /// is also pulled once from the calling thread during `prepare()`, where the check
+    /// passes) and died seconds after launch in the running app.
+    ///
+    /// Nothing here asserts *that* sound came out: it asserts that a real device rendered
+    /// blocks through the real callback without the process trapping, which is the property
+    /// that broke. Skips where there is no output device.
+    @MainActor
+    func testRenderBlockRunsOnTheAudioThreadWithoutAnIsolationTrap() throws {
+        try XCTSkipIf(
+            Self.defaultOutputDeviceSampleRate() <= 0,
+            "no default output device in this environment"
+        )
+
+        let engine = AudioEngine()
+        guard engine.start() else {
+            throw XCTSkip("the device is present but could not be opened: \(engine.error ?? "")")
+        }
+        defer { engine.shutdown() }
+
+        // Long enough for the IO thread to pull several blocks. If the closure were still
+        // main-actor isolated the process would be dead before this returns.
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        XCTAssertTrue(engine.isRunning, "the engine survived its own render callback")
+    }
+
     /// Sample rate of the default output device, read through a throwaway engine that is
     /// gone before this one returns.
     @MainActor

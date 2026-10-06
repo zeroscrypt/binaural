@@ -266,5 +266,38 @@ extension DeviceModelTests {
             backend.classify(AudioDevice(name: "AirPods Pro", transport: "usb")), .headphones
         )
     }
+
+    /// The real HAL, end to end.
+    ///
+    /// This is the test that pins the call the launch smoke test found broken: nothing
+    /// called `deviceIDs()` until the app ran the §4 check at start-up, and it faulted —
+    /// SIGBUS inside `swift_retain`, on the way out of `withUnsafeMutableBytes(of:)`.
+    ///
+    /// Nothing is asserted about *which* devices exist — a CI machine, a Mac mini and a
+    /// studio all differ. What is asserted is the contract: enumerating must not fault, and
+    /// whatever comes back must be usable.
+    func testTheRealHALEnumeratesWithoutFaulting() {
+        let backend = CoreAudioDeviceBackend()
+        let devices = backend.listOutputs()
+        for device in devices {
+            XCTAssertFalse(device.name.isEmpty)
+            XCTAssertFalse(device.transport.isEmpty)
+            XCTAssertNotEqual(backend.classify(device), .unknown, "\(device.name) is classified")
+        }
+        if let defaultDevice = backend.defaultOutput() {
+            XCTAssertTrue(
+                devices.contains { $0.identifier == defaultDevice.identifier },
+                "the default output must be among the enumerated devices"
+            )
+        }
+    }
+
+    /// The heuristic reads the default device and never throws, whatever the machine has.
+    func testTheRealHALProducesAUsableVerdict() {
+        let verdict = HeadphoneDetector.detect(backend: CoreAudioDeviceBackend())
+        XCTAssertTrue(DeviceClass.allCases.contains(verdict.verdict))
+        // `deviceName` is "" when nothing was readable — never a crash, never a trap.
+        XCTAssertFalse(verdict.deviceName.isEmpty && verdict.device == nil)
+    }
 }
 #endif

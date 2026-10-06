@@ -348,8 +348,8 @@ public final class AudioEngine {
         updateParameters()
     }
 
-    /// Hard-pan one channel, for the perceptual L/R test (SPEC §4.2). M2-b plays the
-    /// tones; the hook itself is the M1 `setPan`.
+    /// Hard-pan one channel, for the perceptual L/R test (SPEC §4.2). The hook itself is
+    /// the M1 `setPan`, reached through the same mailbox as everything else.
     public func setPan(left: Double, right: Double) {
         pan = (left, right)
         updateParameters()
@@ -413,13 +413,7 @@ public final class AudioEngine {
         // The context already exists; the render callback adopts the sample rate on
         // its first block, so no oscillator is created before the device is ready.
         if sourceNode == nil {
-            let context = self.context
-            let node = AVAudioSourceNode(format: format) { _, _, frameCount, buffers in
-                context.render(
-                    frameCount: frameCount,
-                    into: UnsafeMutableAudioBufferListPointer(buffers)
-                )
-            }
+            let node = Self.makeSourceNode(format: format, context: context)
             engine.attach(node)
             sourceNode = node
         }
@@ -466,6 +460,42 @@ public final class AudioEngine {
             engine.disconnectNodeOutput(sourceNode)
             engine.detach(sourceNode)
             self.sourceNode = nil
+        }
+    }
+}
+
+// MARK: - The render block
+
+extension AudioEngine {
+
+    /// Build the source node whose render block is `context.render`.
+    ///
+    /// **This function is `nonisolated`, and that is a correctness requirement, not a
+    /// style choice.** `AVAudioSourceNode` pulls its render block from the **CoreAudio IO
+    /// thread**. Written inline inside `start()` — a `@MainActor` method — the closure
+    /// *inherits* that isolation under Swift 6's closure-inference rules, so the compiler
+    /// emits a main-actor check at the top of the block. Called from the IO thread that
+    /// check trips `_dispatch_assert_queue` and the app dies with `SIGTRAP` the first
+    /// time real audio renders.
+    ///
+    /// It stayed hidden through M2-a because the tests that start a real engine either
+    /// skipped (no device) or pulled the block once from the calling (main) thread during
+    /// `prepare()`, where the check passes. Found by the launch smoke test: the app ran,
+    /// opened its window, and was killed by the audio thread seconds later.
+    ///
+    /// Hoisted out, the closure inherits no isolation: no runtime check, no actor hop, no
+    /// dispatch assertion — the block touches only the context and the mailbox, which is
+    /// exactly the threading design §7.2 of `apple/DESIGN.md` describes. Verified on the
+    /// real IO thread by `testRenderBlockRunsOnTheAudioThreadWithoutAnIsolationTrap`.
+    nonisolated static func makeSourceNode(
+        format: AVAudioFormat,
+        context: AudioRenderContext
+    ) -> AVAudioSourceNode {
+        AVAudioSourceNode(format: format) { _, _, frameCount, buffers in
+            context.render(
+                frameCount: frameCount,
+                into: UnsafeMutableAudioBufferListPointer(buffers)
+            )
         }
     }
 }
