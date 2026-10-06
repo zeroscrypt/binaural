@@ -827,14 +827,41 @@ beat card: the applied chip stays highlighted, and a status line below the bar s
 no new Russian). It is re-translated on a language switch while visible, and `tearDown()`
 invalidates its timer.
 
-### 14.5 Tests
+### 14.5 The preset row rendered empty — a bug the captions could not see
+
+Wiring the bar in was not enough; launching it was. The category chips appeared and the
+**preset** row was blank, and every caption-based test passed, because the failing part was
+not which chips existed but which ones were *arranged* into the row. Two independent
+causes, both invisible from `presetButtons`:
+
+1. **`lastWrapWidth` was one value for the whole view.** `layoutRows` skips the rebuild when
+   the width has not moved, and the category row — laid out first at the same width — had
+   already stored it. The preset row's call was therefore always a no-op. It is now a
+   dictionary keyed by the row.
+2. **`rebuildPresets` did not force a re-wrap.** Even with per-row state, "same width" is
+   the right answer for `layout()` and the wrong one for a rebuild: the chips are new
+   objects. Both rebuilds now clear the column and invalidate the stored width first.
+
+The wrapping was also rebuilt while I was in there: `NSStackView` is horizontal *or*
+vertical, so a "wrapping row" built from one horizontal stack could only squeeze its
+chips, never break the line. Each level is now a vertical **column** of horizontal lines,
+which is what `layout()`'s re-wrap actually needs.
+
+The lesson is recorded because it generalises: `arrangedCategoryChipCount` /
+`arrangedPresetChipCount` now exist so "the chips are on screen" is a number a test can
+read, next to the captions that were right all along.
+
+### 14.6 Tests
 
 `PresetBarTests` drives the real `MainWindowController`: the bar is in the content view
 and laid out (a zero-height bar is invisible, so the frame is asserted, not just
-`isDescendant(of:)`); chips are in registry order; every one of the 20 presets sets
-`200 ± beat/2`; the beat card follows; the category and the applied preset survive a
-relaunch; changing a category moves no frequency; the language switch swaps both
-languages' captions.
+`isDescendant(of:)`); **both rows are checked for arranged chips, not just for existing
+ones** (§14.5 — that is the assertion that caught the empty row); chips are in registry
+order; every one of the 20 presets sets `200 ± beat/2`; the beat card follows; the category
+and the applied preset survive a relaunch; changing a category moves no frequency; the
+language switch swaps both languages' captions; and the wrapping itself is tested — seven
+category chips wrap onto more than one line in a 560 pt window without losing any, and
+unwrap again when the window is widened.
 
 Clicks go through `PresetBarView.tapPreset(id:)` / `tapCategory(id:)`, which call the same
 private `@objc` actions a mouse press reaches. That is deliberate: a test that called
@@ -854,7 +881,7 @@ The M1 commands (§6) still hold, plus one:
 ```
 cd apple && xcodegen generate
 xcodebuild -project Binaural.xcodeproj -scheme BinauralCore -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test   # 190
-xcodebuild -project Binaural.xcodeproj -scheme Binaural     -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test   # +111 window tests
+xcodebuild -project Binaural.xcodeproj -scheme Binaural     -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test   # +114 window tests
 xcodebuild -project Binaural.xcodeproj -scheme Binaural     -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -project Binaural.xcodeproj -scheme Binaural-iOS -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 ```

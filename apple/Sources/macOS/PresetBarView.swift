@@ -38,16 +38,24 @@ final class PresetBarView: NSView {
     var onPresetSelected: ((Preset) -> Void)?
 
     private let captionLabel = NSTextField(labelWithString: "")
-    private let categoryRow = NSStackView()
-    private let presetRow = NSStackView()
+    /// One vertical container per level. Each holds as many horizontal rows as the width
+    /// needs — an `NSStackView` is horizontal or vertical, never both, so wrapping needs a
+    /// column of rows rather than one row that overflows.
+    private let categoryColumn = NSStackView()
+    private let presetColumn = NSStackView()
 
     private var categoryButtons: [String: ChipButton] = [:]
     private var presetButtons: [ChipButton] = []
     private var selectedCategoryID = PresetCatalogue.defaultCategoryID
     private var lastPresetID: String?
     private var isSyncing = false
-    /// Width the chips were last wrapped at, so `layout()` can stay idempotent.
-    private var lastWrapWidth: CGFloat = 0
+    /// Width each row was last wrapped at, so `layout()` can stay idempotent.
+    ///
+    /// **One value per row, not one for the view.** The two rows are wrapped by
+    /// independent calls at the same width; a single shared value made the second call a
+    /// no-op every time, and the preset row stayed permanently empty — chips that were
+    /// built, tracked and clickable but never added to the row.
+    private var lastWrapWidths: [ObjectIdentifier: CGFloat] = [:]
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -66,14 +74,14 @@ final class PresetBarView: NSView {
         captionLabel.font = .systemFont(ofSize: 13, weight: .semibold)
         captionLabel.textColor = .secondaryLabelColor
 
-        for row in [categoryRow, presetRow] {
-            row.orientation = .horizontal
-            row.alignment = .centerY
-            row.spacing = 8
-            row.translatesAutoresizingMaskIntoConstraints = false
+        for column in [categoryColumn, presetColumn] {
+            column.orientation = .vertical
+            column.alignment = .leading
+            column.spacing = 8
+            column.translatesAutoresizingMaskIntoConstraints = false
         }
 
-        let stack = NSStackView(views: [captionLabel, categoryRow, presetRow])
+        let stack = NSStackView(views: [captionLabel, categoryColumn, presetColumn])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 8
@@ -85,9 +93,9 @@ final class PresetBarView: NSView {
             stack.trailingAnchor.constraint(equalTo: trailingAnchor),
             stack.topAnchor.constraint(equalTo: topAnchor),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor),
-            // SPEC §7.2: 44 px minimum click target.
-            categoryRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-            presetRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            // SPEC §7.2: 44 px minimum click target — one chip row tall at the very least.
+            categoryColumn.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            presetColumn.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             stack.widthAnchor.constraint(greaterThanOrEqualToConstant: 520)
         ])
 
@@ -103,7 +111,10 @@ final class PresetBarView: NSView {
     /// Recreate the category chips. Seven buttons is nothing, so rebuilding beats
     /// mutating in place when the language changes.
     private func rebuildCategories() {
-        for button in categoryButtons.values { button.removeFromSuperview() }
+        // Same forced re-wrap as `rebuildPresets` — new buttons need a rebuilt row even
+        // when the width has not changed.
+        lastWrapWidths[ObjectIdentifier(categoryColumn)] = nil
+        clear(categoryColumn)
         categoryButtons.removeAll()
 
         for category in PresetCatalogue.categories {
@@ -114,12 +125,20 @@ final class PresetBarView: NSView {
             button.setAccessibilityLabel(category.name(for: L10n.language))
             categoryButtons[category.id] = button
         }
-        layoutRows(categoryRow, with: PresetCatalogue.categories.map { categoryButtons[$0.id]! })
+        wrap(categoryButtons: PresetCatalogue.categories.map { categoryButtons[$0.id]! },
+             into: categoryColumn)
     }
 
     /// Recreate the preset chips of the selected category.
     private func rebuildPresets() {
-        for button in presetButtons { button.removeFromSuperview() }
+        // A *forced* re-wrap, not just "remove and hope". `wrap` skips the work when the
+        // width has not moved, which is right for `layout()` and wrong here: the chips are
+        // new objects, so the row has to be rebuilt even at an unchanged width. Without
+        // this the row kept the previous category's arranged subviews while `presetButtons`
+        // already held the new ones — captions correct, row stale, and the column reported
+        // one empty line.
+        lastWrapWidths[ObjectIdentifier(presetColumn)] = nil
+        clear(presetColumn)
         presetButtons = []
 
         let presets = PresetCatalogue.presets(inCategory: selectedCategoryID)
@@ -135,7 +154,7 @@ final class PresetBarView: NSView {
             )
             presetButtons.append(button)
         }
-        layoutRows(presetRow, with: presetButtons)
+        wrap(categoryButtons: presetButtons, into: presetColumn)
         markSelectedPreset()
     }
 
@@ -155,37 +174,62 @@ final class PresetBarView: NSView {
     /// `intrinsicContentSize` is asked for rather than a fixed width per chip: chip titles
     /// differ between English and Russian and between the seven categories, so any hard
     /// width would either clip "Сосредоточенность" or leave "Work" floating in a gap.
-    private func layoutRows(_ row: NSStackView, with buttons: [NSButton]) {
-        guard !buttons.isEmpty else { return }
+    private func wrap(categoryButtons buttons: [NSButton], into column: NSStackView) {
+        let key = ObjectIdentifier(column)
+        // A column whose chips are gone must be cleared even when the width has not moved:
+        // rebuilding one level's chips must never leave another level's on screen.
+        if buttons.isEmpty {
+            guard !column.arrangedSubviews.isEmpty else { return }
+            lastWrapWidths[key] = nil
+            clear(column)
+            return
+        }
         let limit = max(240, availableWidth())
         // Rebuilding arranged subviews from inside `layout()` would schedule another
         // layout pass, so a no-op wrap must stay a no-op or the two feed each other.
-        guard limit != lastWrapWidth else { return }
-        lastWrapWidth = limit
-
-        for view in row.arrangedSubviews { row.removeArrangedSubview(view); view.removeFromSuperview() }
+        guard limit != lastWrapWidths[key] else { return }
+        lastWrapWidths[key] = limit
+        clear(column)
 
         var current: [NSButton] = []
         var currentWidth: CGFloat = 0
 
         for button in buttons {
-            let width = button.intrinsicContentSize.width + row.spacing
+            let width = button.intrinsicContentSize.width + chipSpacing
             if !current.isEmpty, currentWidth + width > limit {
-                addRow(current, to: row)
+                addRow(current, to: column)
                 current = []
                 currentWidth = 0
             }
             current.append(button)
             currentWidth += width
         }
-        addRow(current, to: row)
+        addRow(current, to: column)
     }
 
-    private func addRow(_ buttons: [NSButton], to row: NSStackView) {
-        guard !buttons.isEmpty else { return }
-        for button in buttons { row.addArrangedSubview(button) }
-        row.addArrangedSubview(NSView())   // the trailing stretch of the Python row
+    private func clear(_ column: NSStackView) {
+        for row in column.arrangedSubviews {
+            column.removeArrangedSubview(row)
+            for view in row.subviews { view.removeFromSuperview() }
+            row.removeFromSuperview()
+        }
     }
+
+    /// One horizontal line of chips, with the Python row's trailing stretch.
+    private func addRow(_ buttons: [NSButton], to column: NSStackView) {
+        guard !buttons.isEmpty else { return }
+        let row = NSStackView(views: buttons)
+        row.orientation = .horizontal
+        row.alignment = .centerY
+        row.spacing = chipSpacing
+        row.translatesAutoresizingMaskIntoConstraints = false
+        row.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        row.addArrangedSubview(NSView())   // the trailing stretch of the Python row
+        column.addArrangedSubview(row)
+    }
+
+    /// Gap between chips and between wrapped lines — the Python row's `SPACE_SM`.
+    private let chipSpacing: CGFloat = 8
 
     /// Width the wrapping may use, from the Auto Layout pass already made against us.
     private func availableWidth() -> CGFloat {
@@ -195,9 +239,10 @@ final class PresetBarView: NSView {
 
     override func layout() {
         super.layout()
-        // A resize can make a wrapped row fit on one line; re-wrap at the new width.
-        layoutRows(categoryRow, with: PresetCatalogue.categories.map { categoryButtons[$0.id]! })
-        layoutRows(presetRow, with: presetButtons)
+        // A resize can make a wrapped column fit on one line; re-wrap at the new width.
+        wrap(categoryButtons: PresetCatalogue.categories.map { categoryButtons[$0.id]! },
+             into: categoryColumn)
+        wrap(categoryButtons: presetButtons, into: presetColumn)
     }
 
     // MARK: - Selection
@@ -284,6 +329,27 @@ final class PresetBarView: NSView {
     var selectedPresetID: String? {
         presetButtons.first { $0.state == .on }?.representedID
     }
+
+    // MARK: - State the layout tests read
+
+    /// The chip rows actually on screen, one entry per wrapped line, as counts.
+    ///
+    /// `presetButtons` says which chips *exist*; this says how many made it into the
+    /// column. The two differed once — the preset row's chips were built and tracked but
+    /// never arranged, so the row rendered empty while every caption-based test passed.
+    var arrangedCategoryChipCount: Int { arrangedChipCount(in: categoryColumn) }
+
+    var arrangedPresetChipCount: Int { arrangedChipCount(in: presetColumn) }
+
+    /// Chips minus the one trailing stretch each wrapped line carries.
+    private func arrangedChipCount(in column: NSStackView) -> Int {
+        let lines = column.arrangedSubviews.compactMap { $0 as? NSStackView }
+        return lines.reduce(0) { $0 + $1.arrangedSubviews.count } - lines.count
+    }
+
+    /// How many wrapped lines each level occupies — 1 when it fits, more when it does not.
+    var categoryLineCount: Int { categoryColumn.arrangedSubviews.count }
+    var presetLineCount: Int { presetColumn.arrangedSubviews.count }
 
     // MARK: - Language
 

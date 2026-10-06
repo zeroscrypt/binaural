@@ -220,23 +220,83 @@ final class PresetBarTests: XCTestCase {
 
     // MARK: - The bar on its own
 
-    /// The wrapping is the one piece of layout with real logic in it: seven chips do not
-    /// fit one line in a narrow window, so the rows have to wrap without losing a chip.
-    func testNarrowWindowWrapsChipsWithoutLosingAny() {
-        let bar = PresetBarView(frame: NSRect(x: 0, y: 0, width: 700, height: 200))
+    /// The wrapping is the one piece of layout with real logic in it, and it is where the
+    /// row that never rendered came from: every caption was right while the row held no
+    /// chips. Both levels are checked for *arranged* chips, not just for existing ones.
+    func testBothChipRowsActuallyRender() throws {
+        let (controller, window) = try makeWindowedController()
+
+        XCTAssertEqual(controller.presetBarControl.arrangedCategoryChipCount, 7)
+        XCTAssertEqual(controller.presetBarControl.arrangedPresetChipCount, 3)
+
+        controller.tapPresetCategory("sport")
+        XCTAssertEqual(controller.presetBarControl.arrangedPresetChipCount, 3)
+        controller.tapPresetCategory("awareness")   // two presets, not three
+        XCTAssertEqual(controller.presetBarControl.arrangedPresetChipCount, 2)
+        XCTAssertEqual(controller.visiblePresetTitles, ["Alpha 11", "Alpha 12"])
+
+        _ = window
+    }
+
+    /// A narrow window has to wrap the seven category chips onto more than one line, and
+    /// must not drop one to do it.
+    func testNarrowWindowWrapsChipsWithoutLosingAny() throws {
+        let bar = PresetBarView(frame: NSRect(x: 0, y: 0, width: 560, height: 200))
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 300),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 400),
             styleMask: [.titled, .resizable], backing: .buffered, defer: false
         )
         let content = NSView(frame: window.contentView!.bounds)
         window.contentView = content
+        bar.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(bar)
-        bar.translatesAutoresizingMaskIntoConstraints = true
-        bar.frame = NSRect(x: 0, y: 0, width: 560, height: 200)
-
+        NSLayoutConstraint.activate([
+            bar.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            bar.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            bar.topAnchor.constraint(equalTo: content.topAnchor)
+        ])
         layout(window)
-        XCTAssertEqual(bar.categoryTitles.count, 7)
-        XCTAssertEqual(bar.visiblePresetTitles.count, 3)
+
+        XCTAssertGreaterThan(bar.categoryLineCount, 1, "seven chips cannot fit 512 pt")
+        XCTAssertEqual(bar.arrangedCategoryChipCount, 7, "wrapping must not drop a chip")
+        XCTAssertEqual(bar.arrangedPresetChipCount, 3)
+    }
+
+    /// Widening the window re-wraps: the same chips, fewer lines.
+    func testWideningTheWindowUnwrapsTheChips() throws {
+        let bar = PresetBarView(frame: NSRect(x: 0, y: 0, width: 560, height: 200))
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 400),
+            styleMask: [.titled, .resizable], backing: .buffered, defer: false
+        )
+        let content = NSView(frame: window.contentView!.bounds)
+        window.contentView = content
+        bar.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(bar)
+        NSLayoutConstraint.activate([
+            bar.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            bar.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            bar.topAnchor.constraint(equalTo: content.topAnchor)
+        ])
+        layout(window)
+        let wrappedLines = bar.categoryLineCount
+        XCTAssertGreaterThan(wrappedLines, 1)
+
+        window.setContentSize(NSSize(width: 1400, height: 400))
+        layout(window)
+        XCTAssertEqual(bar.categoryLineCount, 1, "1400 pt fits all seven on one line")
+        XCTAssertEqual(bar.arrangedCategoryChipCount, 7)
+    }
+
+    /// Russian captions are wider; the bar must still show all seven chips.
+    func testRussianCaptionsWrapWithoutLosingChips() throws {
+        L10n.setLanguage("ru")
+        let controller = makeController()
+        let window = try XCTUnwrap(controller.window)
+        layout(window)
+        let bar = controller.presetBarControl
+        XCTAssertEqual(bar.arrangedCategoryChipCount, 7)
+        XCTAssertEqual(bar.arrangedPresetChipCount, 3)
     }
 
     /// `select` does not notify — restoring a session must not look like a user click.
@@ -267,9 +327,19 @@ final class PresetBarTests: XCTestCase {
 
     // MARK: - Helper
 
+    /// A controller whose window has been through a layout pass.
+    private func makeWindowedController() throws -> (MainWindowController, NSWindow) {
+        let controller = makeController()
+        let window = try XCTUnwrap(controller.window)
+        layout(window)
+        return (controller, window)
+    }
+
     /// Force one layout pass, so frame-based assertions mean something.
     private func layout(_ window: NSWindow) {
         window.contentView?.layoutSubtreeIfNeeded()
         window.contentView?.displayIfNeeded()
     }
 }
+
+
