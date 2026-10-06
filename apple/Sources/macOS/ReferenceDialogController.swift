@@ -81,6 +81,10 @@ final class ReferenceDialogController: NSWindowController {
         let document = NSView()
         document.translatesAutoresizingMaskIntoConstraints = false
         document.addSubview(resultsStack)
+        // The document goes into the scroll view **before** the width constraint is
+        // activated: a constraint between two views with no common ancestor is illegal, and
+        // `documentView` is what makes them related.
+        scrollView.documentView = document
         NSLayoutConstraint.activate([
             resultsStack.leadingAnchor.constraint(equalTo: document.leadingAnchor),
             resultsStack.trailingAnchor.constraint(equalTo: document.trailingAnchor),
@@ -88,7 +92,6 @@ final class ReferenceDialogController: NSWindowController {
             resultsStack.bottomAnchor.constraint(equalTo: document.bottomAnchor),
             document.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor)
         ])
-        scrollView.documentView = document
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.drawsBackground = false

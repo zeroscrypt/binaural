@@ -647,6 +647,67 @@ in §9.
 **Placed in the application menu with `Cmd-,`**, which is where macOS puts it; Python has
 no menu for it because it has no dialog.
 
+## 12. M2-b item 4: About and the §6.13 disclaimer
+
+`Sources/macOS/AboutDialogController.swift` plus `Sources/Core/AboutContent.swift`.
+`Help → About` (Ctrl+Shift+I, as in Python) opens it.
+
+**The disclaimer is one constant, shown in two places.** SPEC §6.13 requires the text in the
+app *and* in the README, so `AboutContent.disclaimerEnglish` is the single source and both
+the About dialog and the frequency reference read it. The English string is **byte-identical
+to `about.py::DISCLAIMER_EN`**, verified mechanically, and it is a key of the shared
+catalogue — so the Russian comes from `ru.py` and the two implementations cannot say
+different things about a medical disclaimer.
+
+`AboutContent` lives in `BinauralCore` (not in the app target) precisely so
+`BinauralCoreTests` can check that key against the catalogue; see §9.1.
+
+**The tests are about the wording, not the widget.** `AboutTests` asserts that every clause
+SPEC §6.13 names is still present — "not a medical device", "diagnosis, treatment or
+prevention", epilepsy, pacemaker, pregnancy, photosensitive, consulting a doctor, volume —
+and that the text promises nothing: a banned-claim list (cures, heals, treats, improves,
+guarantees, proven, safe for) that fails if a sentence is ever added. Dropping the pacemaker
+line and inventing a health benefit both break the suite by name.
+
+**Rebuilt, not patched.** `retranslate()` rebuilds the whole body: a dialog holds no state
+worth preserving, and rebuilding is the only version that cannot leave one label in the
+previous language. The dialog also observes `L10n.languageDidChange`, so a switch from the
+*View* menu reaches it while it is open — the same choice Settings makes.
+
+**Two bugs the About tests found, both in pre-existing code:**
+
+* `document.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor)` was
+  activated **before** `scrollView.documentView = document`, i.e. between two views with no
+  common ancestor — illegal, and it raises `NSGenericException` rather than merely warning.
+  **The reference dialog had the same bug** (`ReferenceDialogController`), so both were
+  fixed: hand the document over first, then constrain.
+* `visibleLines` collected `NSTextField`s only, so the project link — an `NSButton` — was
+  invisible to the assertion that it is shown.
+
+### 12.1 SPEC finding: the Russian disclaimer is a paraphrase, not verbatim
+
+SPEC §6.13 reads:
+
+> Эти частоты и описания **эффектов** происходят из **исследований**, а также из эзотерических,
+> энергетических и альтернативных практик. **Приложение** не является медицинским изделием и
+> **не предназначено** для диагностики, лечения или профилактики заболеваний.
+> Не используйте при эпилепсии, кардиостимуляторе, во время беременности и при повышенной
+> светочувствительности без консультации врача. Не превышайте громкость.
+
+`ru.py` ships:
+
+> Эти частоты и описания **их** эффектов происходят из **исследовательской литературы**, …
+> **Это** приложение не является медицинским изделием … диагностики, лечения **или**
+> профилактики заболеваний. Не используйте **его** при эпилепсии **или** кардиостимуляторе, …
+> **а также** при повышенной светочувствительности … **Не превышайте разумную громкость.**
+
+All five substantive clauses survive; **no claim is added and none is removed**, and the
+only semantic change is the added qualifier «разумную» / "reasonable". This app shows the
+catalogue text — the same one Python shows — because two implementations of one product
+must not disagree about a disclaimer, and because the coordinator owns `src/` and `docs/`.
+For the coordinator: either `ru.py` should be brought to the SPEC wording, or SPEC §6.13
+should state that the catalogue wording is the canonical one.
+
 ## 8. Build and verify (M2)
 
 The M1 commands (§6) still hold, plus one:

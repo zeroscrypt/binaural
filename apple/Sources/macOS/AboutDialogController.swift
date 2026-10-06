@@ -38,6 +38,7 @@ final class AboutDialogController: NSWindowController {
 
     private let scrollView = NSScrollView()
     private let body = NSStackView()
+    private var languageObserver: (any NSObjectProtocol)?
 
     init() {
         let window = NSWindow(
@@ -50,6 +51,27 @@ final class AboutDialogController: NSWindowController {
         super.init(window: window)
         buildContent()
         retranslate()
+
+        // SPEC §7.4 says a dialog is built fresh on each open and reads the language itself.
+        // It does not say what happens when the language changes while one is open, and the
+        // answer that costs least and reads best is: it follows. The Settings dialog does
+        // the same, so *View → Language* works from anywhere.
+        languageObserver = NotificationCenter.default.addObserver(
+            forName: L10n.languageDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.retranslate() }
+        }
+    }
+
+    /// Stop observing. `deinit` cannot do it: a `deinit` is nonisolated and the token is
+    /// not `Sendable`.
+    func tearDown() {
+        if let languageObserver {
+            NotificationCenter.default.removeObserver(languageObserver)
+            self.languageObserver = nil
+        }
     }
 
     @available(*, unavailable)
@@ -68,6 +90,10 @@ final class AboutDialogController: NSWindowController {
 
         let document = NSView()
         document.addSubview(body)
+        // The document goes into the scroll view **before** the width constraint is
+        // activated: a constraint between two views that have no common ancestor is illegal,
+        // and `documentView` is what makes them related.
+        scrollView.documentView = document
         NSLayoutConstraint.activate([
             body.leadingAnchor.constraint(equalTo: document.leadingAnchor),
             body.trailingAnchor.constraint(equalTo: document.trailingAnchor),
@@ -75,28 +101,12 @@ final class AboutDialogController: NSWindowController {
             body.bottomAnchor.constraint(equalTo: document.bottomAnchor),
             document.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor)
         ])
-        scrollView.documentView = document
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.drawsBackground = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
 
-        body.addArrangedSubview(heading(L10n.tr("Binaural")))
-        body.addArrangedSubview(caption(AboutContent.versionText()))
-        body.addArrangedSubview(paragraph(AboutContentText.tagline))
-        body.addArrangedSubview(paragraph(AboutContentText.whatItIs))
-        body.addArrangedSubview(paragraph(AboutContentText.whatItNeeds))
-        body.addArrangedSubview(paragraph(AboutContentText.evidenceNote, muted: true))
-
-        let link = LinkButton(title: AboutContent.projectURL, target: nil, action: nil)
-        link.setAccessibilityLabel(L10n.tr("Open project page"))
-        link.setAccessibilityHelp(L10n.tr("Open {url} in the browser", named: ["url": AboutContent.projectURL]))
-        link.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
-        body.addArrangedSubview(link)
-
-        body.addArrangedSubview(disclaimerBox())
-        body.addArrangedSubview(licenseBox())
-        body.addArrangedSubview(NSView())
+        rebuildBody()
 
         let close = NSButton()
         close.target = self
@@ -235,22 +245,42 @@ final class AboutDialogController: NSWindowController {
     // MARK: - Language
 
     func retranslate() {
-        window?.title = L10n.tr("About Binaural")
-        window?.setAccessibilityLabel(L10n.tr("About Binaural"))
-        // Dialogs are created fresh on each open and read the language themselves
-        // (SPEC §7.4); `retranslate` exists for the one case that matters — a language
-        // switch while the dialog is up.
-        for view in body.arrangedSubviews { retag(view, depth: 0) }
+        window?.title = AboutContentText.aboutTitle
+        window?.setAccessibilityLabel(AboutContentText.aboutTitle)
+        rebuildBody()
     }
 
-    /// Re-fill the body by rebuilding it, which is what "read the language themselves"
-    /// means for a dialog: the labels hold no state worth preserving.
-    private func retag(_ view: NSView, depth: Int) {
-        if let label = view as? NSTextField, depth == 0, label.isSelectable {
-            label.stringValue = AboutContentText.disclaimer
-            return
+    /// Fill the body from ``AboutContent``, in the current language.
+    ///
+    /// Rebuilt rather than patched. SPEC §7.4 says a dialog is created fresh on each open
+    /// and reads the language itself — there is no state here worth preserving, and
+    /// rebuilding is the only version that cannot leave one label in the previous language
+    /// after a switch. The **disclaimer is rebuilt from the same constant** the frequency
+    /// reference shows, so the two cannot drift apart or soften between them.
+    private func rebuildBody() {
+        for view in body.arrangedSubviews {
+            body.removeArrangedSubview(view)
+            view.removeFromSuperview()
         }
-        for sub in view.subviews { retag(sub, depth: depth + 1) }
+
+        body.addArrangedSubview(heading(L10n.tr("Binaural")))
+        body.addArrangedSubview(caption(AboutContent.versionText()))
+        body.addArrangedSubview(paragraph(AboutContentText.tagline))
+        body.addArrangedSubview(paragraph(AboutContentText.whatItIs))
+        body.addArrangedSubview(paragraph(AboutContentText.whatItNeeds))
+        body.addArrangedSubview(paragraph(AboutContentText.evidenceNote, muted: true))
+
+        let link = LinkButton(title: AboutContent.projectURL, target: nil, action: nil)
+        link.setAccessibilityLabel(L10n.tr("Open project page"))
+        link.setAccessibilityHelp(
+            L10n.tr("Open {url} in the browser", named: ["url": AboutContent.projectURL])
+        )
+        link.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        body.addArrangedSubview(link)
+
+        body.addArrangedSubview(disclaimerBox())
+        body.addArrangedSubview(licenseBox())
+        body.addArrangedSubview(NSView())
     }
 
     // MARK: - State the tests read
@@ -260,8 +290,11 @@ final class AboutDialogController: NSWindowController {
         body.arrangedSubviews.flatMap { lines(in: $0) }
     }
 
+    /// Labels **and** buttons: the project link is a button whose title is the URL, and a
+    /// "visible body" that omitted it would make the link untestable.
     private func lines(in view: NSView) -> [String] {
         if let label = view as? NSTextField { return [label.stringValue] }
+        if let button = view as? NSButton, !button.title.isEmpty { return [button.title] }
         return view.subviews.flatMap { lines(in: $0) }
     }
 
