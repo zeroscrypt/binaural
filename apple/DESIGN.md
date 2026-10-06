@@ -907,6 +907,68 @@ easy mistake when both are around — waits, checks `pgrep` on that exact path, 
 diffs `~/Library/Logs/DiagnosticReports` before and after so a late crash fails too. The
 directory was empty of `Binaural*` reports before and after both runs.
 
+## 16. The "Lock difference" checkbox (SPEC §7)
+
+F1's independence is absolute: "изменение левого не двигает правый". The lock is a **user-
+chosen** exception to it, and the interesting part is where the seam goes so that it cannot
+be honoured by one route and skipped by another.
+
+**One seam, not four.** `FrequencyControlView.setValue(_:notify: true)` is the only way a
+frequency changes from the user's side — slider, exact-entry field, the `↑`/`↓` nudge and the
+programmatic `setFrequency(_:for:)` all go through it. So `MainWindowController` connects the
+two `onChange` closures to `frequencyEdited(_:)`, which takes **which** control moved: the
+difference is signed, so "the other channel" is not a fixed one. The follower is then written
+with `notify: false`, because a follower pushed back through `onChange` would read the lock
+again and move the channel the user is dragging.
+
+**The timer does not need an exception.** `PlaybackTimer` is a pure function of "now" and
+never writes a frequency; expiry only calls `stopPlayback()`. There is no path there that
+could ignore the lock, which is why `testTheTimerDoesNotDisturbTheLock` is a real assertion
+rather than a comment. The one engine-level frequency writer, `LRTonePlayer`, deliberately
+bypasses the controls: it plays the §4.2 test tone straight into `AudioEngine` and restores
+what was there, so the displayed pair — and therefore the lock — is untouched throughout.
+
+**`DifferenceLock` is a value in Core, not a flag in the window.** `Sources/Core/DifferenceLock.swift`
+holds the whole rule as `capture` / `unlock` / `resolve`, so the follower arithmetic, the
+signed case and the boundary clamp are unit-tested without AppKit. `Resolution.isAtBoundary`
+comes back with the pair, which is what lets the window decide whether to explain itself.
+
+**The boundary is resolved in favour of the lock.** Following would ask the other channel
+for a frequency outside 1–20000 Hz; that cannot happen, so the **edited** value is pulled
+back to the last legal position and `isAtBoundary` says so. The alternative — clamping the
+follower — would silently change the difference, which is exactly what the user ticked the box
+to prevent. The check is one `min`/`max` intersection per edit, and a difference wide enough
+to leave *no* legal pair returns `nil` rather than an illegal frequency.
+
+**Which channel stops at the bottom depends on the sign.** With `+10 Hz` the left ear is the
+lower one, so dragging the *right* down runs out of range; with `−10 Hz` it is the other way
+round. Both directions are tested, because writing only the positive case would have left the
+negative one unchecked — and the negative case is the one that exercises the signed capture.
+
+**The notice slot is shared, not invented.** "The lock was turned off" reuses the transient
+note line under the preset bar and the beat card's existing orange hint — Python's
+`statusBar().showMessage` and the §F1 out-of-range message. A new warning style for a
+situation that is already covered by two would be worse than reusing them. The note stores its
+**English key** (`noticeKey`) rather than the translated string, so a live language switch can
+translate it again instead of leaving Russian on screen until the next edit.
+
+**A named pair wins, and that includes the frequency reference.** SPEC F3 requires a preset to
+set both frequencies to its own beat, so `applyPreset` unlocks. §6's *Apply* is the same kind
+of instruction — "use these two frequencies" — so it goes through the new
+`applyFrequencyPair(leftHz:rightHz:)`, which unlocks too. Left as two `setFrequency` calls it
+would have been actively wrong under a lock: the second follower move would undo the first.
+
+**Only the flag is stored.** `Session.differenceLocked` is a `Bool`; the signed difference is
+re-derived from `right_hz - left_hz` when the session is restored. Storing the number too
+would let a hand-edited document hold a lock that contradicts the pair next to it. The field
+is additive — a document from before it exists loads with the lock off, which
+`testASessionWrittenBeforeTheLockExistedStillOpens` writes out as literal JSON.
+
+Deviation worth naming: the Python app has no such checkbox, so `RussianWindowAdditions`
+grows by four keys and the Python window cannot read a lock out of a session (the field simply
+defaults to `False` there). That is the one place this window is ahead of the reference, and
+it is a §7 feature rather than a CONTRACT requirement, so no arithmetic in `src/` is affected.
+
 ## 8. Build and verify (M2)
 
 The M1 commands (§6) still hold, plus one:

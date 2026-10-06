@@ -33,6 +33,8 @@ final class SessionTests: XCTestCase {
         XCTAssertNil(session.lastPreset)
         XCTAssertEqual(session.timerMinutes, 15)
         XCTAssertEqual(session.presetCategory, "relaxation")
+        // SPEC §7's lock: off until the user ticks it.
+        XCTAssertFalse(session.differenceLocked)
         XCTAssertEqual(session, Session.standard)
     }
 
@@ -64,7 +66,8 @@ final class SessionTests: XCTestCase {
             headphoneCheckAcknowledged: true,
             lastPreset: "alpha-10",
             timerMinutes: 30,
-            presetCategory: "focus"
+            presetCategory: "focus",
+            differenceLocked: true
         )
         try original.save(to: url)
         XCTAssertEqual(try Session.load(from: url), original)
@@ -93,7 +96,8 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(
             keys,
             ["left_hz", "right_hz", "volume", "channels_swapped",
-             "headphone_check_acknowledged", "timer_minutes", "preset_category"]
+             "headphone_check_acknowledged", "timer_minutes", "preset_category",
+             "difference_locked"]
         )
     }
 
@@ -129,6 +133,53 @@ final class SessionTests: XCTestCase {
         XCTAssertEqual(session.volume, Session.standard.volume)
         XCTAssertEqual(session.timerMinutes, Session.defaultTimerMinutes)
         XCTAssertEqual(session.presetCategory, Session.defaultPresetCategory)
+        // A document written before SPEC §7's lock existed has no such key: it loads, and
+        // the lock comes back off rather than the whole session being refused.
+        XCTAssertFalse(session.differenceLocked)
+    }
+
+    /// The additive rule in full: the *exact* JSON of a pre-lock build still loads, with
+    /// every old field intact and only the new one defaulted.
+    func testASessionSavedBeforeTheLockExistedStillLoads() throws {
+        let legacy = """
+        {
+          "left_hz": 231.5,
+          "right_hz": 240.5,
+          "volume": 0.42,
+          "channels_swapped": true,
+          "headphone_check_acknowledged": true,
+          "last_preset": "alpha-10",
+          "timer_minutes": 30,
+          "preset_category": "concentration"
+        }
+        """
+        try Data(legacy.utf8).write(to: url)
+
+        let session = try Session.load(from: url)
+        XCTAssertEqual(session.leftHz, 231.5)
+        XCTAssertEqual(session.rightHz, 240.5)
+        XCTAssertEqual(session.volume, 0.42, accuracy: 1e-12)
+        XCTAssertTrue(session.channelsSwapped)
+        XCTAssertTrue(session.headphoneCheckAcknowledged)
+        XCTAssertEqual(session.lastPreset, "alpha-10")
+        XCTAssertEqual(session.timerMinutes, 30)
+        XCTAssertEqual(session.presetCategory, "concentration")
+        XCTAssertFalse(session.differenceLocked)
+    }
+
+    func testTheLockSurvivesARoundTrip() throws {
+        try Session(leftHz: 200, rightHz: 260, differenceLocked: true).save(to: url)
+        XCTAssertTrue(try Session.load(from: url).differenceLocked)
+    }
+
+    /// A hand-edited document can hold anything; Python coerces booleans, so `"on"` is a
+    /// lock and a nonsense string falls back rather than failing the whole load.
+    func testTheLockCoercesLikeTheOtherBooleans() throws {
+        try Data(#"{"difference_locked": "on"}"#.utf8).write(to: url)
+        XCTAssertTrue(try Session.load(from: url).differenceLocked)
+
+        try Data(#"{"difference_locked": "maybe"}"#.utf8).write(to: url)
+        XCTAssertFalse(try Session.load(from: url).differenceLocked)
     }
 
     func testUnreadableValuesFallBackToDefaults() throws {

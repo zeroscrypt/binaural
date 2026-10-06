@@ -18,6 +18,10 @@ final class BeatDisplayView: NSView {
     private let hintLabel = NSTextField(wrappingLabelWithString: "")
     private var beatHz: Double = 0
     private var carrierHz: Double = 0
+    /// The boundary note replaces the ordinary §F1 out-of-range hint while it is up: the two
+    /// never need to be on screen at once, because a locked difference cannot be both at
+    /// the limit and out of range at the same moment without saying the same thing twice.
+    private var boundaryNote: String?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -54,8 +58,21 @@ final class BeatDisplayView: NSView {
         hintLabel.textColor = .systemOrange
         hintLabel.isHidden = true
 
+        // SPEC §7 puts the lock next to the difference it protects, so it sits directly
+        // under the BEAT row rather than in the transport row. The beat stays a read-out:
+        // there is no field for typing a difference, only a way to hold the current one.
+        lockCheckbox.target = self
+        lockCheckbox.action = #selector(lockToggled)
+        lockCheckbox.font = .systemFont(ofSize: 13)
+
+        let lockRow = NSStackView(views: [lockCheckbox])
+        lockRow.orientation = .horizontal
+        lockRow.alignment = .centerY
+        lockRow.spacing = 8
+
         let stack = NSStackView(views: [
             metricRow(caption: beatCaption, value: beatValue, unit: beatUnit),
+            lockRow,
             metricRow(caption: carrierCaption, value: carrierValue, unit: carrierUnit),
             hintLabel
         ])
@@ -71,7 +88,10 @@ final class BeatDisplayView: NSView {
             stack.trailingAnchor.constraint(equalTo: trailingAnchor),
             stack.topAnchor.constraint(equalTo: topAnchor),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor),
-            heightAnchor.constraint(greaterThanOrEqualToConstant: 140)
+            // One row taller than before: the lock row is inside the card, and SPEC §7.2's
+            // 44 px minimum target for the checkbox has to fit in it.
+            heightAnchor.constraint(greaterThanOrEqualToConstant: 184),
+            lockCheckbox.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
         ])
     }
 
@@ -99,11 +119,52 @@ final class BeatDisplayView: NSView {
     var displayedBeatHz: Double { beatHz }
     var displayedCarrierHz: Double { carrierHz }
 
+    // MARK: - Lock difference (SPEC §7)
+
+    /// The user ticked or cleared the box. Not sent by ``setLocked(_:)``, so restoring a
+    /// session stays silent — the same rule the frequency controls follow.
+    var onLockToggled: ((Bool) -> Void)?
+
+    private let lockCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private var isSyncingLock = false
+
+    /// Tick or clear the box without telling anyone — used while restoring the session.
+    func setLocked(_ locked: Bool) {
+        isSyncingLock = true
+        defer { isSyncingLock = false }
+        lockCheckbox.state = locked ? .on : .off
+    }
+
+    /// True while the box is ticked, as the user sees it.
+    var isLocked: Bool { lockCheckbox.state == .on }
+
+    /// The checkbox as a view, for accessibility and for tests that want to place it.
+    var lockControl: NSButton { lockCheckbox }
+
+    @objc private func lockToggled() {
+        guard !isSyncingLock else { return }
+        onLockToggled?(lockCheckbox.state == .on)
+    }
+
     /// The visible §F1 hint text; empty while the hint is hidden.
     var hintText: String { hintLabel.stringValue }
 
     /// True while the §F1 out-of-range hint is showing.
     var isShowingHint: Bool { !hintLabel.isHidden }
+
+    /// True while the hint slot carries the boundary note rather than the §F1 text.
+    var isShowingBoundaryNote: Bool { boundaryNote != nil }
+
+    /// Say, in the existing hint slot, that the lock stopped a channel at the range limit.
+    ///
+    /// The same orange hint the §F1 out-of-range message uses — a user who cannot drag the
+    /// slider further deserves the same kind of "here is why" as one whose beat is inaudible,
+    /// and inventing a second warning style for it would be worse. Pass `nil` to go back to
+    /// the ordinary §F1 rule.
+    func showBoundaryNote(_ note: String?) {
+        boundaryNote = note
+        applyHint()
+    }
 
     // MARK: - Language
 
@@ -113,11 +174,27 @@ final class BeatDisplayView: NSView {
         carrierCaption.stringValue = L10n.tr("CARRIER")
         beatUnit.stringValue = L10n.tr("Hz")
         carrierUnit.stringValue = L10n.tr("Hz")
+        lockCheckbox.title = L10n.tr("Lock difference")
+        lockCheckbox.setAccessibilityLabel(L10n.tr("Lock difference"))
+        lockCheckbox.setAccessibilityHelp(
+            L10n.tr(
+                "Keeps the difference between the two frequencies. Changing one channel moves the other by the same amount, so the beat stays the same."
+            )
+        )
         setAccessibilityLabel(L10n.tr("Beat and carrier frequencies"))
         applyHint()
     }
 
     private func applyHint() {
+        // A boundary stop is news from this very edit, so it wins over the standing §F1
+        // hint: the user is dragging *right now* and needs to know why the slider stopped.
+        // Both are the same kind of message, so both use the same slot.
+        if let boundaryNote {
+            hintLabel.stringValue = boundaryNote
+            hintLabel.setAccessibilityLabel(L10n.tr("Warning"))
+            hintLabel.isHidden = false
+            return
+        }
         guard !BeatMath.isRecommendedBeat(beatHz) else {
             hintLabel.isHidden = true
             hintLabel.stringValue = ""

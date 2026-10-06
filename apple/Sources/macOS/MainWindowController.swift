@@ -26,6 +26,11 @@ final class MainWindowController: NSWindowController {
     private let volumeLabel = NSTextField(labelWithString: "")
     private let muteButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let timerView = TimerControlView()
+    /// Transient note under the preset bar — Python's `statusBar().showMessage`, reused for
+    /// the difference lock because the same "we just changed your state, here is why" message
+    /// needs saying in both places.
+    private let noticeLabel = NSTextField(labelWithString: "")
+    private var noticeTimer: Timer?
     private let errorLabel = NSTextField(wrappingLabelWithString: "")
     /// SPEC §5 F3: the two-level preset control, chips along the bottom of the window.
     private let presetBar = PresetBarView()
@@ -57,6 +62,11 @@ final class MainWindowController: NSWindowController {
     private var languageObserver: (any NSObjectProtocol)?
     private var isRestoring = false
 
+    /// SPEC §7's "Lock difference", off by default. The signed difference itself is
+    /// **not** restored from the session: it is captured again from the pair the session
+    /// restored, which is the same number by construction and cannot contradict it.
+    private var differenceLock = DifferenceLock.unlocked
+
     // MARK: Playback timer (SPEC §5 F5)
 
     /// The timer as it stands: which durations were offered, and when playback ends.
@@ -76,6 +86,10 @@ final class MainWindowController: NSWindowController {
         // chips, and the document keeps whatever it said (CONTRACT §7 allows any string).
         presetCategoryID = PresetCatalogue.resolvedCategoryID(loaded.presetCategory)
         lastPresetID = loaded.lastPreset
+        // F5's "remember the state": the lock is restored, and the difference it holds is
+        // captured again from the pair that was restored — which is the same number, and
+        // cannot disagree with the two frequencies stored beside it.
+        differenceLock = DifferenceLock(isLocked: loaded.differenceLocked)
 
         let window = MainWindow(
             // Tall enough for the preset block F3 adds below the timer: the window is
@@ -189,7 +203,11 @@ final class MainWindowController: NSWindowController {
         presetStatusLabel.textColor = .secondaryLabelColor
         presetStatusLabel.isHidden = true
 
-        let presetBlock = NSStackView(views: [presetBar, presetStatusLabel])
+        noticeLabel.font = .systemFont(ofSize: 11)
+        noticeLabel.textColor = .secondaryLabelColor
+        noticeLabel.isHidden = true
+
+        let presetBlock = NSStackView(views: [presetBar, presetStatusLabel, noticeLabel])
         presetBlock.orientation = .vertical
         presetBlock.alignment = .leading
         presetBlock.spacing = 6
@@ -240,13 +258,106 @@ final class MainWindowController: NSWindowController {
     }
 
     private func connect() {
-        leftControl.onChange = { [weak self] _ in self?.frequenciesChanged() }
-        rightControl.onChange = { [weak self] _ in self?.frequenciesChanged() }
+        // The lock is resolved in `frequencyEdited(_:)`, which has to know *which* control
+        // moved: the difference is signed, so "the other channel" is not a fixed one.
+        leftControl.onChange = { [weak self] _ in self?.frequencyEdited(.left) }
+        rightControl.onChange = { [weak self] _ in self?.frequencyEdited(.right) }
         timerView.onSelectMinutes = { [weak self] minutes in self?.timerSelectionChanged(minutes) }
         // SPEC §5 F3: the category is *state* (it is persisted), so it is written back
         // like any other session field; the preset click is a pair of frequencies.
         presetBar.onCategorySelected = { [weak self] id in self?.presetCategoryChanged(id) }
         presetBar.onPresetSelected = { [weak self] preset in self?.applyPreset(preset) }
+        beatView.onLockToggled = { [weak self] locked in self?.setDifferenceLocked(locked) }
+    }
+
+    // MARK: - Lock difference (SPEC §7)
+
+    /// One control moved. This is the single seam every frequency path goes through — the
+    /// slider, the exact-entry field, the `↑`/`↓` nudge and ``setFrequency(_:for:)`` all
+    /// end up in `FrequencyControlView.setValue(_:notify: true)`, so the lock cannot be
+    /// honoured by one route and quietly skipped by another.
+    private func frequencyEdited(_ ear: FrequencyControlView.Ear) {
+        guard !isRestoring else { return }
+        let channel: DifferenceLock.Channel = ear == .left ? .left : .right
+        let requested = ear == .left ? leftControl.value : rightControl.value
+
+        guard let resolution = differenceLock.resolve(edited: channel, to: requested) else {
+            // No lock, or no legal pair: the controls keep the value they already took.
+            beatView.showBoundaryNote(nil)
+            frequenciesChanged()
+            return
+        }
+        // `notify: false` on both: the pair is one edit, not two. A follower pushed through
+        // `onChange` would read the lock again and move the channel back.
+        leftControl.setValue(resolution.leftHz, notify: false)
+        rightControl.setValue(resolution.rightHz, notify: false)
+        // The §F1 hint slot reports a refusal, so a slider that will not move further says
+        // why instead of simply not moving. Cleared on the next accepted edit.
+        beatView.showBoundaryNote(
+            resolution.isAtBoundary
+                ? L10n.tr(
+                    "Stopped at the range limit: the difference is locked, so the other channel cannot follow any further."
+                )
+                : nil
+        )
+        frequenciesChanged()
+    }
+
+    /// Tick or clear the box, as a click does.
+    func setDifferenceLocked(_ locked: Bool) {
+        guard locked != differenceLock.isLocked else { return }
+        if locked {
+            // Capture, do not edit: whatever the difference is *now*, signed.
+            differenceLock.capture(leftHz: leftControl.value, rightHz: rightControl.value)
+        } else {
+            // Unchecking only stops the following — the frequencies stay where they are.
+            differenceLock.unlock()
+            beatView.showBoundaryNote(nil)
+        }
+        beatView.setLocked(differenceLock.isLocked)
+        scheduleSave()
+    }
+
+    /// Presets win (SPEC §5 F3: one click sets *both* frequencies to the preset's beat),
+    /// so applying one turns the lock off rather than fighting it — and says so, because a
+    /// checkbox that clears itself with no explanation looks like a bug.
+    private func unlockDifferenceForPreset() {
+        guard differenceLock.isLocked else { return }
+        differenceLock.unlock()
+        beatView.setLocked(false)
+        beatView.showBoundaryNote(nil)
+        showNotice(L10n.tr("Difference lock turned off — a preset set its own difference."))
+    }
+
+    /// Show a short note under the preset bar for three seconds, then get out of the way —
+    /// Python's `statusBar().showMessage(…, 3000)`, which is where the preset message and the
+    /// Python equivalent of the lock notice would both live.
+    private var showingNotice: String?
+
+    /// The English key behind the note on screen, kept so a language switch can translate it
+    /// again — the window lives for the whole session, so its captions are re-read, not
+    /// rebuilt (SPEC §7.4).
+    var noticeKey: String? { showingNotice }
+
+    private func showNotice(_ key: String) {
+        showingNotice = key
+        showNoticeNow(key)
+        noticeTimer?.invalidate()
+        noticeTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.hideNotice() }
+        }
+    }
+
+    private func showNoticeNow(_ key: String) {
+        noticeLabel.stringValue = L10n.tr(key)
+        noticeLabel.isHidden = false
+    }
+
+    private func hideNotice() {
+        noticeTimer?.invalidate()
+        noticeTimer = nil
+        showingNotice = nil
+        noticeLabel.isHidden = true
     }
 
     // MARK: - Presets (SPEC §5 F3)
@@ -272,6 +383,8 @@ final class MainWindowController: NSWindowController {
         }
         // `notify: false` on both: the pair is one edit, not two. The controls would
         // otherwise push an intermediate state in which the beat is half the preset's.
+        // F3 wins: the preset owns the difference, so the lock lets go of it.
+        unlockDifferenceForPreset()
         leftControl.setValue(pair.left, notify: false)
         rightControl.setValue(pair.right, notify: false)
         frequenciesChanged()
@@ -321,6 +434,12 @@ final class MainWindowController: NSWindowController {
         // chip whose label the session remembers.
         presetBar.select(categoryID: presetCategoryID)
         presetBar.markPreset(lastPresetID)
+        // SPEC §7's lock comes back ticked, and its difference is captured from the pair just
+        // restored — the stored flag alone would say "locked" without saying *what* is locked.
+        beatView.setLocked(differenceLock.isLocked)
+        if differenceLock.isLocked {
+            differenceLock.capture(leftHz: leftControl.value, rightHz: rightControl.value)
+        }
         engine.volume = session.volume
         engine.isMuted = false
         // A stored swap is honoured on the very first push: §4.2 says the generator swaps
@@ -343,7 +462,8 @@ final class MainWindowController: NSWindowController {
             headphoneCheckAcknowledged: headphoneStateAcknowledged,
             lastPreset: lastPresetID,
             timerMinutes: timerView.selectedMinutes,
-            presetCategory: presetCategoryID
+            presetCategory: presetCategoryID,
+            differenceLocked: differenceLock.isLocked
         )
     }
 
@@ -615,6 +735,14 @@ final class MainWindowController: NSWindowController {
         rightControl.retranslate(caption: L10n.tr("RIGHT EAR"), rangeHint: L10n.tr("1 – 20000 Hz"))
         beatView.retranslate()
         indicator.retranslate()
+        // Both transient notes are catalogue keys, so a language switch must re-read the one
+        // that is currently on screen rather than leaving it in the previous language.
+        if let key = showingNotice { showNoticeNow(key) }
+        if beatView.isShowingBoundaryNote {
+            beatView.showBoundaryNote(L10n.tr(
+                "Stopped at the range limit: the difference is locked, so the other channel cannot follow any further."
+            ))
+        }
 
         volumeCaptionLabel.stringValue = L10n.tr("Volume")
         volumeSlider.setAccessibilityLabel(L10n.tr("Volume"))
@@ -664,6 +792,7 @@ final class MainWindowController: NSWindowController {
         saveTimer?.invalidate()
         saveTimer = nil
         hidePresetStatus()
+        hideNotice()
         disarmTimer()
     }
 
@@ -711,6 +840,9 @@ final class MainWindowController: NSWindowController {
     /// than reach past them into AppKit.
     var presetBarControl: PresetBarView { presetBar }
 
+    /// The beat card, so a test can ask where the lock checkbox ended up.
+    var beatCard: NSView { beatView }
+
     /// The category chips, as captions.
     var presetCategoryTitles: [String] { presetBar.categoryTitles }
 
@@ -722,6 +854,33 @@ final class MainWindowController: NSWindowController {
 
     /// The category currently shown.
     var selectedPresetCategory: String { presetCategoryID }
+
+    // MARK: - Difference-lock state the tests agree on (SPEC §7)
+
+    /// The lock as the checkbox shows it.
+    var isDifferenceLocked: Bool { differenceLock.isLocked }
+
+    /// The captured signed difference, `fR - fL`. Zero while the lock is off, because there
+    /// is nothing captured to report then.
+    var lockedDifferenceHz: Double { differenceLock.isLocked ? differenceLock.signedDifferenceHz : 0 }
+
+    /// The checkbox itself, so a test presses the control a user presses.
+    var differenceLockControl: NSButton { beatView.lockControl }
+
+    /// The lock caption in the current language.
+    var differenceLockTitle: String { beatView.lockControl.title }
+
+    /// Tick or clear the box through its own action, as a click does.
+    func tapDifferenceLock(_ locked: Bool) {
+        beatView.lockControl.state = locked ? .on : .off
+        setDifferenceLocked(locked)
+    }
+
+    /// True while the hint slot explains a boundary stop.
+    var isShowingDifferenceBoundaryNote: Bool { beatView.isShowingBoundaryNote }
+
+    /// The transient unlock note's English key, while it is on screen.
+    var differenceNoticeKey: String? { noticeKey }
 
     /// The transient confirmation after a preset click, and whether it is showing.
     var presetStatusText: String { presetStatusLabel.stringValue }
@@ -819,6 +978,19 @@ final class MainWindowController: NSWindowController {
 
     /// The swap flag as the session records it.
     var isChannelsSwapped: Bool { channelsSwapped }
+
+    /// Set **both** channels at once, the way a preset and the frequency reference do.
+    ///
+    /// Not `setFrequency(_:for:)` twice: with the difference locked, two single edits would
+    /// be two follower moves and the second would undo the first. A named pair from outside
+    /// the window (SPEC §6's *Apply*) is the same kind of instruction a preset is — "use
+    /// these two frequencies" — so it wins and unlocks, with the same notice.
+    func applyFrequencyPair(leftHz: Double, rightHz: Double) {
+        unlockDifferenceForPreset()
+        leftControl.setValue(leftHz, notify: false)
+        rightControl.setValue(rightHz, notify: false)
+        frequenciesChanged()
+    }
 
     /// Move one channel and notify the engine, as the text field and the slider do.
     func setFrequency(_ hz: Double, for ear: FrequencyControlView.Ear) {

@@ -239,8 +239,12 @@ final class L10nTests: XCTestCase {
     func testWindowAdditionsAreFewAndActuallyTranslated() {
         let additions = RussianWindowAdditions.messages
         XCTAssertFalse(additions.isEmpty, "M2-b adds keys ru.py has no call site for")
+        // The ceiling moves when a milestone adds controls Python has no call site for. It
+        // was 12 after the mute button, the timer, the Settings dialog and the macOS-only
+        // About wording; SPEC §7's "Lock difference" checkbox added four more (label,
+        // help, unlock notice, boundary note), so it is 16.
         XCTAssertLessThanOrEqual(
-            additions.count, 12,
+            additions.count, 16,
             "the additions are a documented superset, not a second catalogue"
         )
         for (key, value) in additions {

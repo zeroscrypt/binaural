@@ -44,6 +44,11 @@ final class L10nKeysTests: XCTestCase {
         "BEAT", "CARRIER", "Hz", "Beat and carrier frequencies",
         "Difference is %1 Hz — outside the %2–%3 Hz range the ear usually perceives as a beat.",
         "Warning",
+        // "Lock difference" checkbox, next to the beat readout (SPEC §7)
+        "Lock difference",
+        "Keeps the difference between the two frequencies. Changing one channel moves the other by the same amount, so the beat stays the same.",
+        "Difference lock turned off — a preset set its own difference.",
+        "Stopped at the range limit: the difference is locked, so the other channel cannot follow any further.",
         // status indicator
         "Audio output status", "Headphones detected",
         "Speakers detected — binaural beats need headphones", "Unknown device",

@@ -43,7 +43,18 @@ enum RussianWindowAdditions {
         // SPEC §7 lists a Settings dialog with a volume control; the Python window has the
         // slider only and no settings layer, so these section titles have no call site.
         "Audio": "Звук",
-        "Playback": "Воспроизведение"
+        "Playback": "Воспроизведение",
+        // SPEC §7's "Lock difference" checkbox. The Python app has no such control, so
+        // neither the label nor the two explanations below exist in `ru.py`.
+        "Lock difference": "Зафиксировать",
+        "Keeps the difference between the two frequencies. Changing one channel moves the other by the same amount, so the beat stays the same.":
+            "Держит разность между частотами. Изменение одного канала сдвигает другой на столько же, поэтому биение остаётся прежним.",
+        "Difference lock turned off — a preset set its own difference.":
+            "Фиксация разности выключена — пресет задал свою разность.",
+        // SPEC §7: the existing out-of-range hint slot also carries why a locked channel
+        // stopped moving.
+        "Stopped at the range limit: the difference is locked, so the other channel cannot follow any further.":
+            "Остановлено на границе диапазона: разность зафиксирована, поэтому второй канал не может следовать дальше."
     ]
 }
 

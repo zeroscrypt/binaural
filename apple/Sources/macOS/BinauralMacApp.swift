@@ -310,9 +310,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         let dialog = ReferenceDialogController(catalogue: catalogue)
+        // SPEC §6's *Apply* sets both channels at once. It goes through the pair setter, not
+        // two single edits: with the difference locked (SPEC §7), two single edits would be
+        // two follower moves and the second would undo the first.
         dialog.onApply = { [weak self] left, right in
-            self?.controller?.setFrequency(left, for: .left)
-            self?.controller?.setFrequency(right, for: .right)
+            self?.controller?.applyFrequencyPair(leftHz: left, rightHz: right)
         }
         dialog.showWindow(nil)
         dialog.window?.makeKeyAndOrderFront(nil)

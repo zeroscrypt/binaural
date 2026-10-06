@@ -52,6 +52,11 @@ public struct Session: Sendable, Equatable {
     /// Selected preset category. A free string in the Python reference too — see
     /// `apple/DESIGN.md` §5, item 4.
     public var presetCategory: String
+    /// True while the "Lock difference" box (SPEC §7) is ticked: editing one channel moves
+    /// the other so `fR - fL` stays as captured. The signed difference itself is **not**
+    /// stored — it is re-derived from the two frequencies on load, so a document can never
+    /// hold a lock that disagrees with the pair it sits next to.
+    public var differenceLocked: Bool
 
     public init(
         leftHz: Double = Session.defaultLeftHz,
@@ -61,7 +66,8 @@ public struct Session: Sendable, Equatable {
         headphoneCheckAcknowledged: Bool = false,
         lastPreset: String? = nil,
         timerMinutes: Int = Session.defaultTimerMinutes,
-        presetCategory: String = Session.defaultPresetCategory
+        presetCategory: String = Session.defaultPresetCategory,
+        differenceLocked: Bool = false
     ) {
         self.leftHz = leftHz
         self.rightHz = rightHz
@@ -71,6 +77,7 @@ public struct Session: Sendable, Equatable {
         self.lastPreset = lastPreset
         self.timerMinutes = timerMinutes
         self.presetCategory = presetCategory
+        self.differenceLocked = differenceLocked
     }
 
     // MARK: - Derived values
@@ -96,6 +103,7 @@ public struct Session: Sendable, Equatable {
         case lastPreset = "last_preset"
         case timerMinutes = "timer_minutes"
         case presetCategory = "preset_category"
+        case differenceLocked = "difference_locked"
     }
 
     /// The session as JSON. A `nil` preset is omitted rather than written as `null`,
@@ -147,7 +155,11 @@ extension Session: Codable {
                 max(0, container.clampedInt(forKey: .timerMinutes) ?? defaults.timerMinutes)
             ),
             presetCategory: container.clampedString(forKey: .presetCategory).flatMap { $0.isEmpty ? nil : $0 }
-                ?? defaults.presetCategory
+                ?? defaults.presetCategory,
+            // Additive: a document written before this field existed simply has no key, and
+            // "no key" means the default, never an error — the lenient rule above.
+            differenceLocked: container.clampedBool(forKey: .differenceLocked)
+                ?? defaults.differenceLocked
         )
     }
 
@@ -161,6 +173,7 @@ extension Session: Codable {
         try container.encodeIfPresent(lastPreset, forKey: .lastPreset)
         try container.encode(timerMinutes, forKey: .timerMinutes)
         try container.encode(presetCategory, forKey: .presetCategory)
+        try container.encode(differenceLocked, forKey: .differenceLocked)
     }
 }
 

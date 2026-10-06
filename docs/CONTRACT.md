@@ -249,6 +249,7 @@ class Session:
     last_preset: str | None = None
     timer_minutes: int = DEFAULT_TIMER_MINUTES   # 0 = play indefinitely
     preset_category: str = "relaxation"
+    difference_locked: bool = False   # SPEC §7: "Lock difference" ticked
 
 def save(session: Session) -> None: ...      # QSettings, org "binaural", app "binaural"
 def load() -> Session: ...
@@ -260,7 +261,11 @@ def load() -> Session: ...
 - `volume` зажимается в `0…1`;
 - `timer_minutes` зажимается в `0…1440` (больше суток — опечатка в файле настроек);
 - `preset_category` — свободная строка: разрешённого списка пока нет
-  (`main_window.PRESET_CATEGORIES` не существует), поэтому читаемое значение не отбрасывается.
+  (`main_window.PRESET_CATEGORIES` не существует), поэтому читаемое значение не отбрасывается;
+- `difference_locked` — булево поле SPEC §7 «Зафиксировать». Хранится **только флаг**: сама
+  разность не сохраняется, а заново берётся из `right_hz - left_hz` при загрузке, поэтому
+  документ не может содержать блокировку, противоречащую собственной паре частот. Поле
+  добавлено аддитивно: документ, написанный до его появления, читается как `False`.
 
 Swift-версия хранит те же поля теми же именами, но в `Codable`-JSON по явному URL, а не в
 `QSettings` — см. отклонение 1 в `apple/DESIGN.md`.
