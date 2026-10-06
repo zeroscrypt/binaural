@@ -160,6 +160,12 @@ public enum LRTestChannel: String, Sendable {
 /// Deliberately tiny: the dialog owns the *question* and the sequence owns the
 /// *timing*, while the engine owns the sound. A missing or broken engine must not crash
 /// the test, so every call site is `try?`-shaped on the shell side.
+///
+/// Main-actor isolated, like ``LrTestSequence`` itself: starting and stopping the output is
+/// an `AudioEngine` operation, and `AVAudioEngine` is documented main-thread-only for
+/// configuration. Nothing is gained by letting a test tone be scheduled from a background
+/// queue — and the isolation makes the handover to the audio thread explicit.
+@MainActor
 public protocol LRTestTonePlaying: AnyObject {
     /// Play one channel only, hard-panned, at `frequencyHz`.
     func playTestTone(channel: LRTestChannel, frequencyHz: Double)

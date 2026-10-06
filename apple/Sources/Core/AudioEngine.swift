@@ -355,6 +355,17 @@ public final class AudioEngine {
         updateParameters()
     }
 
+    /// The pair the engine is currently set to, for a caller that has to put it back.
+    ///
+    /// Read-only on purpose. Nothing in the app needs this except ``LRTonePlayer``, which
+    /// changes the frequencies to play a test tone and must restore exactly what was there
+    /// — and a setter would let two pieces of state be written from two places, which is
+    /// the failure M2-a's single-writer mailbox exists to prevent.
+    public var currentFrequencies: (left: Double, right: Double) { frequencies }
+
+    /// The per-channel amplitudes currently published, likewise read-only.
+    public var currentPan: (left: Double, right: Double) { pan }
+
     /// The amplitude the oscillator should be approaching right now.
     ///
     /// A pure function so the rule — silent unless playing, silent when muted, otherwise

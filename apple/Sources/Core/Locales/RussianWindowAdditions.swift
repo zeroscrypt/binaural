@@ -27,13 +27,22 @@ enum RussianWindowAdditions {
         "%1 min": "%1 мин",
         // SPEC §7 lists a Settings dialog; Python has no settings layer at all.
         "Settings": "Настройки",
+        // SPEC §7 asks for a headphone-check button in the window itself, not only at
+        // start-up. `ru.py` already has "Check headphones…" for the tray item, so only the
+        // button's help text is new.
+        "Re-reads the default audio output device and offers the L/R test.":
+            "Перечитывает устройство аудиовыхода по умолчанию и предлагает тест L/R.",
         // The Swift build is macOS-only (apple/ is a separate product from the Python
         // PySide6 app, which ships macOS *and* Linux), so the shared "macOS and Linux"
         // tagline would be wrong here.
         "Binaural beats for macOS": "Бинауральные биения для macOS",
         "Version {version} · macOS {system}": "Версия {version} · macOS {system}",
         // The menu-bar status item (SPEC §7) is the Swift counterpart of TrayController.
-        "Show or hide the main window": "Показать или скрыть главное окно"
+        "Show or hide the main window": "Показать или скрыть главное окно",
+        // SPEC §7 lists a Settings dialog with a volume control; the Python window has the
+        // slider only and no settings layer, so these section titles have no call site.
+        "Audio": "Звук",
+        "Playback": "Воспроизведение"
     ]
 }
 

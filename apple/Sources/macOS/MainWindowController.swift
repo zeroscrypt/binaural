@@ -28,6 +28,12 @@ final class MainWindowController: NSWindowController {
     private let timerView = TimerControlView()
     private let errorLabel = NSTextField(wrappingLabelWithString: "")
 
+    /// SPEC §7: "кнопка проверки наушников прямо в окне — повторить §4 в любой момент, а
+    /// не только при старте". It sits on the status row next to the always-visible
+    /// indicator, so the warning and the way to re-check are in one place.
+    private let headphoneCheckButton = NSButton()
+    private var onHeadphoneCheckRequested: (() -> Void)?
+
     private var activeEar: FrequencyControlView.Ear = .left
     /// Written once, after the first successful `start()`, and on every change after.
     /// Never on the audio thread.
@@ -92,7 +98,11 @@ final class MainWindowController: NSWindowController {
     // MARK: - Building
 
     private func buildContent() {
-        let statusRow = NSStackView(views: [indicator, NSView()])
+        headphoneCheckButton.target = self
+        headphoneCheckButton.action = #selector(headphoneCheckTapped)
+        headphoneCheckButton.bezelStyle = .rounded
+
+        let statusRow = NSStackView(views: [indicator, NSView(), headphoneCheckButton])
         statusRow.orientation = .horizontal
         statusRow.alignment = .centerY
         statusRow.spacing = 8
@@ -166,7 +176,8 @@ final class MainWindowController: NSWindowController {
             constraints.append(row.widthAnchor.constraint(equalTo: stack.widthAnchor))
         }
         constraints += [
-            statusRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 24),
+            statusRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            headphoneCheckButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             ears.heightAnchor.constraint(greaterThanOrEqualToConstant: 200),
             playButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 120),
             playButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
@@ -201,6 +212,10 @@ final class MainWindowController: NSWindowController {
         timerView.setMinutes(session.timerMinutes)
         engine.volume = session.volume
         engine.isMuted = false
+        // A stored swap is honoured on the very first push: §4.2 says the generator swaps
+        // when generating, and "on the first push" includes the one made while restoring.
+        channelsSwapped = session.channelsSwapped
+        headphoneStateAcknowledged = session.headphoneCheckAcknowledged
         setActive(.left)
         frequenciesChanged(save: false)
         updateVolumeLabel()
@@ -213,8 +228,8 @@ final class MainWindowController: NSWindowController {
             leftHz: leftControl.value,
             rightHz: rightControl.value,
             volume: volumeSlider.doubleValue,
-            channelsSwapped: session.channelsSwapped,
-            headphoneCheckAcknowledged: session.headphoneCheckAcknowledged,
+            channelsSwapped: channelsSwapped,
+            headphoneCheckAcknowledged: headphoneStateAcknowledged,
             lastPreset: session.lastPreset,
             timerMinutes: timerView.selectedMinutes,
             presetCategory: session.presetCategory
@@ -239,13 +254,28 @@ final class MainWindowController: NSWindowController {
     // MARK: - Frequencies
 
     private func frequenciesChanged(save: Bool = true) {
-        let left = leftControl.value
-        let right = rightControl.value
-        beatView.update(leftHz: left, rightHz: right)
+        beatView.update(leftHz: leftControl.value, rightHz: rightControl.value)
+        pushFrequencies()
+        if save, !isRestoring { scheduleSave() }
+    }
+
+    /// Send the displayed pair to the engine, swapping the channels when the L/R test
+    /// proved they are swapped (SPEC §4.2).
+    ///
+    /// Only the **generator** swaps. The window keeps showing the frequencies the user
+    /// typed and the session keeps the unswapped pair, so the stored document means the
+    /// same thing on any machine and the swap is applied here rather than being baked
+    /// into the numbers — which is `HeadphoneDetector.swapChannels`'s whole reason for
+    /// existing as a function.
+    private func pushFrequencies() {
+        let pair = HeadphoneDetector.swapChannels(
+            leftHz: leftControl.value,
+            rightHz: rightControl.value,
+            swapped: channelsSwapped
+        )
         // The controls clamp to 1–20000 Hz, so this cannot fail; `try?` keeps the
         // window from handling a validation error it cannot produce.
-        try? engine.setFrequencies(leftHz: left, rightHz: right)
-        if save, !isRestoring { scheduleSave() }
+        try? engine.setFrequencies(leftHz: pair.left, rightHz: pair.right)
     }
 
     // MARK: - Transport
@@ -395,6 +425,41 @@ final class MainWindowController: NSWindowController {
         }
     }
 
+    // MARK: - Headphone check (SPEC §4, §7)
+
+    @objc private func headphoneCheckTapped() {
+        onHeadphoneCheckRequested?()
+    }
+
+    /// Who runs the check when the window's button is pressed. The app delegate installs
+    /// this (it owns the coordinator); without it the button is inert, which is the state
+    /// the window tests run in.
+    func setHeadphoneCheckHandler(_ handler: @escaping () -> Void) {
+        onHeadphoneCheckRequested = handler
+    }
+
+    /// Press the window's own check button, as a click would.
+    func tapHeadphoneCheckButton() {
+        headphoneCheckTapped()
+    }
+
+    /// The button as a view, so a host can place it somewhere other than the status row.
+    var headphoneCheckControl: NSButton { headphoneCheckButton }
+
+    /// Feed a report straight into the indicator — the coordinator's `Target` path.
+    func apply(headphoneReport: HeadphoneReport) {
+        indicator.apply(report: headphoneReport)
+        noteHeadphoneReport(headphoneReport)
+    }
+
+    /// Remember which report the window is showing, without touching the indicator.
+    private func noteHeadphoneReport(_ report: HeadphoneReport) {
+        headphoneState = report
+    }
+
+    /// The report the indicator is currently showing.
+    var currentHeadphoneReport: HeadphoneReport { headphoneState }
+
     // MARK: - Language
 
     /// Re-read every visible string (SPEC §7.4). The window is built once and lives for
@@ -412,6 +477,11 @@ final class MainWindowController: NSWindowController {
             L10n.tr("Output level from 0 to 100 percent. Not medical advice: keep it low.")
         )
         muteButton.title = L10n.tr("Mute")
+        headphoneCheckButton.title = L10n.tr("Check headphones…")
+        headphoneCheckButton.setAccessibilityLabel(L10n.tr("Check headphones…"))
+        headphoneCheckButton.setAccessibilityHelp(
+            L10n.tr("Re-reads the default audio output device and offers the L/R test.")
+        )
 
         timerView.retranslate()
         // The popup captions are rebuilt by `retranslate()`, so the countdown has to be
@@ -486,6 +556,75 @@ final class MainWindowController: NSWindowController {
     func setHeadphoneState(_ state: HeadphoneIndicatorView.State, deviceName: String? = nil) {
         indicator.setState(state, deviceName: deviceName)
     }
+
+    // MARK: - Headphone check (SPEC §4)
+
+    /// The indicator and the session state the check talks to.
+    ///
+    /// A nested type rather than a class so it can hold the controller strongly while the
+    /// coordinator holds it weakly, with no retain cycle through the window: the window
+    /// owns the coordinator's target, and the coordinator owns nothing back. The `Target`
+    /// protocol is main-actor isolated, so this one is too — no `assumeIsolated` hop.
+    @MainActor
+    private final class HeadphoneTarget: HeadphoneCheckCoordinator.Target {
+        private unowned let controller: MainWindowController
+        init(controller: MainWindowController) { self.controller = controller }
+
+        func apply(headphoneReport report: HeadphoneReport) {
+            controller.indicator.apply(report: report)
+            controller.noteHeadphoneReport(report)
+        }
+
+        func persistHeadphoneState(acknowledged: Bool, channelsSwapped: Bool) {
+            controller.recordHeadphoneState(
+                acknowledged: acknowledged,
+                channelsSwapped: channelsSwapped
+            )
+        }
+    }
+
+    private var headphoneState = HeadphoneReport.unknown
+
+    /// Build the §4 coordinator. The window does not run it: the app delegate does, after
+    /// the window is on screen (Python's order), so the check never covers an unpainted UI.
+    func makeHeadphoneCoordinator() -> HeadphoneCheckCoordinator {
+        // The coordinator holds its target **weakly**, so that a coordinator kept alive by
+        // a menu item cannot keep a closed window alive. That only works if somebody else
+        // owns the target: this is that somebody. Built inline it would be released
+        // immediately and the check would silently do nothing at all.
+        let target = HeadphoneTarget(controller: self)
+        headphoneTarget = target
+        let coordinator = HeadphoneCheckCoordinator(
+            player: LRTonePlayer(engine: engine),
+            target: target
+        )
+        self.coordinator = coordinator
+        return coordinator
+    }
+
+    private var coordinator: HeadphoneCheckCoordinator?
+    /// Strong owner of the coordinator's weak target — see ``makeHeadphoneCoordinator()``.
+    private var headphoneTarget: HeadphoneTarget?
+
+    /// Store the two session flags §4 decides, and re-push the frequencies so a swap takes
+    /// effect immediately rather than at the next edit.
+    ///
+    /// `channelsSwapped` is a *generator* decision: the window keeps showing what the user
+    /// asked for and the session keeps the unswapped numbers, so the stored document is
+    /// readable without knowing the hardware (`HeadphoneDetector.swapChannels`'s rule).
+    func recordHeadphoneState(acknowledged: Bool, channelsSwapped swapped: Bool) {
+        headphoneStateAcknowledged = acknowledged
+        channelsSwapped = swapped
+        pushFrequencies()
+        scheduleSave()
+    }
+
+    private var headphoneStateAcknowledged: Bool = false
+    /// True when the L/R test proved the channels are swapped (SPEC §4.2).
+    private var channelsSwapped = false
+
+    /// The swap flag as the session records it.
+    var isChannelsSwapped: Bool { channelsSwapped }
 
     /// Move one channel and notify the engine, as the text field and the slider do.
     func setFrequency(_ hz: Double, for ear: FrequencyControlView.Ear) {

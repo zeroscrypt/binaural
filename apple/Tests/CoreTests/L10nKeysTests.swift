@@ -28,7 +28,12 @@ final class L10nKeysTests: XCTestCase {
         "Starts or stops playback. The keyboard shortcut is Space.",
         "Output level from 0 to 100 percent. Not medical advice: keep it low.",
         // menus
-        "Quit", "&View", "Language",
+        "Quit", "&View", "Language", "&Help", "Frequency &reference…",
+        "&Check headphones…", "&About",
+        "The frequency reference is not available in this build.",
+        // the window's own headphone-check button (SPEC §7)
+        "Check headphones…",
+        "Re-reads the default audio output device and offers the L/R test.",
         // per-ear frequency control
         "1 – 20000 Hz",
         "Frequency for %1, from 1 to 20000 hertz. Use the arrow keys for 0.1 hertz steps.",
@@ -44,6 +49,41 @@ final class L10nKeysTests: XCTestCase {
         "Speakers detected — binaural beats need headphones", "Unknown device",
         // timer (SPEC §5 F5)
         "Timer", "Off", "%1 min",
+        // headphone check at launch (SPEC §4)
+        "Headphones recommended", "Headphones detected", "Speakers detected",
+        "Virtual audio device — cannot tell what is playing",
+        "Output device not recognised — run the L/R test",
+        "Headphones", "Speakers", "Virtual device", "Unknown", "Unknown output device",
+        "Device", "Verdict", "Confidence", "High", "Medium", "Low",
+        "Binaural beats only work when each ear receives its own tone. On speakers the two frequencies mix in the air before reaching your ears, and the effect disappears. You can continue anyway — the app will keep showing a “Speakers detected” indicator in the status bar.",
+        "This check can be repeated at any time from the Help menu.",
+        "L/R test: Left → Right — headphones confirmed, channels correct.",
+        "L/R test: Right → Left — headphones confirmed, channels are swapped. Binaural will swap them when generating.",
+        "L/R test: both at once or unclear — this sounds like speakers or a mono mixer.",
+        "Run L/R test", "Run the perceptual left/right channel test",
+        "Plays a tone in the left ear, then the right ear, and asks what you heard.",
+        "Retry check", "Run the device check again",
+        "Re-reads the default audio output device.",
+        "Continue anyway", "Continue anyway, even without confirmed headphones",
+        "Nothing is blocked; the app will keep the speakers warning in the status bar.",
+        // perceptual L/R test dialog (SPEC §4.2)
+        "Left / right channel test",
+        "You will hear a tone in one ear, then a pause, then a tone in the other ear. Tell us what you heard.",
+        "What did you hear?", "Ready. Press \"Play test\" and listen.", "Answer recorded.",
+        "Playing in LEFT ear…", "Pause…", "Playing in RIGHT ear…",
+        "Left → Right", "The first tone came from the left ear: the channels are correct.",
+        "Right → Left", "The channels are swapped. The application will swap them for you.",
+        "Both at once / Can't tell",
+        "Sounds like speakers or a mono mixer, where no beat can be perceived.",
+        "{answer}. {hint}",
+        "Headphones confirmed, the channels are correct.",
+        "Headphones confirmed, but the channels are swapped. Binaural will swap them so the beat stays on the side you expect.",
+        "No clear answer. This usually means speakers or a mono mixer.",
+        "Play test", "Play test again", "Play the left/right test sequence",
+        "A short tone in the left ear, a pause, then the right ear.",
+        "Close the test without answering",
+        "Tone: {freq} Hz — one channel at a time, no beat",
+        "Close",
         // errors
         "Error", "Could not start audio output.", "Could not open the audio output device.",
         // presets (SPEC §5 F3)
@@ -57,6 +97,8 @@ final class L10nKeysTests: XCTestCase {
         "Disclaimer",
         "These frequencies and the descriptions of their effects come from research, and also from esoteric, energy and alternative practices. This application is not a medical device and is not intended for the diagnosis, treatment or prevention of any disease. Do not use it if you have epilepsy or a pacemaker, during pregnancy, or if you are photosensitive, without consulting a doctor. Do not turn the volume above a comfortable level.",
         "MIT License", "Copyright (c) {year} {holder}",
+        "Open project page", "Open {url} in the browser",
+        "Close the About dialog",
         "Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the conditions of the MIT licence. The software is provided \"as is\", without warranty of any kind, express or implied.",
         // frequency reference dialog (SPEC §6)
         "Frequency reference",
@@ -252,11 +294,48 @@ final class L10nKeysTests: XCTestCase {
         return files
     }
 
-    /// Undo the escaping the scanner matched, so a key containing `\"` compares equal to
-    /// the literal the compiler sees.
+    /// Undo the escaping the scanner matched, so a key compares equal to the literal the
+    /// compiler sees.
+    ///
+    /// `\\"` and `\\\\` are the two the sources use; `\u{201C}` is resolved as well, because
+    /// the compiler resolves it into the character — a scanner that did not would report a
+    /// key containing a backslash that is in no catalogue.
     private static func unescape(_ literal: String) -> String {
-        literal
+        guard literal.contains("\\") else { return literal }
+        var text = literal
             .replacingOccurrences(of: "\\\"", with: "\"")
             .replacingOccurrences(of: "\\\\", with: "\\")
+
+        // `\u{XXXX}` — a handful of curly quotes the sources write that way rather than
+        // pasting the character itself. Walked over `Character`s and rebuilt: `String.range(of:)`
+        // answers in **UTF-8 offsets**, which do not index the same thing as
+        // `String.index(after:)`, so mixing the two silently drops digits.
+        var result = ""
+        result.reserveCapacity(text.count)
+        var characters = Array(text)
+        var index = 0
+        while index < characters.count {
+            let start = index + 3
+            guard characters[index] == "\\", start < characters.count,
+                  characters[index + 1] == "u", characters[index + 2] == "{",
+                  let close = characters[start..<characters.count].firstIndex(of: "}")
+            else {
+                result.append(characters[index])
+                index += 1
+                continue
+            }
+            let digits = String(characters[start..<close])
+            // Radix 16, explicitly: `UInt32("201C")` is *decimal*, which is nil, and the
+            // escape would then silently be kept as written — exactly the bug this walk
+            // exists to prevent.
+            if let value = UInt32(digits, radix: 16), let scalar = Unicode.Scalar(value) {
+                result.append(Character(scalar))
+            } else {
+                // Not an escape after all: keep the characters as written.
+                result.append(contentsOf: characters[index...close])
+            }
+            index = close + 1
+        }
+        return result
     }
 }

@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// continuous.
     private let engine = AudioEngine()
     private var controller: MainWindowController?
+    private var coordinator: HeadphoneCheckCoordinator?
     private var languageObserver: (any NSObjectProtocol)?
 
     /// True when this process is a test host (`BinauralMacTests` runs inside the app).
@@ -47,6 +48,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let viewItem = NSMenuItem()
     private let languageItem = NSMenuItem()
     private let languageMenu = NSMenu()
+    private let helpItem = NSMenuItem()
+    private let checkHeadphonesItem = NSMenuItem()
+    private let referenceItem = NSMenuItem()
+    private let aboutItem = NSMenuItem()
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Language first: every caption below reads it. Stored choice wins, then the
@@ -90,6 +95,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.makeKeyAndOrderFront(nil)
         }
         NSApp.activate(ignoringOtherApps: true)
+
+        // SPEC §4: the check runs *after* the window is on screen, exactly as
+        // `app.py` orders it (`window.show()` then `QTimer.singleShot(0, …)`). Deferred to
+        // the next turn of the run loop rather than run inline, so the first paint happens
+        // before a modal dialog covers it.
+        let check = controller.makeHeadphoneCoordinator()
+        self.coordinator = check
+        // The window's own check button and the *Help* item both go through the
+        // coordinator, so "re-check the headphones" is one code path in the whole app.
+        controller.setHeadphoneCheckHandler { [weak self] in
+            _ = self?.coordinator?.rerunFromUser()
+        }
+        DispatchQueue.main.async {
+            _ = check.runAtLaunch(acknowledged: controller.currentSession.headphoneCheckAcknowledged)
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -109,8 +129,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Menu
 
-    /// The menu bar M2-a needs: the application menu (Quit) and *View → Language*.
-    /// M2-b adds the frequency reference and the headphone check to *Help*.
+    /// The menu bar: the application menu (Quit), *View → Language* and *Help*.
+    ///
+    /// The three *Help* items are SPEC §7's dialogs list: *Check headphones* (§4, also on
+    /// the window), *Frequency reference* (§6) and *About* (§6.13). Key equivalents match
+    /// Python's (`Ctrl+O`, `Ctrl+Shift+H`, `Ctrl+Shift+I`) — the same chord does the same
+    /// thing in both products, which is what a user of either will expect.
     private func makeMainMenu() -> NSMenu {
         let main = NSMenu()
 
@@ -142,6 +166,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         viewItem.submenu = viewMenu
         main.addItem(viewItem)
 
+        checkHeadphonesItem.target = self
+        checkHeadphonesItem.action = #selector(checkHeadphones)
+        checkHeadphonesItem.keyEquivalent = "h"
+        checkHeadphonesItem.keyEquivalentModifierMask = [.control, .shift]
+
+        referenceItem.target = self
+        referenceItem.action = #selector(openReference)
+        referenceItem.keyEquivalent = "o"
+        referenceItem.keyEquivalentModifierMask = .command
+
+        aboutItem.target = self
+        aboutItem.action = #selector(showAbout)
+        aboutItem.keyEquivalent = "i"
+        aboutItem.keyEquivalentModifierMask = [.control, .shift]
+
+        let helpMenu = NSMenu(title: L10n.tr("&Help"))
+        helpMenu.addItem(referenceItem)
+        helpMenu.addItem(checkHeadphonesItem)
+        helpMenu.addItem(aboutItem)
+        helpItem.submenu = helpMenu
+        main.addItem(helpItem)
+
         return main
     }
 
@@ -154,6 +200,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         viewItem.title = L10n.tr("&View")
         languageItem.title = L10n.tr("Language")
         languageMenu.title = L10n.tr("Language")
+        helpItem.title = L10n.tr("&Help")
+        referenceItem.title = L10n.tr("Frequency &reference…")
+        checkHeadphonesItem.title = L10n.tr("&Check headphones…")
+        aboutItem.title = L10n.tr("&About")
         for item in languageMenu.items {
             guard let raw = item.representedObject as? String,
                   let code = LanguageCode.parse(raw) else { continue }
@@ -165,5 +215,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let raw = sender.representedObject as? String else { return }
         // `L10n` posts the change; the window and this menu both re-read their captions.
         L10n.setLanguage(raw)
+    }
+
+    // MARK: - Help menu
+
+    /// SPEC §4: repeat the check whenever the user wants to. Same coordinator, same
+    /// dialog as the window's button — there is one implementation of the check.
+    @objc private func checkHeadphones() {
+        _ = coordinator?.rerunFromUser()
+    }
+
+    /// SPEC §6: the full frequency reference. The catalogue comes from the bundle, i.e.
+    /// from `src/binaural/data/frequencies.json` — one copy, CONTRACT rule 10.
+    @objc private func openReference() {
+        guard let catalogue = try? FrequencyCatalogue.load(bundle: .main) else {
+            AppAlert.runWarning(parent: controller?.window, message: L10n.tr(
+                "The frequency reference is not available in this build."
+            ))
+            return
+        }
+        let dialog = ReferenceDialogController(catalogue: catalogue)
+        dialog.onApply = { [weak self] left, right in
+            self?.controller?.setFrequency(left, for: .left)
+            self?.controller?.setFrequency(right, for: .right)
+        }
+        dialog.showWindow(nil)
+        dialog.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// SPEC §6.13: About, with the disclaimer verbatim.
+    @objc private func showAbout() {
+        let dialog = AboutDialogController()
+        dialog.showWindow(nil)
+        dialog.window?.center()
+        dialog.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }

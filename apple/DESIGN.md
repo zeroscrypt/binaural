@@ -525,6 +525,91 @@ Python's catalogue keys the abbreviated form, so a full-text key would have prod
 English licence paragraph inside a Russian dialog. Recorded here because the shorter text
 is a choice, and the next reader will wonder.
 
+## 10. M2-b item 2: the headphone check at launch (SPEC §4)
+
+Three pieces, in the order Python has them:
+
+| File | Role | Python counterpart |
+|---|---|---|
+| `Sources/Core/LRTonePlayer.swift` | plays the §4.2 tones over the existing `setPan` hook | `LrTestSequence`'s engine half |
+| `Sources/macOS/LRTestDialogController.swift` | the §4.2 dialog — owns the question | `ui/dialogs/lr_test.py` |
+| `Sources/macOS/HeadphoneCheckDialogController.swift` | the §4.3 dialog — explain and allow continuing | `ui/dialogs/headphone_check.py` |
+| `Sources/macOS/HeadphoneCheckCoordinator.swift` | the launch sequence itself | `app.py::_run_headphone_check` |
+
+**The launch sequence.** Detect → if the heuristic is sure and says headphones, do nothing
+else → if it is *unsure* (`.unknown`, `.virtual`, or `low` confidence), run the perceptual
+L/R test **first** and open the §4.3 dialog on its answer → otherwise, if headphones are
+not confirmed and the user has not acknowledged the warning yet, open the §4.3 dialog →
+store `channelsSwapped` and `headphoneCheckAcknowledged`.
+
+**Detection runs on every start; the dialog does not.** SPEC §4.3 wants the warning visible
+and repeatable, and §4's own text says the check is "обязательный этап". Re-reading two
+CoreAudio properties per launch costs nothing and catches the user plugging in headphones
+yesterday; a startup dialog on every launch is exactly the nag §4.3 refuses to be. So the
+indicator always follows the fresh verdict ("Speakers detected" stays on screen for as long
+as it is true) while the *dialog* only appears until the user has acknowledged it once.
+
+**Only the generator swaps.** `HeadphoneDetector.swapChannels` is applied where the
+frequencies are handed to the engine, so the window keeps displaying the pair the user
+typed and the session keeps the **unswapped** numbers. A stored session therefore means the
+same thing on any machine, and the swap is a property of the output, not of the document.
+A stored swap is honoured on the very first push after launch, not only after an edit.
+
+**The test tone is the same graph, not a second one.** `LRTonePlayer` puts both oscillators
+on 440 Hz, hard-pans one side, and starts the engine if it was not running; `silenceTestTone`
+puts the previous frequencies, the previous pan and the previous play state back. Tearing
+the graph down to play a test tone would restart the phase — the discontinuity F2 rules out
+— and stopping a session that was already playing because the user answered a question
+would be worse than anything the test does. `AudioEngine` gained two **read-only**
+accessors (`currentFrequencies`, `currentPan`) so the player can restore what was there;
+no setter, so there is still exactly one writer per value.
+
+### 10.1 What it took to make the check runnable at all
+
+Three things had to be true before the dialog could appear, and each was found by running
+the app rather than by reading the code:
+
+1. **The coordinator's target was a `weak var` with no owner.** `HeadphoneTarget` was built
+   inline and released immediately, so `guard let target` failed and the whole check
+   silently did nothing — a green build, an indicator that never left "Unknown device". The
+   window now owns the target; the coordinator holds it weakly so a menu item cannot keep a
+   closed window alive.
+2. **`NSApp.runModal(for:)` does not unwind when its window closes.** The dialog vanished on
+   "Continue anyway" and the nested event loop kept spinning, so nothing after the presenter
+   ever ran: no `apply`, no persistence. Every dialog now ends with
+   `NSWindowController.endModalSessionAndClose()`, which calls `NSApp.stopModal(withCode:)`
+   — the documented way — and is a plain `close()` when there is no modal session, so the
+   same button handler works in a test.
+3. **Two launch crashes**, both pre-existing and both now fixed and pinned: see the commit
+   `apple/: fix two crashes that made the app unusable at launch`. In short — a SIGBUS in
+   `deviceIDs()` from `withUnsafeMutableBytes(of:)` on this toolchain, and a SIGTRAP because
+   the `AVAudioSourceNode` render block inherited `@MainActor` isolation from `start()`.
+   The second one is the more interesting: it means M2-a's thread handover had a runtime
+   isolation check in the render block, which is exactly what §7.2 says must not be there.
+
+### 10.2 Testing the launch sequence
+
+`NSApp.runModal` never returns on its own, so `Presenting` is a protocol and the tests
+inject a `ScriptedPresenter` that acknowledges the §4.3 dialog and answers the §4.2 dialog
+from a script. The **branches** are therefore tested hermetically — unsure → ask; speakers →
+warn; confident headphones → do not ask; swap → stored — while the real `ModalPresenter`
+stays a three-line `runModal` call. The presentation itself was verified by driving the
+running app: launch → the §4.3 dialog with the SPEC wording → *Continue anyway* → the
+indicator switches to "Speakers detected" and `session.json` gains
+`headphone_check_acknowledged: true` → relaunch shows no dialog and still detects.
+
+### 10.3 Deviations
+
+1. **Python repeats the dialog at every start** (`app.py` shows it unconditionally;
+   §4.3's own comment says "the check must not be repeated on every start", which its code
+   contradicts). Swift follows the comment and SPEC §4.3's intent: detect every launch, warn
+   once. Flagged for the coordinator — if the repeated dialog was deliberate, it belongs in
+   Python, not here.
+2. **`&Check headphones…` is `Ctrl+Shift+H` and the reference is `Cmd+O`**, as in Python.
+   `NSMenuItem.keyEquivalentModifierMask` is explicit because the default is Command-only.
+3. **The window carries its own "Check headphones…" button** (SPEC §7 asks for it; Python
+   only has the menu item), and it goes through the same coordinator, so there is one check.
+
 ## 8. Build and verify (M2)
 
 The M1 commands (§6) still hold, plus one:
