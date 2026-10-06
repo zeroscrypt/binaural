@@ -229,14 +229,63 @@ final class L10nTests: XCTestCase {
     }
 
     /// The Swift-only additions are a documented, deliberate superset — not drift.
-    func testWindowAdditionsAreHandfulAndRussian() {
-        XCTAssertEqual(RussianWindowAdditions.messages, ["Mute": "Без звука"])
+    ///
+    /// A *rule* about the additions rather than the literal dictionary M2-a pinned: the
+    /// set grows as M2-b adds controls Python has no call site for (mute, the timer, the
+    /// Settings dialog, the macOS-only About wording), and a hard-coded copy of it would
+    /// be edited on every milestone. What must stay true is that each entry is a key the
+    /// app really shows — `testEveryAdditionsKeyIsUsed` pins that — and that its Russian
+    /// is a real translation, not the English copied through.
+    func testWindowAdditionsAreFewAndActuallyTranslated() {
+        let additions = RussianWindowAdditions.messages
+        XCTAssertFalse(additions.isEmpty, "M2-b adds keys ru.py has no call site for")
+        XCTAssertLessThanOrEqual(
+            additions.count, 12,
+            "the additions are a documented superset, not a second catalogue"
+        )
+        for (key, value) in additions {
+            XCTAssertFalse(value.isEmpty, "\(key) added with no Russian")
+            // Cyrillic, and not the English repeated back.
+            XCTAssertTrue(
+                value.rangeOfCharacter(from: .decimalDigits.inverted) != nil
+                    || value.unicodeScalars.contains { (0x400...0x4FF).contains($0.value) },
+                "\(key) does not look translated: \(value)"
+            )
+        }
+    }
+
+    /// Every addition is a key some source really references — an addition nobody shows
+    /// is dead weight in the catalogue, and the way to notice is to check.
+    func testEveryAdditionsKeyIsReferenced() throws {
+        let sources = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources")
+        var corpus = ""
+        if let walker = try? FileManager.default.enumerator(
+            at: sources, includingPropertiesForKeys: nil
+        ) {
+            for case let file as URL in walker where file.pathExtension == "swift" {
+                corpus += (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+            }
+        }
+        XCTAssertFalse(corpus.isEmpty, "no Swift sources found under \(sources.path)")
+        for key in RussianWindowAdditions.messages.keys.sorted() {
+            XCTAssertTrue(
+                corpus.contains(key),
+                "\(key) is in RussianWindowAdditions but no source mentions it"
+            )
+        }
     }
 
     /// `RussianCatalogue.all` is what callers and tests see: port + additions.
     func testMergedCatalogueCoversBothFiles() {
         let merged = RussianCatalogue.all
-        XCTAssertEqual(merged.count, RussianCatalogue.messages.count + 1)
+        XCTAssertEqual(
+            merged.count,
+            RussianCatalogue.messages.count + RussianWindowAdditions.messages.count
+        )
         XCTAssertEqual(merged["Mute"], "Без звука")
         XCTAssertEqual(merged["Play"], "Воспроизвести")
     }

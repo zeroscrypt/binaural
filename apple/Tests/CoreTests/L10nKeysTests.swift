@@ -24,7 +24,7 @@ final class L10nKeysTests: XCTestCase {
     static let referencedKeys: [String] = [
         // main window and transport
         "Binaural", "LEFT EAR", "RIGHT EAR", "Play", "Stop", "Volume", "Mute",
-        "Play or stop the binaural tone", "Play the binaural tone", "Stop the binaural tone",
+        "Play the binaural tone", "Stop the binaural tone",
         "Starts or stops playback. The keyboard shortcut is Space.",
         "Output level from 0 to 100 percent. Not medical advice: keep it low.",
         // menus
@@ -42,8 +42,36 @@ final class L10nKeysTests: XCTestCase {
         // status indicator
         "Audio output status", "Headphones detected",
         "Speakers detected — binaural beats need headphones", "Unknown device",
+        // timer (SPEC §5 F5)
+        "Timer", "Off", "%1 min",
         // errors
-        "Error", "Could not start audio output.", "Could not open the audio output device."
+        "Error", "Could not start audio output.", "Could not open the audio output device.",
+        // presets (SPEC §5 F3)
+        "Presets", "Sets both channels around a %1 Hz carrier so the difference is %2 Hz.",
+        // About and the shared disclaimer (SPEC §6.13)
+        "About Binaural", "Binaural beats for macOS",
+        "Two sine tones of different frequency are sent to the left and the right ear. Your brain fuses them into a third tone that has no sound source: the difference between the two frequencies. That phantom tone is the binaural beat.",
+        "Headphones are a physical requirement, not a recommendation: on speakers both frequencies mix in the air before they reach your ears, and the effect is gone. The application checks the audio output on every start and reports what it found.",
+        "The frequency reference keeps every record it has — from peer-reviewed EEG literature to esoteric traditions — each marked with how well it is studied.",
+        "Version {version} · macOS {system}",
+        "Disclaimer",
+        "These frequencies and the descriptions of their effects come from research, and also from esoteric, energy and alternative practices. This application is not a medical device and is not intended for the diagnosis, treatment or prevention of any disease. Do not use it if you have epilepsy or a pacemaker, during pregnancy, or if you are photosensitive, without consulting a doctor. Do not turn the volume above a comfortable level.",
+        "MIT License", "Copyright (c) {year} {holder}",
+        "Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the conditions of the MIT licence. The software is provided \"as is\", without warranty of any kind, express or implied.",
+        // frequency reference dialog (SPEC §6)
+        "Frequency reference",
+        "Every record from the built-in reference, from EEG literature to esoteric traditions. Nothing is ranked and nothing is hidden.",
+        "Search the frequency reference", "Search name, frequency or effect…",
+        "Filter by evidence level", "All evidence", "All categories",
+        "Reference categories", "Reference records", "Show every record of the reference",
+        "Showing {shown} of {total} records", "Nothing matches this filter.",
+        "Badges show how well a record is studied. Nothing is hidden by default.",
+        "Well-studied", "Studied", "Reported", "Traditional", "Unknown",
+        "Apply {label}",
+        "Set left = {left} Hz and right = {right} Hz (difference {beat})",
+        "Tone — applied as the carrier with a {beat} Hz beat",
+        "Carries {carrier} Hz",
+        "Medical disclaimer — read it before using the application."
     ]
 
     /// `<repo>/apple/Sources` — the same `#filePath` trick as `ReferenceFile`, three
@@ -85,18 +113,34 @@ final class L10nKeysTests: XCTestCase {
 
     // MARK: - The scan that keeps the list honest
 
+    /// Every key a source passes to `tr`, plus the named constants translated when shown.
+    func testEveryTrStringIsCoveredHere() {
+        let used = Self.trLiteralsInSources().union(Self.namedKeys())
+        let missing = used.subtracting(Self.referencedKeys).sorted()
+        XCTAssertTrue(
+            missing.isEmpty,
+            "passed to tr() but not listed in referencedKeys — add them:\n"
+                + missing.joined(separator: "\n")
+        )
+    }
+
+    /// …and the other direction, so the list cannot quietly keep a key nothing shows.
+    func testEveryListedKeyIsUsed() {
+        let used = Self.trLiteralsInSources().union(Self.namedKeys())
+        let stale = Set(Self.referencedKeys).subtracting(used).sorted()
+        XCTAssertTrue(
+            stale.isEmpty,
+            "listed in referencedKeys but referenced nowhere:\n" + stale.joined(separator: "\n")
+        )
+    }
+
     /// Every string literal that reaches `tr`, however the call is spelled.
     ///
     /// A scan, not an AST walk: Swift has no parser in a test bundle, and the rule worth
     /// enforcing is the one this checks — "no user-visible string outside `tr`". It
     /// reads each `tr(` call's whole argument list, so the ternary form
     /// `tr(playing ? "Stop" : "Play")` is caught as well as the plain one.
-    ///
-    /// Multi-line literals are not used anywhere in the app, and that is not a silent
-    /// hole: such a key would be missing from the scan *and* from the list, so
-    /// `testEveryListedKeyIsUsed` would fail on it and name it.
     private static func trLiteralsInSources() -> Set<String> {
-        let literal = try! NSRegularExpression(pattern: "\"((?:[^\"\\]|\\.)*)\"")
         var found: Set<String> = []
         for file in swiftFiles() {
             let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
@@ -106,22 +150,68 @@ final class L10nKeysTests: XCTestCase {
                   !isPartOfAnIdentifier(text, at: call.lowerBound) {
                 guard let close = balancedParenthesis(in: text, from: call.upperBound) else { break }
                 let arguments = String(text[call.upperBound..<close])
-                let range = NSRange(arguments.startIndex..., in: arguments)
-                for match in literal.matches(in: arguments, range: range) {
-                    guard let captured = Range(match.range(at: 1), in: arguments) else { continue }
-                    found.insert(unescape(String(arguments[captured])))
-                }
+                found.formUnion(catalogKeys(inArguments: arguments))
                 searchStart = text.index(after: close)
             }
         }
         return found
     }
 
+    /// The catalogue keys inside one `tr(...)` argument list.
+    ///
+    /// Two rules make the scan agree with what the compiler sees:
+    ///
+    /// * the list is cut at a top-level `named:` — everything after it belongs to the
+    ///   named-argument overload, where the literals are dictionary *keys* (`"label"`)
+    ///   and not catalogue keys at all;
+    /// * a **run** of adjacent string literals is joined into one key, exactly as the
+    ///   compiler joins it, so a long sentence written over two lines is the single
+    ///   catalogue key it is rather than two fragments neither of which is in `ru.py`.
+    ///   Both spellings of "joined" are recognised — Swift's implicit concatenation
+    ///   (`"a" "b"`) and the explicit `+` (`"a" + "b"`), which is what the reference
+    ///   dialog's two-line caption uses. A comma keeps two literals apart, so the
+    ///   positional arguments of `tr(key, value…)` never merge into one key.
+    private static func catalogKeys(inArguments arguments: String) -> Set<String> {
+        let fullRange = NSRange(arguments.startIndex..., in: arguments)
+        let cut = namedArgumentLabel.firstMatch(in: arguments, range: fullRange)
+            .flatMap { Range($0.range, in: arguments)?.lowerBound }
+        let head = cut.map { String(arguments[arguments.startIndex..<$0]) } ?? arguments
+
+        let range = NSRange(head.startIndex..., in: head)
+        var keys: Set<String> = []
+        for match in joinedLiterals.matches(in: head, range: range) {
+            let run = Range(match.range, in: head).map { String(head[$0]) } ?? ""
+            // Concatenated, not collected: the fragments of a joined run are not keys,
+            // the joined string is. Two fragments would both fail the translation check
+            // and hide the real key from the list.
+            keys.insert(unescape(matches(inString: run).joined()))
+        }
+        return keys
+    }
+
+    private static let namedArgumentLabel = try! NSRegularExpression(
+        pattern: "(?<![A-Za-z0-9_])named\\s*:"
+    )
+    /// One literal, or several glued together by whitespace and/or `+`.
+    private static let joinedLiterals = try! NSRegularExpression(
+        pattern: "\"(?:[^\"\\\\]|\\\\.)*\"(?:[ \\t\\n\\r]*(?:\\+[ \\t\\n\\r]*)?\"(?:[^\"\\\\]|\\\\.)*\")*"
+    )
+    private static let literalPattern = try! NSRegularExpression(pattern: "\"((?:[^\"\\\\]|\\\\.)*)\"")
+
+    private static func matches(inString text: String) -> [String] {
+        let range = NSRange(text.startIndex..., in: text)
+        return literalPattern.matches(in: text, range: range).compactMap { match in
+            guard let captured = Range(match.range(at: 1), in: text) else { return nil }
+            return String(text[captured])
+        }
+    }
+
     /// Keys that never appear as a `tr` argument because they are named constants
     /// translated when shown: `engine.py`'s `_ERROR_SOURCES` rule, mirrored by
-    /// `AudioFailure`.
+    /// `AudioFailure`, and the About/disclaimer text the reference dialog and About both
+    /// share (`AboutContent`).
     private static func namedKeys() -> Set<String> {
-        Set(AudioFailure.all)
+        Set(AudioFailure.all).union(AboutContent.namedKeys)
     }
 
     /// True when the character before `index` is part of an identifier, which would make

@@ -25,6 +25,7 @@ final class MainWindowController: NSWindowController {
     private let volumeSlider = NSSlider()
     private let volumeLabel = NSTextField(labelWithString: "")
     private let muteButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let timerView = TimerControlView()
     private let errorLabel = NSTextField(wrappingLabelWithString: "")
 
     private var activeEar: FrequencyControlView.Ear = .left
@@ -34,6 +35,16 @@ final class MainWindowController: NSWindowController {
     private var saveTimer: Timer?
     private var languageObserver: (any NSObjectProtocol)?
     private var isRestoring = false
+
+    // MARK: Playback timer (SPEC §5 F5)
+
+    /// The timer as it stands: which durations were offered, and when playback ends.
+    /// A value, not a run loop — `PlaybackTimer` is a pure function of "now", so the
+    /// countdown is testable to the second without waiting for one.
+    private var playbackTimer: PlaybackTimer = .off
+    /// Ticks once a second while a timer is armed. `nil` whenever the timer is off or
+    /// playback has stopped, so an idle window schedules nothing at all.
+    private var countdownTicker: Timer?
 
     init(engine: AudioEngine, store: SessionStore) {
         self.engine = engine
@@ -124,7 +135,15 @@ final class MainWindowController: NSWindowController {
         errorLabel.textColor = .systemRed
         errorLabel.isHidden = true
 
-        let stack = NSStackView(views: [statusRow, ears, beatView, transport, errorLabel])
+        // The timer sits under the transport rather than inside it: it has its own
+        // caption, a popup and a countdown, and SPEC §7 gives the transport row Play,
+        // volume and mute.
+        let timerRow = NSStackView(views: [timerView, NSView()])
+        timerRow.orientation = .horizontal
+        timerRow.alignment = .centerY
+        timerRow.spacing = 12
+
+        let stack = NSStackView(views: [statusRow, ears, beatView, transport, timerRow, errorLabel])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 16
@@ -142,7 +161,7 @@ final class MainWindowController: NSWindowController {
         ]
         // `.leading` alignment keeps each row at its natural width, so the rows that
         // should span the window are pinned to the stack's width by hand.
-        for row in [statusRow as NSView, ears, beatView, transport, errorLabel] {
+        for row in [statusRow as NSView, ears, beatView, transport, timerRow, errorLabel] {
             row.translatesAutoresizingMaskIntoConstraints = false
             constraints.append(row.widthAnchor.constraint(equalTo: stack.widthAnchor))
         }
@@ -154,7 +173,8 @@ final class MainWindowController: NSWindowController {
             volumeSlider.widthAnchor.constraint(greaterThanOrEqualToConstant: 160),
             volumeSlider.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             volumeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
-            muteButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
+            muteButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            timerRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
         ]
         NSLayoutConstraint.activate(constraints)
 
@@ -164,6 +184,7 @@ final class MainWindowController: NSWindowController {
     private func connect() {
         leftControl.onChange = { [weak self] _ in self?.frequenciesChanged() }
         rightControl.onChange = { [weak self] _ in self?.frequenciesChanged() }
+        timerView.onSelectMinutes = { [weak self] minutes in self?.timerSelectionChanged(minutes) }
     }
 
     // MARK: - Session
@@ -174,11 +195,16 @@ final class MainWindowController: NSWindowController {
         leftControl.setValue(session.leftHz)
         rightControl.setValue(session.rightHz)
         volumeSlider.doubleValue = session.volume
+        // `Session.timerMinutes` is clamped to 0…1440 on load, so the only thing left to
+        // reconcile is a value that is in range but not one of the offered durations;
+        // `TimerControlView.setMinutes` picks the nearest one it can show.
+        timerView.setMinutes(session.timerMinutes)
         engine.volume = session.volume
         engine.isMuted = false
         setActive(.left)
         frequenciesChanged(save: false)
         updateVolumeLabel()
+        showCountdown(at: Date())
     }
 
     /// The session as it stands now.
@@ -190,7 +216,7 @@ final class MainWindowController: NSWindowController {
             channelsSwapped: session.channelsSwapped,
             headphoneCheckAcknowledged: session.headphoneCheckAcknowledged,
             lastPreset: session.lastPreset,
-            timerMinutes: session.timerMinutes,
+            timerMinutes: timerView.selectedMinutes,
             presetCategory: session.presetCategory
         )
     }
@@ -226,14 +252,91 @@ final class MainWindowController: NSWindowController {
 
     @objc func togglePlayback() {
         if engine.isRunning {
-            engine.stop()
-            hideError()
+            stopPlayback()
         } else if engine.start() {
             hideError()
+            armTimer(at: Date())
         } else {
             showError(engine.error)
         }
         retranslate()
+    }
+
+    /// Stop, through the fade.
+    ///
+    /// One place for every stop — the button, the keyboard and the timer expiry all come
+    /// through here, so none of them can grow its own cut-off. `AudioEngine.stop()`
+    /// publishes a gain of zero **with** the ramp, which is SPEC §5 F5's "плавное
+    /// затухание, чтобы остановка не была щелчком" and SPEC §2.1's smooth end of
+    /// session: the amplitude slides to silence over `BeatMath.defaultRampSeconds`
+    /// (30 ms, inside F2's 20–50 ms band) instead of being switched off, and the engine
+    /// keeps running so the phase stays continuous for the next play.
+    private func stopPlayback() {
+        engine.stop()
+        disarmTimer()
+        hideError()
+    }
+
+    // MARK: - Timer (SPEC §5 F5)
+
+    /// The user picked a duration in the popup.
+    private func timerSelectionChanged(_ minutes: Int) {
+        // Re-arming matters: a session that is already playing gets the new duration
+        // from now, rather than keeping the countdown of the old one.
+        if engine.isRunning {
+            armTimer(at: Date())
+        } else {
+            showCountdown(at: Date())
+        }
+        if !isRestoring { scheduleSave() }
+    }
+
+    /// Arm the timer for the currently selected duration.
+    ///
+    /// `0` minutes is "off" (`Session.timerOff`): the countdown is hidden and nothing is
+    /// scheduled, so "play until stopped" costs nothing.
+    func armTimer(at now: Date) {
+        playbackTimer = PlaybackTimer(minutes: timerView.selectedMinutes, startedAt: now)
+        startTicking()
+        showCountdown(at: now)
+    }
+
+    /// Stop counting. The selected duration stays as it is — only the countdown goes.
+    func disarmTimer() {
+        playbackTimer = .off
+        countdownTicker?.invalidate()
+        countdownTicker = nil
+        timerView.updateCountdown("")
+    }
+
+    private func startTicking() {
+        guard playbackTimer.isEnabled, countdownTicker == nil else { return }
+        let ticker = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tickTimer(at: Date()) }
+        }
+        // `.common` rather than `.default`: a menu being tracked runs the run loop in
+        // `NSEventTrackingRunLoopMode`, and a timer registered only in the default mode
+        // would freeze the countdown exactly while the user opens a menu to change it.
+        RunLoop.main.add(ticker, forMode: .common)
+        countdownTicker = ticker
+    }
+
+    /// One tick of the countdown.
+    ///
+    /// Split out with the time injected rather than reading the clock inline, so the
+    /// expiry path is testable to the second instead of having to wait a minute for it.
+    func tickTimer(at now: Date = Date()) {
+        guard playbackTimer.isEnabled else { return }
+        if playbackTimer.hasExpired(at: now) {
+            stopPlayback()
+            retranslate()
+        } else {
+            showCountdown(at: now)
+        }
+    }
+
+    private func showCountdown(at now: Date) {
+        timerView.updateCountdown(playbackTimer.countdownText(at: now))
     }
 
     @objc private func volumeMoved() {
@@ -310,6 +413,11 @@ final class MainWindowController: NSWindowController {
         )
         muteButton.title = L10n.tr("Mute")
 
+        timerView.retranslate()
+        // The popup captions are rebuilt by `retranslate()`, so the countdown has to be
+        // re-pushed or a Russian switch would leave the label blank until the next tick.
+        showCountdown(at: Date())
+
         let playing = engine.isRunning
         playButton.title = L10n.tr(playing ? "Stop" : "Play")
         playButton.setAccessibilityLabel(
@@ -332,6 +440,7 @@ final class MainWindowController: NSWindowController {
         }
         saveTimer?.invalidate()
         saveTimer = nil
+        disarmTimer()
     }
 
     // MARK: - Keyboard entry points
@@ -394,6 +503,26 @@ final class MainWindowController: NSWindowController {
     func setMuted(_ muted: Bool) {
         muteButton.state = muted ? .on : .off
         muteToggled()
+    }
+
+    // MARK: - Timer state the tests agree on
+
+    /// The durations on offer, as captions — `Session.timerChoices` and nothing else,
+    /// so "the timer offers the session's durations" is checkable rather than asserted
+    /// in a comment.
+    var timerChoiceTitles: [String] { timerView.choiceTitles }
+
+    /// The selected duration in minutes, and the only place the window reads it from.
+    var selectedTimerMinutes: Int { timerView.selectedMinutes }
+
+    var countdownText: String { timerView.countdownText }
+    var isShowingCountdown: Bool { timerView.isShowingCountdown }
+    var timerCaptionTitle: String { timerView.captionTitle }
+
+    /// Pick a duration as the popup would, so the rest of the timer reacts.
+    func selectTimerMinutes(_ minutes: Int) {
+        timerView.setMinutes(minutes)
+        timerSelectionChanged(timerView.selectedMinutes)
     }
 }
 

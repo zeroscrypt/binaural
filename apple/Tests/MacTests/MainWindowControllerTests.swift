@@ -282,6 +282,147 @@ final class MainWindowControllerTests: XCTestCase {
         XCTAssertEqual(controller.displayedFrequencies.left, 400.0)
     }
 
+    // MARK: - Timer (SPEC §5 F5)
+
+    /// F5's data rule: the offered durations are `Session.timerChoices` verbatim, `0`
+    /// first and captioned as "off".
+    func testTimerOffersTheSessionChoicesWithOffFirst() {
+        let controller = makeController()
+        XCTAssertEqual(controller.timerChoiceTitles.count, Session.timerChoices.count)
+        XCTAssertEqual(controller.timerChoiceTitles.first, "Off")
+        XCTAssertEqual(controller.timerChoiceTitles.last, "\(Session.timerChoices.last!) min")
+        XCTAssertEqual(
+            Set(controller.timerChoiceTitles.dropFirst()),
+            Set(Session.timerChoices.dropFirst().map { "\($0) min" })
+        )
+    }
+
+    func testDefaultTimerIsFifteenMinutes() {
+        let controller = makeController()
+        XCTAssertEqual(controller.selectedTimerMinutes, Session.defaultTimerMinutes)
+        XCTAssertEqual(controller.selectedTimerMinutes, 15)
+    }
+
+    /// The stored duration comes back with the session (F5: remember the timer).
+    func testStoredTimerIsRestored() {
+        let controller = makeController(session: Session(timerMinutes: 45))
+        XCTAssertEqual(controller.selectedTimerMinutes, 45)
+    }
+
+    /// …and a change is written for the next launch.
+    func testTimerChoiceIsSavedForTheNextLaunch() {
+        let controller = makeController()
+        controller.selectTimerMinutes(30)
+        controller.saveNow()
+
+        let reloaded = MainWindowController(engine: AudioEngine(), store: store)
+        XCTAssertEqual(reloaded.selectedTimerMinutes, 30)
+    }
+
+    /// A duration that is in range but not on the offer list shows the nearest one, so
+    /// the popup and the document cannot disagree about what the timer is.
+    func testOffTimerShowsNoCountdown() {
+        let controller = makeController()
+        controller.selectTimerMinutes(Session.timerOff)
+        XCTAssertEqual(controller.selectedTimerMinutes, 0)
+        XCTAssertFalse(controller.isShowingCountdown, "0 minutes means 'play until stopped'")
+    }
+
+    /// The countdown is live text, in `mm:ss`, counting down once a second.
+    func testCountdownCountsDownWhilePlaying() {
+        let controller = makeController()
+        controller.selectTimerMinutes(15)
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        controller.armTimer(at: start)
+
+        XCTAssertTrue(controller.isShowingCountdown)
+        XCTAssertEqual(controller.countdownText, "15:00")
+
+        controller.tickTimer(at: start.addingTimeInterval(60))
+        XCTAssertEqual(controller.countdownText, "14:00")
+
+        controller.tickTimer(at: start.addingTimeInterval(60 * 14 + 30))
+        XCTAssertEqual(controller.countdownText, "00:30")
+    }
+
+    /// F5: "по истечении плавное затухание, чтобы остановка не была щелчком" — the session
+    /// stops by itself, and it stops through the *same* fading stop the Stop button uses,
+    /// not by cutting the engine.
+    func testExpiryStopsPlaybackThroughTheFade() throws {
+        let controller = makeController()
+        controller.selectTimerMinutes(5)
+        let engine = AudioEngine()
+        let wired = MainWindowController(engine: engine, store: store)
+        wired.selectTimerMinutes(5)
+
+        let start = Date()
+        wired.armTimer(at: start)
+        try XCTSkipIf(!engine.start(), "no audio output device in this environment")
+        wired.armTimer(at: start)
+        XCTAssertTrue(wired.isPlaying)
+
+        // Two seconds past the deadline: the ticker may have arrived late, so the check
+        // is "expired by now", never "exactly at the deadline".
+        wired.tickTimer(at: start.addingTimeInterval(5 * 60 + 2))
+        XCTAssertFalse(wired.isPlaying, "the timer ends the session by itself")
+        XCTAssertFalse(wired.isShowingCountdown)
+        XCTAssertEqual(wired.playButtonTitle, "Play")
+
+        // And it stopped by ramping the gain, not by jumping it: the published gain is
+        // zero *with* the ramp SPEC F2 asks for, which is what makes it inaudible.
+        let published = engine.mailbox.load(fallback: RenderParameters())
+        XCTAssertEqual(published.gain, 0, accuracy: 1e-12)
+        XCTAssertGreaterThan(
+            published.rampSeconds, 0,
+            "a stop that ramps is a fade; a step would click"
+        )
+        XCTAssertEqual(published.rampSeconds, BeatMath.defaultRampSeconds, accuracy: 1e-12)
+        wired.tearDown()
+        engine.shutdown()
+        controller.tearDown()
+    }
+
+    /// Expiry with nothing playing must still be safe — the countdown ends and the window
+    /// stays coherent (this is the path a test run and a device-less machine take).
+    func testExpiryWithoutPlaybackIsHarmless() {
+        let controller = makeController()
+        controller.selectTimerMinutes(5)
+        let start = Date()
+        controller.armTimer(at: start)
+        XCTAssertTrue(controller.isShowingCountdown)
+
+        controller.tickTimer(at: start.addingTimeInterval(301))
+        XCTAssertFalse(controller.isPlaying)
+        XCTAssertFalse(controller.isShowingCountdown)
+    }
+
+    /// Stopping by hand ends the countdown but keeps the chosen duration, so pressing Play
+    /// again gives the session the time the user picked rather than none.
+    func testManualStopKeepsTheChosenDuration() {
+        let controller = makeController()
+        controller.selectTimerMinutes(20)
+        controller.armTimer(at: Date())
+
+        controller.togglePlaybackFromKeyboard()   // stop; no device here, so a no-op
+        controller.disarmTimer()
+
+        XCTAssertFalse(controller.isShowingCountdown)
+        XCTAssertEqual(controller.selectedTimerMinutes, 20)
+    }
+
+    /// The timer follows the language like everything else (SPEC §7.4).
+    func testTimerCaptionsFollowTheLanguage() {
+        let controller = makeController()
+        XCTAssertEqual(controller.timerCaptionTitle, "Timer")
+
+        L10n.setLanguage("ru")
+        XCTAssertEqual(controller.timerCaptionTitle, "Таймер")
+        XCTAssertEqual(controller.timerChoiceTitles.first, "Выкл.")
+
+        L10n.setLanguage("en")
+        XCTAssertEqual(controller.timerChoiceTitles.last, "120 min")
+    }
+
     // MARK: - Cleanup
 
     func testTearDownIsSafeToCallTwice() {

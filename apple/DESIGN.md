@@ -221,6 +221,9 @@ check; no other change is needed. Adding `iOS` to the test target's
 
 # Part II — M2
 
+> **Progress.** §7 is M2-a. §9 is M2-b item 1 (the timer). Items 2–5 are appended below
+> as they land; nothing above this line has been rewritten.
+
 ## 7. M2-a: live audio, i18n, main window
 
 ### 7.1 What landed
@@ -438,14 +441,98 @@ The headphone indicator shows **"Unknown device"** until M2-b supplies detection
 honest state for "nothing has looked at the device yet", it is what the Python window
 starts with, and the indicator is never hidden.
 
+## 9. M2-b item 1: the playback timer (SPEC §5 F5)
+
+`TimerControlView` existed from M2-b's groundwork but nothing instantiated it. The row now
+sits under the transport, and the three data rules of F5 are the **session's**, not the
+view's: the offered durations are `Session.timerChoices` verbatim (`0` first, captioned
+`Off`, every other one `N min`), the default is `Session.defaultTimerMinutes` = 15, and
+`0` means "play until stopped" — which is why an off timer hides the countdown instead of
+reading `00:00`, and why `PlaybackTimer.remaining(at:)` is `infinity` rather than `0` for it.
+
+**The countdown is text, not a ring or a bar.** SPEC §7.2 requires reduced-motion to be
+respected, and a `NSTextField` is the one representation that needs no animation at all:
+nothing pulses, so "reduce motion" is satisfied by there being no motion to reduce. The
+label uses `monospacedDigitSystemFont`, so the digits do not shuffle sideways once a
+second.
+
+**The tick is one second, in `.common` run loop mode.** A timer registered only in the
+default mode stops firing the moment the user opens a menu — which is exactly how they
+change the duration. `.common` includes `NSEventTrackingRunLoopMode`, so the countdown
+keeps running while a menu is open.
+
+**Expiry is the same fade as the Stop button.** `MainWindowController.stopPlayback()` is
+the single place playback ends — the button, `Space` and the timer all call it — so
+expiry cannot grow its own cut-off. `AudioEngine.stop()` publishes a gain of **zero with
+the ramp**, which is F5's «плавное затухание, чтобы остановка не была щелчком» and
+§2.1's smooth end of session: the amplitude slides to silence over
+`BeatMath.defaultRampSeconds` (30 ms, inside F2's 20–50 ms band) while the engine keeps
+running, so the tail fades and the phase survives for the next play.
+`testExpiryStopsPlaybackThroughTheFade` asserts both halves — that playback stopped, and
+that the *published* `RenderParameters` carry `gain == 0` **and** `rampSeconds > 0`,
+because a stop that ramps is a fade and a step would click. It skips where there is no
+output device.
+
+**Testability without waiting.** `tickTimer(at:)` and `armTimer(at:)` take the clock as a
+parameter, so a 15-minute countdown and its expiry are exercised in microseconds; only the
+engine-starting test needs real hardware.
+
+**Session.** `currentSession.timerMinutes` now reads `timerView.selectedMinutes` rather
+than the stored value, so picking a duration is persisted like any other control
+(`testTimerChoiceIsSavedForTheNextLaunch`). A stored value that is in range but not on the
+offer list (`Session` clamps to 0…1440, the popup offers ten durations) selects the
+nearest offered one — the number is clamped by the session, the control shows what can be
+clicked.
+
+### 9.1 i18n parity, closed in both directions (this was incomplete)
+
+`L10nKeysTests` documented two tests — `testEveryTrStringIsCoveredHere` and
+`testEveryListedKeyIsUsed` — that **did not exist**. The scan helpers were present and
+unused, so a new `tr("…")` key could have been added without a Russian translation and the
+suite would still have been green. Both tests now exist and the referenced-key list is
+complete for every key in `Sources/`.
+
+Making them work needed two fixes to the scan itself, because it disagreed with the
+compiler:
+
+* **Joined string literals.** `ReferenceDialogController` writes a long caption over two
+  lines with `"… " + "…"`. The compiler makes that one key; the old scan reported two
+  fragments, neither of which is in `ru.py`, so both directions of the check failed on
+  correct code. The scan now joins a run of literals — with whitespace, or with `+` —
+  the way the compiler does.
+* **The `named:` overload.** `tr(key, named: ["label": …])` has dictionary *keys* as
+  literals after the label. The scan now cuts the argument list there, so `"label"` is not
+  mistaken for a catalogue key.
+
+**`AboutContent` moved from `Sources/macOS` into `BinauralCore`.** The About/disclaimer
+wording is the one text SPEC §6.13 requires in two places, and `BinauralCoreTests` has to
+check it against `ru.py` — which it can only do from inside Core. It has no AppKit: three
+strings, the licence holder, and `L10n.tr`. It is now `public enum AboutContent` in
+`Sources/Core/AboutContent.swift`, with `AboutContentText` as its translated view. Its
+`namedKeys` list joins `AudioFailure.all` in the scan, so a named constant is no longer a
+way around the catalogue.
+
+**`RussianWindowAdditions` grew from one entry to eight** (`Timer`, `Off`, `%1 min`,
+`Settings`, the macOS-only tagline, the macOS version line, the status-item tooltip and
+the earlier `Mute`). Each is a key `ru.py` has no call site for. The M2-a test pinned the
+dictionary literally (`["Mute": "Без звука"]`), which meant editing a test on every
+milestone; it now asserts the *rules* instead — few entries, each really translated
+(Cyrillic), each really referenced by a source (`testEveryAdditionsKeyIsReferenced`) —
+which is the property the hard-coded copy was standing in for.
+
+**The licence notice is `about.py::LICENSE_SUMMARY_EN` verbatim**, not the full MIT text.
+Python's catalogue keys the abbreviated form, so a full-text key would have produced an
+English licence paragraph inside a Russian dialog. Recorded here because the shorter text
+is a choice, and the next reader will wonder.
+
 ## 8. Build and verify (M2)
 
 The M1 commands (§6) still hold, plus one:
 
 ```
 cd apple && xcodegen generate
-xcodebuild -project Binaural.xcodeproj -scheme BinauralCore -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test   # 148
-xcodebuild -project Binaural.xcodeproj -scheme Binaural     -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test   # +21 window tests
+xcodebuild -project Binaural.xcodeproj -scheme BinauralCore -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test   # 167
+xcodebuild -project Binaural.xcodeproj -scheme Binaural     -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test   # +31 window tests
 xcodebuild -project Binaural.xcodeproj -scheme Binaural     -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -project Binaural.xcodeproj -scheme Binaural-iOS -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 ```
