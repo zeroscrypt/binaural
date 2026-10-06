@@ -94,6 +94,7 @@ final class L10nKeysTests: XCTestCase {
         "Error", "Could not start audio output.", "Could not open the audio output device.",
         // presets (SPEC §5 F3)
         "Presets", "Sets both channels around a %1 Hz carrier so the difference is %2 Hz.",
+        "Preset applied: difference %1 Hz",
         // About and the shared disclaimer (SPEC §6.13)
         "About Binaural", "Binaural beats for macOS",
         "Two sine tones of different frequency are sent to the left and the right ear. Your brain fuses them into a third tone that has no sound source: the difference between the two frequencies. That phantom tone is the binaural beat.",

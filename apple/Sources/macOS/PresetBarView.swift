@@ -91,6 +91,10 @@ final class PresetBarView: NSView {
             stack.widthAnchor.constraint(greaterThanOrEqualToConstant: 520)
         ])
 
+        // The caption is set here as well as in `retranslate()`: a view built on its own
+        // (a test, or a second window) must not wait for the first language change to
+        // show a label.
+        captionLabel.stringValue = L10n.tr("Presets")
         setAccessibilityLabel(L10n.tr("Presets"))
         rebuildCategories()
         select(categoryID: selectedCategoryID, notify: false)
@@ -244,6 +248,26 @@ final class PresetBarView: NSView {
         lastPresetID = preset.id
         markSelectedPreset()
         onPresetSelected?(preset)
+    }
+
+    /// Press a preset chip by id, as a click does.
+    ///
+    /// The window tests need to go through the *button* rather than call
+    /// `onPresetSelected` themselves — otherwise a chip wired to the wrong selector would
+    /// still pass. Unknown ids are ignored, exactly as a chip with no `representedID` is.
+    @discardableResult
+    func tapPreset(id: String) -> Bool {
+        guard let button = presetButtons.first(where: { $0.representedID == id }) else { return false }
+        presetClicked(button)
+        return true
+    }
+
+    /// Press a category chip by id, as a click does. Unknown ids are ignored.
+    @discardableResult
+    func tapCategory(id: String) -> Bool {
+        guard let button = categoryButtons[id] else { return false }
+        categoryClicked(button)
+        return true
     }
 
     // MARK: - State the tests read

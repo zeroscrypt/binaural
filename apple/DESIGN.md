@@ -762,14 +762,99 @@ verified by launching the app. Python's "never fatal" rule is why this split is 
 than convenient: `isInstalled` is false until `install()`, and every action is a no-op
 without a handler.
 
+## 14. M2-b item 6: the preset bar in the window (SPEC §5 F3)
+
+`PresetBarView` existed and had been reviewed, but nothing ever instantiated it — the
+grep `PresetBarView` outside its own file returned nothing, so SPEC §7's preset row was
+a drawing in a design document rather than part of the app. This item puts it in
+`MainWindowController`, and adds the tests that make "it is in the window" a checked fact
+rather than an assumption.
+
+### 14.1 `PresetCatalogue` already implemented F3 — verified, not rewritten
+
+The registry was checked against the F3 table as corrected in `f474189` before anything
+was wired, and it was already correct: seven categories in table order, 20 presets, every
+beat inside 1–30 Hz, every beat in exactly one half-open band, no Gamma, `relaxation` as
+the default matching `Session.defaultPresetCategory`, and `<band> <beat>` labels in both
+languages from `BrainwaveBand.name(for:)`. **Nothing in the registry needed fixing.**
+What was missing was any *test* of it, so `PresetCatalogueTests` now states F3's rules as
+assertions — 20 presets, the whole F3 table transcribed, exactly-one-band for each of the
+20, the half-open endpoints (4 → Theta, 8 → Alpha, 13 → Beta, 30 → Gamma, 100.1 → none),
+and `frequencies(for:)` landing on the beat and the carrier for every entry.
+
+### 14.2 Where the bar sits, and the window had to grow
+
+SPEC §7's ASCII sketch puts the chips on the last row of the window, below a stretch —
+Python's `addStretch(1)` then `_build_presets()`. So the bar is a vertical block after
+the timer row: `PresetBarView` (categories, then presets) plus one transient status
+label, and nothing was added to the transport row, which §7 defines as Play, volume,
+mute.
+
+Adding a row of 44 px targets to a window whose content already fills 600 pt means the
+default frame had to change: `contentRect` 760×**780** and `minSize` 720×**700**. The
+stack hugs the top and only bounds the bottom with `lessThanOrEqualTo`, so a window
+smaller than the content would have pushed the preset chips off-screen — hence the
+minimum rather than leaving 540.
+
+### 14.3 Category is state, preset is a pair of frequencies
+
+Two levels, two different jobs, and the code keeps them apart:
+
+* **A category chip** changes what is *offered*. It writes `presetCategoryID` and asks for
+  a save — that is all. `currentSession` reads the field, and `restoreSession()` feeds
+  the stored value back to the chips through `PresetCatalogue.resolvedCategoryID`, so a
+  hand-edited `preset_category` degrades to `relaxation` for the UI while the document
+  keeps whatever it said (CONTRACT §7 allows a free string on the way in).
+* **A preset click** sets **both** controls with `notify: false` and then calls
+  `frequenciesChanged()` once. `notify: false` on both matters: the controls push on every
+  notified change, so notifying each in turn would push an intermediate state in which the
+  beat is half the preset's. The pair comes from `PresetCatalogue.frequencies(for:)`
+  (`BeatMath.pair(fromBeat:carrier:)` around the 200 Hz default carrier) — the same
+  arithmetic the reference dialog uses.
+
+`Session.lastPreset` now carries the **preset id** (`relaxation-10`) rather than Python's
+display label. The id is stable across a language switch and across a re-translation,
+which is what makes the chip come back highlighted on the next launch; a localised label
+would not survive being stored in one language and read in another. This is a deviation
+from Python's `apply_preset`, which stores `PRESETS[index][0]`.
+
+### 14.4 "Shows what it did"
+
+F3 asks the control to show the outcome. Two things do, and they do not duplicate the
+beat card: the applied chip stays highlighted, and a status line below the bar says
+`Preset applied: difference 9 Hz` for three seconds — Python's
+`statusBar().showMessage(…, 3000)` with the same catalogue key (already in `ru.py`, so
+no new Russian). It is re-translated on a language switch while visible, and `tearDown()`
+invalidates its timer.
+
+### 14.5 Tests
+
+`PresetBarTests` drives the real `MainWindowController`: the bar is in the content view
+and laid out (a zero-height bar is invisible, so the frame is asserted, not just
+`isDescendant(of:)`); chips are in registry order; every one of the 20 presets sets
+`200 ± beat/2`; the beat card follows; the category and the applied preset survive a
+relaunch; changing a category moves no frequency; the language switch swaps both
+languages' captions.
+
+Clicks go through `PresetBarView.tapPreset(id:)` / `tapCategory(id:)`, which call the same
+private `@objc` actions a mouse press reaches. That is deliberate: a test that called
+`onPresetSelected` itself would pass while the button the user presses was wired to the
+wrong selector.
+
+One case is a test finding rather than a design choice. `testStoredPresetInAnotherCategoryIsNotHighlighted`
+pins the rule that a stored preset from a category the bar is not showing is **not**
+highlighted — showing it would require a chip that does not exist. It exists because the
+naive version of the relaunch test ("apply a preset, relaunch, expect it highlighted")
+passes only when the saved category happens to be the one containing the preset.
+
 ## 8. Build and verify (M2)
 
 The M1 commands (§6) still hold, plus one:
 
 ```
 cd apple && xcodegen generate
-xcodebuild -project Binaural.xcodeproj -scheme BinauralCore -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test   # 167
-xcodebuild -project Binaural.xcodeproj -scheme Binaural     -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test   # +31 window tests
+xcodebuild -project Binaural.xcodeproj -scheme BinauralCore -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test   # 190
+xcodebuild -project Binaural.xcodeproj -scheme Binaural     -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test   # +111 window tests
 xcodebuild -project Binaural.xcodeproj -scheme Binaural     -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -project Binaural.xcodeproj -scheme Binaural-iOS -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 ```

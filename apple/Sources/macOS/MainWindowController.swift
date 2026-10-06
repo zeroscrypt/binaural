@@ -27,6 +27,14 @@ final class MainWindowController: NSWindowController {
     private let muteButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let timerView = TimerControlView()
     private let errorLabel = NSTextField(wrappingLabelWithString: "")
+    /// SPEC §5 F3: the two-level preset control, chips along the bottom of the window.
+    private let presetBar = PresetBarView()
+    /// Transient confirmation after a preset click — Python's
+    /// `statusBar().showMessage(tr("Preset applied: difference %1 Hz", …), 3000)`.
+    /// F3 asks the control to show "what came out"; the beat card already shows the
+    /// numbers, so this says which preset was applied and then gets out of the way.
+    private let presetStatusLabel = NSTextField(labelWithString: "")
+    private var presetStatusTimer: Timer?
 
     /// SPEC §7: "кнопка проверки наушников прямо в окне — повторить §4 в любой момент, а
     /// не только при старте". It sits on the status row next to the always-visible
@@ -35,6 +43,13 @@ final class MainWindowController: NSWindowController {
     private var onHeadphoneCheckRequested: (() -> Void)?
 
     private var activeEar: FrequencyControlView.Ear = .left
+    /// The preset category currently shown, written back into the session. Not read from
+    /// `session` every time: the chips own the selection while the window lives, and the
+    /// stored value is only what they started from.
+    private var presetCategoryID: String
+    /// Id of the preset that produced the frequencies on screen, `nil` when the user has
+    /// moved a control since. Python's `apply_preset` also stores this in `last_preset`.
+    private var lastPresetID: String?
     /// Written once, after the first successful `start()`, and on every change after.
     /// Never on the audio thread.
     private(set) var saves = 0
@@ -55,15 +70,24 @@ final class MainWindowController: NSWindowController {
     init(engine: AudioEngine, store: SessionStore) {
         self.engine = engine
         self.store = store
-        session = store.load()
+        let loaded = store.load()
+        session = loaded
+        // F3: an unknown or missing `preset_category` falls back to `relaxation` for the
+        // chips, and the document keeps whatever it said (CONTRACT §7 allows any string).
+        presetCategoryID = PresetCatalogue.resolvedCategoryID(loaded.presetCategory)
+        lastPresetID = loaded.lastPreset
 
         let window = MainWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 760, height: 600),
+            // Tall enough for the preset block F3 adds below the timer: the window is
+            // built once here, so the default frame has to cover every row rather than
+            // scroll. Python's `setMinimumSize(720, 620)` is the same idea for the same
+            // reason.
+            contentRect: NSRect(x: 0, y: 0, width: 760, height: 780),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
-        window.minSize = NSSize(width: 720, height: 540)
+        window.minSize = NSSize(width: 720, height: 700)
         // The tray can hide and show this window, so closing it must not destroy it.
         // Without this, `close()` releases the controller and the status item's Show
         // command would have nothing to show.
@@ -158,7 +182,21 @@ final class MainWindowController: NSWindowController {
         timerRow.alignment = .centerY
         timerRow.spacing = 12
 
-        let stack = NSStackView(views: [statusRow, ears, beatView, transport, timerRow, errorLabel])
+        // SPEC §7's layout: presets are the last row of the window, below a stretch —
+        // Python's `addStretch(1)` then `_build_presets()`. F3's chips are their own block
+        // rather than part of the transport, so they keep the whole width.
+        presetStatusLabel.font = .systemFont(ofSize: 11)
+        presetStatusLabel.textColor = .secondaryLabelColor
+        presetStatusLabel.isHidden = true
+
+        let presetBlock = NSStackView(views: [presetBar, presetStatusLabel])
+        presetBlock.orientation = .vertical
+        presetBlock.alignment = .leading
+        presetBlock.spacing = 6
+
+        let stack = NSStackView(views: [
+            statusRow, ears, beatView, transport, timerRow, presetBlock, errorLabel
+        ])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 16
@@ -176,7 +214,8 @@ final class MainWindowController: NSWindowController {
         ]
         // `.leading` alignment keeps each row at its natural width, so the rows that
         // should span the window are pinned to the stack's width by hand.
-        for row in [statusRow as NSView, ears, beatView, transport, timerRow, errorLabel] {
+        for row in [statusRow as NSView, ears, beatView, transport, timerRow,
+                    presetBlock, errorLabel] {
             row.translatesAutoresizingMaskIntoConstraints = false
             constraints.append(row.widthAnchor.constraint(equalTo: stack.widthAnchor))
         }
@@ -190,7 +229,10 @@ final class MainWindowController: NSWindowController {
             volumeSlider.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             volumeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
             muteButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-            timerRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
+            timerRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            // SPEC §7.2: the preset chips keep their 44 px targets; the block itself only
+            // has to be tall enough to hold both rows.
+            presetBlock.heightAnchor.constraint(greaterThanOrEqualToConstant: 100)
         ]
         NSLayoutConstraint.activate(constraints)
 
@@ -201,6 +243,65 @@ final class MainWindowController: NSWindowController {
         leftControl.onChange = { [weak self] _ in self?.frequenciesChanged() }
         rightControl.onChange = { [weak self] _ in self?.frequenciesChanged() }
         timerView.onSelectMinutes = { [weak self] minutes in self?.timerSelectionChanged(minutes) }
+        // SPEC §5 F3: the category is *state* (it is persisted), so it is written back
+        // like any other session field; the preset click is a pair of frequencies.
+        presetBar.onCategorySelected = { [weak self] id in self?.presetCategoryChanged(id) }
+        presetBar.onPresetSelected = { [weak self] preset in self?.applyPreset(preset) }
+    }
+
+    // MARK: - Presets (SPEC §5 F3)
+
+    /// The user picked another category. Nothing on screen moves — only which presets are
+    /// offered — so this is a session write and nothing else.
+    private func presetCategoryChanged(_ id: String) {
+        // An unknown id from a hand-edited file degrades to the default (F3), so the
+        // document and the chips cannot drift apart.
+        presetCategoryID = PresetCatalogue.resolvedCategoryID(id)
+        scheduleSave()
+    }
+
+    /// One click sets **both** channels so their difference is the preset's beat —
+    /// `BeatMath.pair(fromBeat:carrier:)` around the default carrier, exactly as SPEC F3
+    /// describes (`fL = 205, fR = 215 → 10 Hz`).
+    private func applyPreset(_ preset: Preset) {
+        guard let pair = try? PresetCatalogue.frequencies(for: preset) else {
+            // `pair` rejects only what `FrequencyControlView` clamps away anyway; a
+            // silent no-op would be dishonest, so it goes through the error path.
+            showError(L10n.tr("Could not open the audio output device."))
+            return
+        }
+        // `notify: false` on both: the pair is one edit, not two. The controls would
+        // otherwise push an intermediate state in which the beat is half the preset's.
+        leftControl.setValue(pair.left, notify: false)
+        rightControl.setValue(pair.right, notify: false)
+        frequenciesChanged()
+
+        // F3: "Показывает, что получилось" — the beat card carries the numbers, and this
+        // names the preset that produced them, the way Python's status bar does.
+        presetBar.markPreset(preset.id)
+        // Stored the way Python stores it (`last_preset`), so the chip is highlighted
+        // again on the next launch.
+        lastPresetID = preset.id
+        showPresetStatus(beatHz: preset.beatHz)
+    }
+
+    private func showPresetStatus(beatHz: Double) {
+        presetStatusTimer?.invalidate()
+        presetStatusLabel.stringValue = L10n.tr(
+            "Preset applied: difference %1 Hz",
+            FrequencyGrid.text(beatHz)
+        )
+        presetStatusLabel.isHidden = false
+        // Three seconds, then out of the way — Python's `showMessage(…, 3000)`.
+        presetStatusTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.hidePresetStatus() }
+        }
+    }
+
+    private func hidePresetStatus() {
+        presetStatusTimer?.invalidate()
+        presetStatusTimer = nil
+        presetStatusLabel.isHidden = true
     }
 
     // MARK: - Session
@@ -215,6 +316,11 @@ final class MainWindowController: NSWindowController {
         // reconcile is a value that is in range but not one of the offered durations;
         // `TimerControlView.setMinutes` picks the nearest one it can show.
         timerView.setMinutes(session.timerMinutes)
+        // The chips start on the stored category, and the stored preset is highlighted
+        // when it belongs to that category — Python's `_restore_session` re-checks the
+        // chip whose label the session remembers.
+        presetBar.select(categoryID: presetCategoryID)
+        presetBar.markPreset(lastPresetID)
         engine.volume = session.volume
         engine.isMuted = false
         // A stored swap is honoured on the very first push: §4.2 says the generator swaps
@@ -235,9 +341,9 @@ final class MainWindowController: NSWindowController {
             volume: volumeSlider.doubleValue,
             channelsSwapped: channelsSwapped,
             headphoneCheckAcknowledged: headphoneStateAcknowledged,
-            lastPreset: session.lastPreset,
+            lastPreset: lastPresetID,
             timerMinutes: timerView.selectedMinutes,
-            presetCategory: session.presetCategory
+            presetCategory: presetCategoryID
         )
     }
 
@@ -523,6 +629,14 @@ final class MainWindowController: NSWindowController {
         )
 
         timerView.retranslate()
+        // SPEC §7.4: the preset chips are data (F3's own EN/RU names), but the caption
+        // and the chip help go through `tr`, so the whole bar is re-read here.
+        presetBar.retranslate()
+        if !presetStatusLabel.isHidden {
+            let beat = presetBar.selectedPresetID
+                .flatMap { id in PresetCatalogue.presets.first { $0.id == id }?.beatHz }
+            if let beat { showPresetStatus(beatHz: beat) }
+        }
         // The popup captions are rebuilt by `retranslate()`, so the countdown has to be
         // re-pushed or a Russian switch would leave the label blank until the next tick.
         showCountdown(at: Date())
@@ -549,6 +663,7 @@ final class MainWindowController: NSWindowController {
         }
         saveTimer?.invalidate()
         saveTimer = nil
+        hidePresetStatus()
         disarmTimer()
     }
 
@@ -589,6 +704,46 @@ final class MainWindowController: NSWindowController {
     var muteTitle: String { muteButton.title }
     var statusText: String { indicator.text }
     var statusToolTip: String { indicator.toolTip ?? "" }
+
+    // MARK: - Preset state the tests agree on (SPEC §5 F3)
+
+    /// The preset bar as a view, so the tests can press the chips a user presses rather
+    /// than reach past them into AppKit.
+    var presetBarControl: PresetBarView { presetBar }
+
+    /// The category chips, as captions.
+    var presetCategoryTitles: [String] { presetBar.categoryTitles }
+
+    /// The preset chips of the selected category, as captions.
+    var visiblePresetTitles: [String] { presetBar.visiblePresetTitles }
+
+    /// The id of the highlighted preset chip, if any.
+    var highlightedPresetID: String? { presetBar.selectedPresetID }
+
+    /// The category currently shown.
+    var selectedPresetCategory: String { presetCategoryID }
+
+    /// The transient confirmation after a preset click, and whether it is showing.
+    var presetStatusText: String { presetStatusLabel.stringValue }
+    var isShowingPresetStatus: Bool { !presetStatusLabel.isHidden }
+
+    /// Press the preset chip standing for `presetID`, optionally after switching to
+    /// `categoryID` first.
+    func tapPreset(_ presetID: String, inCategory categoryID: String? = nil) {
+        if let categoryID { presetBar.select(categoryID: categoryID) }
+        presetBar.tapPreset(id: presetID)
+    }
+
+    /// Press the category chip, so the write-back path runs the way a click runs it.
+    func tapPresetCategory(_ categoryID: String) {
+        presetBar.tapCategory(id: categoryID)
+    }
+
+    /// Pick a preset without going through the chips, for restoring state only.
+    func selectPresetCategory(_ categoryID: String) {
+        presetBar.select(categoryID: categoryID)
+        presetCategoryChanged(categoryID)
+    }
 
     /// Drive the headphone indicator (SPEC §7). M2-b wires the CoreAudio heuristic and
     /// the perceptual L/R test to it.
