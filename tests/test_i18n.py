@@ -309,6 +309,15 @@ def _source_strings() -> set[str]:
                     found.add(key.value)
     # Ear captions live in constants now; the call sites pass the name.
     found |= {"LEFT EAR", "RIGHT EAR"}
+    # SPEC §7's "Lock difference" captions live in constants too, and reach ``tr()``
+    # through the two helpers that hold the *English key* so a language switch can render
+    # the transient notice and the boundary note again (§7.4) rather than through a ``tr()``
+    # call site a static walk can see.
+    found |= {
+        "Difference lock turned off — a preset set its own difference.",
+        "Stopped at the range limit: the difference is locked, so the other channel "
+        "cannot follow any further.",
+    }
     return found
 
 

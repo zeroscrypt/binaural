@@ -31,18 +31,7 @@ enum RussianWindowAdditions {
         // PySide6 app, which ships macOS *and* Linux), so the shared "macOS and Linux"
         // tagline would be wrong here.
         "Binaural beats for macOS": "Бинауральные биения для macOS",
-        "Version {version} · macOS {system}": "Версия {version} · macOS {system}",
-        // SPEC §7's "Lock difference" checkbox. The Python app has no such control, so
-        // neither the label nor the two explanations below exist in `ru.py`.
-        "Lock difference": "Зафиксировать",
-        "Keeps the difference between the two frequencies. Changing one channel moves the other by the same amount, so the beat stays the same.":
-            "Держит разность между частотами. Изменение одного канала сдвигает другой на столько же, поэтому биение остаётся прежним.",
-        "Difference lock turned off — a preset set its own difference.":
-            "Фиксация разности выключена — пресет задал свою разность.",
-        // SPEC §7: the existing out-of-range hint slot also carries why a locked channel
-        // stopped moving.
-        "Stopped at the range limit: the difference is locked, so the other channel cannot follow any further.":
-            "Остановлено на границе диапазона: разность зафиксирована, поэтому второй канал не может следовать дальше."
+        "Version {version} · macOS {system}": "Версия {version} · macOS {system}"
     ]
 }
 

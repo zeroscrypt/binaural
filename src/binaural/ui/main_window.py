@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 
 from .. import i18n
 from ..audio.headphones import HeadphoneReport, detect, swap_channels
+from ..core.difference_lock import Channel, DifferenceLock
 from ..core.oscillator import DEFAULT_CARRIER_HZ
 from ..core.playback_timer import PlaybackTimer, closest_choice
 from ..core.session import (
@@ -66,6 +67,16 @@ VOLUME_STEPS = 100
 #: How often the countdown is refreshed. A second is what the label shows, so ticking
 #: faster would burn CPU to redraw the same digits.
 TICK_SECONDS_MS = 1000
+
+#: SPEC §7's "Lock difference" notice, shown when a preset takes the difference away from
+#: the lock. A checkbox that clears itself with no explanation looks like a bug, so the
+#: window says so — once, briefly, in the status bar where the preset message already goes.
+DIFFERENCE_UNLOCKED_NOTICE = "Difference lock turned off — a preset set its own difference."
+#: Shown in the §F1 hint slot when the lock stopped the edited channel at 1–20000 Hz.
+DIFFERENCE_BOUNDARY_NOTE = (
+    "Stopped at the range limit: the difference is locked, so the other channel cannot "
+    "follow any further."
+)
 
 #: Ear captions as catalogue keys — the strings live in one place so
 #: ``retranslate()`` can put them back after a language switch.
@@ -128,6 +139,11 @@ class MainWindow(QMainWindow):
         # SPEC §5 F3: the stored category decides which presets the chips show; an
         # unknown one falls back to the default rather than emptying the row.
         self._selected_category = resolved_category(self._session.preset_category)
+        # SPEC §7's lock. The captured difference is **not** restored from the session:
+        # only the flag is stored, and the difference is captured again from the pair the
+        # session restored — the same number by construction, and one that cannot contradict
+        # the two frequencies stored beside it.
+        self._lock = DifferenceLock(is_locked=bool(self._session.difference_locked))
         # SPEC §5 F5: the session's own duration, armed when playback starts.
         self._timer_minutes = closest_choice(self._session.timer_minutes)
         self._playback_timer = PlaybackTimer.off()
@@ -163,6 +179,7 @@ class MainWindow(QMainWindow):
 
         # --- beat card ----------------------------------------------------
         self._beat = BeatDisplay(self)
+        self._beat.lockToggled.connect(self.set_difference_locked)
         central_layout.addWidget(self._beat)
 
         # --- transport ----------------------------------------------------
@@ -351,6 +368,22 @@ class MainWindow(QMainWindow):
         self._preset_buttons: list[QPushButton] = []
         self._rebuild_preset_chips()
 
+        # A transient note under the preset block — SPEC §7's "short hint" that the lock
+        # was turned off. It is a label of its own rather than the status bar, because the
+        # status bar already carries the "Preset applied: …" message and the two have to be
+        # visible at the same time for a few seconds.
+        self._notice = QLabel("", box)
+        self._notice.setFont(theme.font("caption"))
+        self._notice.setStyleSheet(f"color: {theme.color('muted-fg')};")
+        self._notice.setWordWrap(True)
+        self._notice.setVisible(False)
+        self._notice.setAccessibleName(tr("Note"))
+        column.addWidget(self._notice)
+        self._notice_key: str | None = None
+        self._notice_timer = QTimer(self)
+        self._notice_timer.setSingleShot(True)
+        self._notice_timer.timeout.connect(self._hide_notice)
+
         return box
 
     def _make_chip(self, caption: str, description: str, parent: QWidget) -> QPushButton:
@@ -463,6 +496,27 @@ class MainWindow(QMainWindow):
         # No registry entry: synthesise one so a caller that typed a number of its own
         # still gets both channels set. Such a preset carries no band, hence no chip.
         return Preset(self._selected_category, beat_hz)
+
+    def _show_notice(self, key: str, msec: int = 3000) -> None:
+        """Show a short note under the preset block, then let it go.
+
+        The **English key** is what gets stored, not the translated text: the window lives
+        for the whole session, so ``retranslate()`` has to be able to render it again in
+        the new language (SPEC §7.4).
+        """
+        self._notice_key = key
+        self._notice.setText(tr(key))
+        self._notice.setVisible(True)
+        self._notice_timer.start(int(msec))
+
+    def _hide_notice(self) -> None:
+        self._notice_key = None
+        self._notice.setText("")
+        self._notice.setVisible(False)
+
+    def difference_notice_key(self) -> str | None:
+        """The English key behind the transient note, or ``None`` while none shows."""
+        return self._notice_key
 
     def _mark_preset(self, preset_id: str | None) -> None:
         """Highlight the preset that produced the frequencies on screen, when it is one
@@ -596,6 +650,11 @@ class MainWindow(QMainWindow):
         )
 
         self._presets_caption.setText(tr("Presets"))
+        self._notice.setAccessibleName(tr("Note"))
+        # A transient note is stored as its English key, so a language switch has to
+        # render it again rather than leave the old language's words on screen.
+        if self._notice_key is not None:
+            self._notice.setText(tr(self._notice_key))
         # Both chip levels carry localised captions, so both rows are rebuilt and the
         # category selection is put back (SPEC §7.4).
         for entry in PRESET_CATEGORIES:
@@ -671,6 +730,11 @@ class MainWindow(QMainWindow):
         self._rebuild_timer_choices()
         self.select_preset_category(self._session.preset_category)
         self._mark_preset(self._session.last_preset)
+        # SPEC §7's lock comes back ticked, and its difference is captured from the pair just
+        # restored: the stored flag alone would say "locked" without saying *what* is locked.
+        self._beat.set_locked(self._lock.is_locked)
+        if self._lock.is_locked:
+            self._lock.capture(self._left.value(), self._right.value())
         self._on_channels_changed()
 
     def current_session(self) -> Session:
@@ -686,6 +750,7 @@ class MainWindow(QMainWindow):
             # The chips show a resolved id, so that is what a save writes back: a stored
             # value the registry does not know must not survive as an unselectable row.
             preset_category=self._selected_category,
+            difference_locked=self._lock.is_locked,
         )
 
     def save_session(self) -> None:
@@ -738,22 +803,109 @@ class MainWindow(QMainWindow):
         return self._active
 
     def set_frequencies(self, left_hz: float, right_hz: float) -> None:
-        """Set both channels programmatically."""
+        """Set **both** channels at once, the way a preset and §6's *Apply* do.
+
+        The pair entry point, and deliberately one edit: with the difference locked, two
+        single edits would be two follower moves and the second would undo the first. A
+        named pair from outside the window is the same kind of instruction a preset is, so
+        it wins and unlocks, through the same path — which is why a locked window can never
+        show the preset's pair half-applied.
+
+        A one-channel programmatic change goes through ``_left``/``_right``'s
+        ``set_value`` instead, and honours the lock like any other edit.
+        """
+        self._unlock_difference_for_pair()
+        self._apply_locked_pair(left_hz, right_hz)
+        self._beat.show_boundary_note(None)
+        self._on_channels_changed()
+
+    def _on_left_changed(self, hz: float) -> None:
+        if not self._suppress:
+            self._frequency_edited(Channel.LEFT)
+
+    def _on_right_changed(self, hz: float) -> None:
+        if not self._suppress:
+            self._frequency_edited(Channel.RIGHT)
+
+    # ------------------------------------------------------ lock difference (§7)
+
+    def _frequency_edited(self, channel: Channel) -> None:
+        """One channel moved. The single seam every frequency path goes through.
+
+        The spin box, the slider, the ``↑``/``↓`` nudge and any programmatic
+        ``set_value`` all end up in ``FreqControl.set_value``, which emits
+        ``valueChanged`` — so the lock cannot be honoured by one route and quietly
+        skipped by another. It has to know *which* channel moved: the difference is
+        signed, so "the other one" is not a fixed ear.
+        """
+        requested = (
+            self._left.value() if channel is Channel.LEFT else self._right.value()
+        )
+        resolution = self._lock.resolve(channel, requested)
+        if resolution is None:
+            # No lock, or no legal pair: the controls keep the value they already took.
+            self._beat.show_boundary_note(None)
+            self._on_channels_changed()
+            return
+        # `emit=False` on both: the pair is one edit, not two. A follower pushed through
+        # `valueChanged` would read the lock again and move the channel back.
+        self._apply_locked_pair(resolution.left_hz, resolution.right_hz)
+        # The §F1 hint slot reports a refusal, so a slider that will not move further says
+        # why instead of simply not moving. Cleared on the next accepted edit.
+        self._beat.show_boundary_note(
+            DIFFERENCE_BOUNDARY_NOTE if resolution.is_at_boundary else None
+        )
+        self._on_channels_changed()
+
+    def _apply_locked_pair(self, left_hz: float, right_hz: float) -> None:
+        """Write both channels without re-entering the edit path."""
         self._suppress = True
         try:
             self._left.set_value(left_hz, emit=False)
             self._right.set_value(right_hz, emit=False)
         finally:
             self._suppress = False
-        self._on_channels_changed()
 
-    def _on_left_changed(self, hz: float) -> None:
-        if not self._suppress:
-            self._on_channels_changed()
+    def is_difference_locked(self) -> bool:
+        """True while SPEC §7's "Lock difference" is ticked."""
+        return self._lock.is_locked
 
-    def _on_right_changed(self, hz: float) -> None:
-        if not self._suppress:
-            self._on_channels_changed()
+    def locked_difference_hz(self) -> float:
+        """The captured signed difference, ``fR - fL``. Zero while the lock is off."""
+        return self._lock.signed_difference_hz if self._lock.is_locked else 0.0
+
+    def set_difference_locked(self, locked: bool) -> None:
+        """Tick or clear the box, as a click does.
+
+        Ticking captures whatever the difference is *now* — there is no field for typing
+        one. Clearing only stops the following; the frequencies stay where they are.
+        """
+        locked = bool(locked)
+        if locked == self._lock.is_locked:
+            return
+        if locked:
+            self._lock.capture(self._left.value(), self._right.value())
+        else:
+            self._lock.unlock()
+            self._beat.show_boundary_note(None)
+        self._beat.set_locked(self._lock.is_locked)
+        self.save_session()
+
+    def _unlock_difference_for_pair(self) -> bool:
+        """A named pair from outside the window wins over the lock (SPEC §5 F3, §6).
+
+        A preset and the frequency reference's *Apply* are the same kind of instruction —
+        "use these two frequencies" — so the lock lets go rather than fighting it, and says
+        so, because a checkbox that clears itself with no explanation looks like a bug.
+        Returns True when there was a lock to clear, so the caller can add its own message.
+        """
+        if not self._lock.is_locked:
+            return False
+        self._lock.unlock()
+        self._beat.set_locked(False)
+        self._beat.show_boundary_note(None)
+        self._show_notice(DIFFERENCE_UNLOCKED_NOTICE)
+        return True
 
     def _on_channels_changed(self) -> None:
         left, right = self._left.value(), self._right.value()

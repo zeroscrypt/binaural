@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
+    QCheckBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -116,7 +117,17 @@ class _BeatPulse(QWidget):
 
 
 class BeatDisplay(QFrame):
-    """Difference and carrier, live, with the out-of-range hint below."""
+    """Difference and carrier, live, with the out-of-range hint below.
+
+    Also carries the SPEC §7 **Lock difference** checkbox. It sits next to the ``BEAT``
+    read-out rather than in the transport row, because it belongs to the difference it
+    protects — and the difference stays an *indicator*: the card has no editable field, so
+    there is nowhere to type a difference that would contradict the pair.
+    """
+
+    #: The user ticked or cleared the box. Never sent by :meth:`set_locked`, so restoring a
+    #: session stays silent — the same rule the frequency controls follow.
+    lockToggled = Signal(bool)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -129,6 +140,8 @@ class BeatDisplay(QFrame):
         self._phase = 0.0
         self._playing = False
         self._reduced = theme.reduced_motion()
+        self._boundary_note: str | None = None
+        self._syncing_lock = False
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(theme.SPACE_XL, theme.SPACE_LG, theme.SPACE_XL, theme.SPACE_LG)
@@ -142,6 +155,20 @@ class BeatDisplay(QFrame):
         self._beat_value, self._beat_caption, self._beat_unit = self._metric_row(
             metrics, tr("BEAT"), "primary"
         )
+
+        # SPEC §7's "Lock difference", between the difference it protects and the carrier.
+        self._lock = QCheckBox(tr("Lock difference"), self)
+        self._lock.setMinimumHeight(44)  # §7.2: a 44 px click target
+        self._lock.toggled.connect(self._on_lock_toggled)
+        self._lock.setAccessibleName(tr("Lock difference"))
+        self._lock.setAccessibleDescription(
+            tr(
+                "Keeps the difference between the two frequencies. Changing one channel "
+                "moves the other by the same amount, so the beat stays the same."
+            )
+        )
+        metrics.addWidget(self._lock, 0, Qt.AlignmentFlag.AlignLeft)
+
         self._carrier_value, self._carrier_caption, self._carrier_unit = (
             self._metric_row(metrics, tr("CARRIER"), "secondary")
         )
@@ -160,7 +187,8 @@ class BeatDisplay(QFrame):
         self._timer.timeout.connect(self._on_tick)
 
         self.setAccessibleName(tr("Beat and carrier frequencies"))
-        self.setMinimumHeight(140)
+        # Tall enough for the pulse, both metric rows, the §7 checkbox and the hint.
+        self.setMinimumHeight(180)
         self.update_values(0.0, 0.0)
         self._apply_hint()
 
@@ -184,6 +212,48 @@ class BeatDisplay(QFrame):
     def is_reduced_motion(self) -> bool:
         return self._reduced
 
+    # ------------------------------------------------- lock difference (SPEC §7)
+
+    def is_locked(self) -> bool:
+        """True while the box is ticked, as the user sees it."""
+        return self._lock.isChecked()
+
+    def lock_checkbox(self) -> QCheckBox:
+        """The checkbox itself, so a test presses the control a user presses."""
+        return self._lock
+
+    def set_locked(self, locked: bool) -> None:
+        """Tick or clear the box without telling anyone — used while restoring."""
+        self._syncing_lock = True
+        try:
+            self._lock.setChecked(bool(locked))
+        finally:
+            self._syncing_lock = False
+
+    def show_boundary_note(self, key: str | None) -> None:
+        """Say, in the existing hint slot, that the lock stopped a channel at the limit.
+
+        The same orange hint the §F1 out-of-range message uses: a user who cannot drag the
+        slider further deserves the same kind of "here is why" as one whose beat is
+        inaudible, and a second warning style for it would be worse. Pass ``None`` to go
+        back to the ordinary §F1 rule.
+
+        ``key`` is the **English source string**, not translated text: the card is built
+        once and lives for the whole session, so ``retranslate()`` has to be able to
+        render the note again in the new language (SPEC §7.4).
+        """
+        self._boundary_note = key
+        self._apply_hint()
+
+    def is_showing_boundary_note(self) -> bool:
+        """True while the hint slot carries the boundary note rather than the §F1 text."""
+        return self._boundary_note is not None
+
+    def _on_lock_toggled(self, checked: bool) -> None:
+        if self._syncing_lock:
+            return
+        self.lockToggled.emit(bool(checked))
+
     def set_reduced_motion(self, reduced: bool) -> None:
         """Reduced motion keeps a static indicator instead of a pulse (SPEC §7.2)."""
         self._reduced = bool(reduced)
@@ -205,6 +275,14 @@ class BeatDisplay(QFrame):
         self._carrier_caption.setText(tr("CARRIER"))
         for unit in (self._beat_unit, self._carrier_unit):
             unit.setText(tr("Hz"))
+        self._lock.setText(tr("Lock difference"))
+        self._lock.setAccessibleName(tr("Lock difference"))
+        self._lock.setAccessibleDescription(
+            tr(
+                "Keeps the difference between the two frequencies. Changing one channel "
+                "moves the other by the same amount, so the beat stays the same."
+            )
+        )
         self.setAccessibleName(tr("Beat and carrier frequencies"))
         self._pulse.set_animated(not self._reduced and self._playing, self._playing)
         self.update_values(self._left_hz, self._right_hz)
@@ -283,6 +361,15 @@ class BeatDisplay(QFrame):
         return not (low <= self._beat_hz <= high)
 
     def _apply_hint(self) -> None:
+        # A boundary stop is news from this very edit, so it wins over the standing §F1
+        # hint: the user is dragging *right now* and needs to know why the slider stopped.
+        # Both are the same kind of message, so both use the same slot.
+        if self._boundary_note is not None:
+            self._hint.setText(tr(self._boundary_note))
+            self._hint.setStyleSheet(f"color: {theme.color('warning-text')};")
+            self._hint.setAccessibleName(tr("Warning"))
+            self._hint.setVisible(True)
+            return
         if self._playing and self._reduced:
             self._hint.setText(
                 tr("Reduced motion is on — the beat indicator stays still.")

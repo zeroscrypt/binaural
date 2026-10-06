@@ -106,6 +106,12 @@ public enum RussianCatalogue {
         "Note": "Примечание",
         "Warning": "Предупреждение",
 
+        // lock difference (SPEC §7)
+        "Lock difference": "Зафиксировать",
+        "Keeps the difference between the two frequencies. Changing one channel moves the other by the same amount, so the beat stays the same.": "Держит разность между частотами. Изменение одного канала сдвигает другой на столько же, поэтому биение остаётся прежним.",
+        "Difference lock turned off — a preset set its own difference.": "Фиксация разности выключена — пресет задал свою разность.",
+        "Stopped at the range limit: the difference is locked, so the other channel cannot follow any further.": "Остановлено на границе диапазона: разность зафиксирована, поэтому второй канал не может следовать дальше.",
+
         // per-ear frequency control
         "Frequency for %1, from 1 to 20000 hertz. Use the arrow keys for 0.1 hertz steps.": "Частота для %1, от 1 до 20000 Гц. Шаг стрелками — 0,1 Гц.",
         "%1 frequency in hertz": "Частота %1 в герцах",
