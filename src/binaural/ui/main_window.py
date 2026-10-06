@@ -30,25 +30,25 @@ from PySide6.QtWidgets import (
 
 from .. import i18n
 from ..audio.headphones import HeadphoneReport, detect, swap_channels
-from ..core.oscillator import DEFAULT_CARRIER_HZ, pair_from_beat
+from ..core.oscillator import DEFAULT_CARRIER_HZ
 from ..core.session import Session, load as load_session, save as save_session
 from . import theme
+from .presets import (
+    PRESET_CATEGORIES,
+    PRESETS,
+    Preset,
+    PresetCategory,
+    frequencies_for,
+    presets_in,
+    resolved_category,
+)
 from .widgets.beat_display import BeatDisplay
 from .widgets.freq_control import FreqControl
 from .widgets.status_indicator import StatusIndicator
 
-__all__ = ["MainWindow", "PRESETS"]
+__all__ = ["MainWindow", "PRESETS", "PRESET_CATEGORIES"]
 
 _CONTEXT = "MainWindow"
-
-#: (label, beat Hz, short description key) — the built-in band chips.
-PRESETS: tuple[tuple[str, float], ...] = (
-    ("Delta 2", 2.0),
-    ("Theta 6", 6.0),
-    ("Alpha 10", 10.0),
-    ("Beta 20", 20.0),
-    ("Gamma 40", 40.0),
-)
 
 NUDGE_HZ = 0.1
 SLIDER_STEPS = 100
@@ -92,6 +92,9 @@ class MainWindow(QMainWindow):
         self._playing = False
         self._suppress = False
         self._active = 0  # 0 = left, 1 = right
+        # SPEC §5 F3: the stored category decides which presets the chips show; an
+        # unknown one falls back to the default rather than emptying the row.
+        self._selected_category = resolved_category(self._session.preset_category)
 
         self.setWindowTitle(tr("Binaural"))
         self.setMinimumSize(720, 620)
@@ -125,7 +128,7 @@ class MainWindow(QMainWindow):
 
         # --- presets ------------------------------------------------------
         central_layout.addStretch(1)
-        central_layout.addLayout(self._build_presets())
+        central_layout.addWidget(self._build_presets())
 
         self._build_status_bar()
         self._build_menu()
@@ -194,43 +197,174 @@ class MainWindow(QMainWindow):
 
         return row
 
-    def _build_presets(self) -> QHBoxLayout:
-        row = QHBoxLayout()
-        row.setSpacing(theme.SPACE_SM)
+    def _build_presets(self) -> QWidget:
+        """The two-level preset control of SPEC §5 F3.
 
-        self._presets_caption = QLabel(tr("Presets"), self)
+        Category chips on the first row, and inside the selected category the presets
+        themselves on the second. Two levels rather than twenty chips in one row,
+        because F3 makes the category part of the state: `Session.preset_category` is
+        persisted, so the categories are a control the user picks rather than a heading.
+        """
+        box = QWidget(self)
+        self._presets_box = box
+        column = QVBoxLayout(box)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(theme.SPACE_SM)
+
+        self._presets_caption = QLabel(tr("Presets"), box)
         self._presets_caption.setFont(theme.font("body"))
         self._presets_caption.setStyleSheet(f"color: {theme.color('muted-fg')};")
-        row.addWidget(self._presets_caption)
-        row.addSpacing(theme.SPACE_SM)
+        column.addWidget(self._presets_caption)
 
+        # --- level 1: the category chips ------------------------------------
+        category_row = QHBoxLayout()
+        category_row.setSpacing(theme.SPACE_SM)
+        self._category_group = QButtonGroup(self)
+        self._category_group.setExclusive(True)
+        self._category_buttons: dict[str, QPushButton] = {}
+        for index, entry in enumerate(PRESET_CATEGORIES):
+            button = self._make_chip(
+                entry.localized_name(),
+                self._category_description(entry),
+                parent=box,
+            )
+            button.clicked.connect(
+                lambda _checked=False, cid=entry.id: self.select_preset_category(cid)
+            )
+            self._category_group.addButton(button, index)
+            category_row.addWidget(button)
+            self._category_buttons[entry.id] = button
+        category_row.addStretch(1)
+        column.addLayout(category_row)
+
+        # --- level 2: the presets of the selected category ------------------
+        self._preset_row = QHBoxLayout()
+        self._preset_row.setSpacing(theme.SPACE_SM)
+        column.addLayout(self._preset_row)
         self._preset_group = QButtonGroup(self)
         self._preset_group.setExclusive(True)
         self._preset_buttons: list[QPushButton] = []
+        self._rebuild_preset_chips()
 
-        for index, (label, beat_hz) in enumerate(PRESETS):
-            button = QPushButton(label, self)
-            button.setObjectName("chip")
-            button.setCheckable(True)
-            button.setMinimumHeight(44)
-            button.setAccessibleName(label)
-            button.setAccessibleDescription(self._preset_description(beat_hz))
-            button.clicked.connect(lambda _c, b=beat_hz, i=index: self.apply_preset(b, i))
+        return box
+
+    def _make_chip(self, caption: str, description: str, parent: QWidget) -> QPushButton:
+        """One chip with the shared metrics of SPEC §7.2 (44 px, focus ring)."""
+        button = QPushButton(caption, parent)
+        button.setObjectName("chip")
+        button.setCheckable(True)
+        button.setMinimumHeight(44)
+        button.setAccessibleName(caption)
+        button.setAccessibleDescription(description)
+        return button
+
+    def _rebuild_preset_chips(self) -> None:
+        """Rebuild the second level for the selected category.
+
+        Rebuilt rather than patched because the captions are localised data: a language
+        switch changes every one of them, and the widths with them. Selecting a category
+        never changes a frequency — only pressing a preset does (SPEC F3).
+        """
+        while self._preset_row.count():
+            item = self._preset_row.takeAt(0)
+            widget = item.widget()
+            if widget is None:
+                continue
+            self._preset_group.removeButton(widget)
+            widget.setParent(None)
+            widget.deleteLater()
+
+        self._preset_buttons = []
+        for index, preset in enumerate(presets_in(self._selected_category)):
+            button = self._make_chip(
+                preset.localized_title(),
+                self._preset_description(preset.beat_hz),
+                parent=self._presets_box,
+            )
+            button.clicked.connect(lambda _checked=False, p=preset: self.apply_preset(p))
             self._preset_group.addButton(button, index)
-            row.addWidget(button)
+            self._preset_row.addWidget(button)
             self._preset_buttons.append(button)
-
-        row.addStretch(1)
-        return row
+        self._preset_row.addStretch(1)
 
     @staticmethod
     def _preset_description(beat_hz: float) -> str:
-        """Accessible description of one band chip, in the current language."""
+        """Accessible description of one preset chip, in the current language."""
         return tr(
             "Sets both channels around a %1 Hz carrier so the difference is %2 Hz.",
             _format_hz(DEFAULT_CARRIER_HZ),
             _format_hz(beat_hz),
         )
+
+    @staticmethod
+    def _category_description(entry: PresetCategory) -> str:
+        """Accessible description of one category chip, in the current language."""
+        beats = ", ".join(preset.beat_text for preset in entry.presets)
+        return tr("Shows the %1 presets: %2.", entry.localized_name(), beats)
+
+    # ------------------------------------------------------ preset categories
+
+    def selected_preset_category(self) -> str:
+        """The category id whose presets are on screen (SPEC §5 F3)."""
+        return self._selected_category
+
+    def select_preset_category(self, category_id: str) -> str:
+        """Show the presets of one category. Returns the id actually selected.
+
+        An unknown id — a hand-edited `preset_category` — falls back to the default
+        rather than emptying the row, which is the whole point of a fallback.
+        """
+        wanted = resolved_category(category_id)
+        if wanted != self._selected_category:
+            self._selected_category = wanted
+            self._rebuild_preset_chips()
+            self._session.preset_category = wanted
+        self._mark_category()
+        return wanted
+
+    def _mark_category(self) -> None:
+        for cid, button in self._category_buttons.items():
+            button.setChecked(cid == self._selected_category)
+
+    def apply_preset(self, preset: Preset | float) -> None:
+        """One click sets both channels so the difference is the preset's beat.
+
+        Accepts a :class:`Preset` or a bare beat in Hz: a bare value is looked up in the
+        selected category first and otherwise read as a Gamma-free registry entry, so a
+        caller holding only a number still lands on a real preset.
+        """
+        if not isinstance(preset, Preset):
+            preset = self._preset_for_beat(float(preset))
+        left, right = frequencies_for(preset)
+        self.set_frequencies(left, right)
+        # F3: a preset sets its own difference, so the chip that produced it is the one
+        # that stays highlighted.
+        self.select_preset_category(preset.category_id)
+        self._mark_preset(preset.id)
+        self._session.last_preset = preset.id
+        self.save_session()
+        self.statusBar().showMessage(
+            tr("Preset applied: difference %1 Hz", _format_hz(float(preset.beat_hz))), 3000
+        )
+
+    def _preset_for_beat(self, beat_hz: float) -> Preset:
+        """The registry preset with this beat, in the selected category if it has one."""
+        for preset in presets_in(self._selected_category):
+            if abs(preset.beat_hz - beat_hz) < 0.05:
+                return preset
+        for preset in PRESETS:
+            if abs(preset.beat_hz - beat_hz) < 0.05:
+                return preset
+        # No registry entry: synthesise one so a caller that typed a number of its own
+        # still gets both channels set. Such a preset carries no band, hence no chip.
+        return Preset(self._selected_category, beat_hz)
+
+    def _mark_preset(self, preset_id: str | None) -> None:
+        """Highlight the preset that produced the frequencies on screen, when it is one
+        of the chips currently shown."""
+        presets = presets_in(self._selected_category)
+        for index, button in enumerate(self._preset_buttons):
+            button.setChecked(index < len(presets) and presets[index].id == preset_id)
 
     def _build_status_bar(self) -> None:
         bar = self.statusBar()
@@ -335,8 +469,18 @@ class MainWindow(QMainWindow):
         )
 
         self._presets_caption.setText(tr("Presets"))
-        for button, (_label, beat_hz) in zip(self._preset_buttons, PRESETS):
-            button.setAccessibleDescription(self._preset_description(beat_hz))
+        # Both chip levels carry localised captions, so both rows are rebuilt and the
+        # category selection is put back (SPEC §7.4).
+        for entry in PRESET_CATEGORIES:
+            button = self._category_buttons.get(entry.id)
+            if button is None:
+                continue
+            button.setText(entry.localized_name())
+            button.setAccessibleName(entry.localized_name())
+            button.setAccessibleDescription(self._category_description(entry))
+        self._mark_category()
+        self._rebuild_preset_chips()
+        self._mark_preset(self._session.last_preset)
 
         self._error_label.setAccessibleName(tr("Error"))
         # The message arrived from the engine as a plain string. Re-running it
@@ -371,7 +515,7 @@ class MainWindow(QMainWindow):
         return bool(self._session.headphone_check_acknowledged)
 
     def _restore_session(self) -> None:
-        """Show the stored frequencies, volume and swap flag (SPEC F5)."""
+        """Show the stored frequencies, volume, swap flag and preset category (SPEC F5)."""
         self._suppress = True
         try:
             self._left.set_value(self._session.left_hz, emit=False)
@@ -379,6 +523,8 @@ class MainWindow(QMainWindow):
             self._volume.setValue(int(round(self._session.volume * VOLUME_STEPS)))
         finally:
             self._suppress = False
+        self.select_preset_category(self._session.preset_category)
+        self._mark_preset(self._session.last_preset)
         self._on_channels_changed()
 
     def current_session(self) -> Session:
@@ -390,6 +536,9 @@ class MainWindow(QMainWindow):
             channels_swapped=self._channels_swapped,
             headphone_check_acknowledged=self._session.headphone_check_acknowledged,
             last_preset=self._session.last_preset,
+            # The chips show a resolved id, so that is what a save writes back: a stored
+            # value the registry does not know must not survive as an unselectable row.
+            preset_category=self._selected_category,
         )
 
     def save_session(self) -> None:
@@ -450,18 +599,6 @@ class MainWindow(QMainWindow):
         finally:
             self._suppress = False
         self._on_channels_changed()
-
-    def apply_preset(self, beat_hz: float, index: int | None = None) -> None:
-        """One click sets both channels so the difference is ``beat_hz``."""
-        left, right = pair_from_beat(float(beat_hz), DEFAULT_CARRIER_HZ)
-        self.set_frequencies(left, right)
-        if index is not None and 0 <= index < len(self._preset_buttons):
-            self._preset_buttons[index].setChecked(True)
-        label = PRESETS[index][0] if index is not None and index < len(PRESETS) else None
-        self._session.last_preset = label
-        self.statusBar().showMessage(
-            tr("Preset applied: difference %1 Hz", _format_hz(float(beat_hz))), 3000
-        )
 
     def _on_left_changed(self, hz: float) -> None:
         if not self._suppress:

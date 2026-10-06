@@ -137,13 +137,16 @@ def test_main_window_creates_without_exception(window):
 
 
 def test_window_has_the_spec_layout(window):
-    """Both ear panels, the beat card, the transport and the preset chips exist."""
+    """Both ear panels, the beat card, the transport and both preset levels exist."""
     captions = [window._left.caption(), window._right.caption()]
     assert captions == ["LEFT EAR", "RIGHT EAR"]
     assert isinstance(window._beat, BeatDisplay)
     assert window._play_button.text() == "Play"
     assert window._volume is not None
-    assert len(window._preset_buttons) == 5
+    # SPEC §5 F3: seven categories on the first level, and the presets of the selected
+    # one — `relaxation`, so 8, 9 and 10 Hz — on the second.
+    assert len(window._category_buttons) == 7
+    assert len(window._preset_buttons) == 3
 
 
 def test_default_pair_from_session_is_shown(window):
@@ -265,21 +268,114 @@ def test_closing_shuts_the_engine_down(qapp):
 
 
 def test_preset_chip_sets_both_channels(window):
-    window._preset_buttons[2].click()  # Alpha 10
+    window._preset_buttons[2].click()  # Alpha 10 — the third chip of `relaxation`
     assert window._beat.beat_hz() == pytest.approx(10.0)
     assert window._beat.carrier_hz() == pytest.approx(200.0)
     assert window._left.value() == pytest.approx(195.0)
     assert window._right.value() == pytest.approx(205.0)
 
 
+def test_the_window_shows_the_f3_registry(window):
+    """Every chip caption is F3's `<band> <beat>`, and no Gamma is on screen."""
+    from binaural.ui.presets import PRESETS, presets_in
+
+    captions = [button.text() for button in window._preset_buttons]
+    assert captions == [
+        preset.localized_title() for preset in presets_in(window.selected_preset_category())
+    ]
+    assert captions == ["Alpha 8", "Alpha 9", "Alpha 10"]
+    assert len(PRESETS) == 20
+    assert not any("Gamma" in button.text() for button in window._preset_buttons)
+
+
+def test_category_chip_switches_the_second_level_without_touching_audio(window):
+    window.set_frequencies(205.0, 215.0)
+    window._category_buttons["sleep"].click()
+    assert window.selected_preset_category() == "sleep"
+    assert [button.text() for button in window._preset_buttons] == [
+        "Delta 1",
+        "Delta 2",
+        "Delta 3",
+    ]
+    # F3: a category is state, not an action — no frequency moved.
+    assert window.left_hz() == pytest.approx(205.0)
+    assert window.right_hz() == pytest.approx(215.0)
+
+
+def test_every_category_shows_its_own_presets(window):
+    expected = {
+        "sleep": 3,
+        "meditation": 3,
+        "relaxation": 3,
+        "awareness": 2,
+        "concentration": 3,
+        "work": 3,
+        "sport": 3,
+    }
+    for category_id, count in expected.items():
+        window._category_buttons[category_id].click()
+        assert window.selected_preset_category() == category_id
+        assert len(window._preset_buttons) == count
+
+
 def test_apply_preset_covers_every_chip(window):
-    for index, (_, beat) in enumerate(
-        [(label, beat) for label, beat in __import__(
-            "binaural.ui.main_window", fromlist=["PRESETS"]
-        ).PRESETS]
-    ):
-        window.apply_preset(beat, index)
-        assert window._beat.beat_hz() == pytest.approx(beat)
+    from binaural.ui.presets import PRESET_CATEGORIES, presets_in
+
+    for entry in PRESET_CATEGORIES:
+        window.select_preset_category(entry.id)
+        buttons = window._preset_buttons
+        assert len(buttons) == len(entry.presets)
+        for button, preset in zip(buttons, presets_in(entry.id)):
+            button.click()
+            assert window._beat.beat_hz() == pytest.approx(preset.beat_hz)
+            assert window._beat.carrier_hz() == pytest.approx(200.0)
+
+
+def test_applying_a_preset_remembers_its_category_and_id(window):
+    window._category_buttons["sport"].click()
+    window._preset_buttons[0].click()  # Beta 22
+    snapshot = window.current_session()
+    assert snapshot.preset_category == "sport"
+    assert snapshot.last_preset == "sport-22"
+    assert snapshot.left_hz == pytest.approx(189.0)
+    assert snapshot.right_hz == pytest.approx(211.0)
+
+
+def test_apply_preset_accepts_a_bare_beat(window):
+    window.apply_preset(16.0)  # the `work` category's first preset
+    assert window._beat.beat_hz() == pytest.approx(16.0)
+    assert window.selected_preset_category() == "work"
+
+
+def test_an_unknown_stored_category_falls_back_to_the_default(qapp):
+    win = MainWindow(
+        FakeEngine(StereoOscillator()), session=Session(preset_category="focus")
+    )
+    assert win.selected_preset_category() == "relaxation"
+    assert [button.text() for button in win._preset_buttons] == [
+        "Alpha 8",
+        "Alpha 9",
+        "Alpha 10",
+    ]
+    win.close()
+    win.deleteLater()
+
+
+def test_the_stored_category_is_restored(window):
+    win = MainWindow(
+        FakeEngine(StereoOscillator()), session=Session(preset_category="work")
+    )
+    assert win.selected_preset_category() == "work"
+    assert win._category_buttons["work"].isChecked() is True
+    win.close()
+    win.deleteLater()
+
+
+def test_preset_chips_are_at_least_44px_tall(window):
+    for button in window._preset_buttons:
+        assert button.minimumHeight() >= 44
+    for button in window._category_buttons.values():
+        assert button.minimumHeight() >= 44
 
 
 # ----------------------------------------------------------------- channel swap
@@ -414,11 +510,6 @@ def test_interactive_widgets_have_accessible_names(window):
     assert window._left._slider.accessibleDescription()
     assert window.status_indicator.accessibleName()
     assert window.status_indicator.accessibleDescription()
-
-
-def test_preset_chips_are_at_least_44px_tall(window):
-    for button in window._preset_buttons:
-        assert button.minimumHeight() >= 44
 
 
 def test_stylesheet_keeps_a_focus_ring(qapp):

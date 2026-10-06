@@ -41,6 +41,22 @@ MESSAGES: dict[str, str] = {
     "Sets both channels around a %1 Hz carrier so the difference is %2 Hz.": (
         "Задаёт оба канала вокруг несущей %1 Гц так, что разность равна %2 Гц."
     ),
+    # --- preset registry (SPEC §5 F3) --------------------------------------
+    # English source strings of `ui/presets.py`; the Russian text of the registry lives
+    # here so that one catalogue holds every Russian caption (SPEC §7.4).
+    "Shows the %1 presets: %2.": "Показывает пресеты «%1»: %2.",
+    "Delta": "Дельта",
+    "Theta": "Тета",
+    "Alpha": "Альфа",
+    "Beta": "Бета",
+    "Gamma": "Гамма",
+    "Sleep": "Сон",
+    "Meditation": "Медитация",
+    "Relaxation": "Расслабление",
+    "Awareness": "Ясность",
+    "Concentration": "Сосредоточенность",
+    "Work": "Работа",
+    "Sport": "Спорт",
     "Current frequencies: left %1, right %2.": "Текущие частоты: слева %1, справа %2.",
     "Preset name": "Название пресета",
     "This preset is remembered for the next start.": (

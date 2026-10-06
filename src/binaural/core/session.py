@@ -16,6 +16,9 @@ TIMER_OFF: int = 0
 DEFAULT_TIMER_MINUTES: int = 15
 #: Preset durations offered in the timer control (minutes; 0 = off).
 TIMER_CHOICES: tuple[int, ...] = (0, 5, 10, 15, 20, 30, 45, 60, 90, 120)
+#: SPEC §5 F3: the preset category a fresh session starts on, and the one the preset
+#: chips select. One value for both, so the default cannot drift into two.
+DEFAULT_PRESET_CATEGORY: str = "relaxation"
 
 
 @dataclass
@@ -29,9 +32,10 @@ class Session:
     #: Minutes before playback stops by itself; 0 = play indefinitely.
     timer_minutes: int = DEFAULT_TIMER_MINUTES
     #: Preset category id, persisted for the two-level preset picker (SPEC §5 F3).
-    #: There is no allowed-value list anywhere yet — main_window.PRESET_CATEGORIES does not
-    #: exist — so load() keeps whatever string was stored instead of discarding it.
-    preset_category: str = "relaxation"
+    #: The allowed values live in `ui/presets.py` (the F3 registry), which `ui` imports —
+    #: `core` must not import back, so load() keeps whatever string was stored instead of
+    #: discarding it, and the chips fall back to the default for an unknown value.
+    preset_category: str = DEFAULT_PRESET_CATEGORY
 
 
 def _settings() -> QSettings:
