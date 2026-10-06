@@ -212,7 +212,7 @@ def evidence_badge(evidence: str) -> str:
 ## 6. `binaural.ui`
 
 Классы: `MainWindow`, `FreqControl` (левый/правый), `BeatDisplay`,
-`HeadphoneCheckDialog`, `LrTestDialog`, `ReferenceDialog`, `AboutDialog`.
+`HeadphoneCheckDialog`, `LrTestDialog`, `SettingsDialog`, `ReferenceDialog`, `AboutDialog`.
 
 **Сигналы `MainWindow`:**
 ```python
@@ -225,10 +225,52 @@ playback_toggled = Signal(bool)
 
 **Диалог проверки при запуске** — модальный, но с `Continue anyway`.
 Кнопка **не должна** быть заблокирована. Состояние запоминается в сессии (§ `session.py`).
+Показывается до первого подтверждения (§4.3 SPEC), перезапускается из `SettingsDialog` и из меню
+*Help* — эвристика же выполняется на каждом запуске.
+
+**Таймер воспроизведения** — не объект UI, а значение: `binaural.core.playback_timer` (§7.1).
+Окно вооружает его при старте воспроизведения и раз в секунду спрашивает `remaining(now)`;
+обратный отсчёт показывает, а по истечении воспроизведение останавливается с плавным затуханием.
+`0` минут = выключен.
+
+**Реестр пресетов** — `binaural.ui.presets` (`PRESET_CATEGORIES`, `PRESETS`): 7 категорий,
+20 пресетов, SPEC §5 F3. Категория — часть состояния (`Session.preset_category`), поэтому
+чипы двухступенчатые: выбор категории частот не меняет, выбор пресета выставляет обе.
 
 **Язык UI — English + Русский**, переключается в меню `View → Language`.
 Автопределение по системной локали, выбор хранится в QSettings `ui/language`.
 Все строки через `tr()` → `binaural.i18n.tr()` (см. §6.1), каталог `binaural/locales/ru.py`.
+
+---
+
+## 6.1. Локализация: каталог и его порт на Swift
+
+Python: английская строка — исходник, русский текст лежит в `src/binaural/locales/ru.py`
+(`MESSAGES`), ключи — **ровно те английские строки**, которые передаются в `tr()`
+(`binaural.i18n.tr()`). Ключа нет → строка остаётся английской, а не пустой.
+
+Swift читает тот же каталог, но **не хранит его руками**:
+
+- `apple/Sources/Core/Locales/RussianCatalogue.swift` — **генерируется** из `ru.py` генератором
+  `python3 apple/Tools/generate_russian_catalogue.py` (разбирает `ru.py` через AST, так что
+  склейка строк разрешается ровно так, как её видит `tr()`; ключи, порядок и комментарии-разделы
+  переносятся как есть). **Правило: `ru.py` изменился — перегенерируй**, ручная правка
+  сгенерированного файла затирается следующим запуском.
+- `apple/Sources/Core/Locales/RussianWindowAdditions.swift` — единственное место для
+  **рукописных** ключей, и только для строки, у которой в `ru.py` **нет места вызова**
+  (контроль, которого нет в Python: mute, macOS-формулировки в *About*, «Lock difference» §7).
+  Ключ, который есть и там, и там, — не дополнение, а конфликт: владеет `ru.py`, копия из
+  additions удаляется, и генератор отказывается работать, пока не разрешит это.
+  Когда в Python появляется соответствующий контроль, ключ переезжает в `ru.py`, а этот файл
+  теряет его.
+
+Обе стороны проверяются тестами, а не договорённостью:
+`L10nTests.testCatalogMatchesThePythonKeyCount` **читает `ru.py` во время прогона** и требует
+равенства множеств ключей с `RussianCatalogue.messages` (не только совпадения количества:
+две разные строки дают тот же счёт) — правка `ru.py`, которую каталог не вобрал, валит сборку,
+а не теряет русский текст молча. `L10nKeysTests` требует, чтобы каждый показанный ключ был
+переведён, `testEveryAdditionIsShownByTheApp` — чтобы рукописный ключ действительно
+показывался приложением, а не просто выглядел правдоподобно.
 
 ---
 
@@ -238,6 +280,7 @@ playback_toggled = Signal(bool)
 TIMER_OFF: int = 0
 DEFAULT_TIMER_MINUTES: int = 15       # SPEC §2.1: исследования длятся 5–15 минут
 TIMER_CHOICES: tuple[int, ...] = (0, 5, 10, 15, 20, 30, 45, 60, 90, 120)
+DEFAULT_PRESET_CATEGORY: str = "relaxation"   # SPEC §5 F3: категория свежей сессии
 
 @dataclass
 class Session:
@@ -248,7 +291,7 @@ class Session:
     headphone_check_acknowledged: bool = False
     last_preset: str | None = None
     timer_minutes: int = DEFAULT_TIMER_MINUTES   # 0 = play indefinitely
-    preset_category: str = "relaxation"
+    preset_category: str = DEFAULT_PRESET_CATEGORY
     difference_locked: bool = False   # SPEC §7: "Lock difference" ticked
 
 def save(session: Session) -> None: ...      # QSettings, org "binaural", app "binaural"
@@ -260,8 +303,12 @@ def load() -> Session: ...
 - отсутствующий ключ → дефолт, а не ошибка;
 - `volume` зажимается в `0…1`;
 - `timer_minutes` зажимается в `0…1440` (больше суток — опечатка в файле настроек);
-- `preset_category` — свободная строка: разрешённого списка пока нет
-  (`main_window.PRESET_CATEGORIES` не существует), поэтому читаемое значение не отбрасывается;
+- `preset_category` — свободная строка: разбирать её на чужом уровне нельзя, поэтому
+  `core` ничего и не отбрасывает. Разрешённый список существует — реестр
+  `binaural.ui.presets.PRESET_CATEGORIES` (7 категорий, 20 пресетов, SPEC §5 F3), но он живёт
+  в `ui`, а `core` не импортирует `ui`; **значение из хранилища поэтому никогда не
+  отбрасывается**, а неизвестный id разворачивается в дефолт уже на уровне UI
+  (`presets.resolved_category`). Дефолт — `DEFAULT_PRESET_CATEGORY`, тот же, что у свежей сессии;
 - `difference_locked` — булево поле SPEC §7 «Зафиксировать». Хранится **только флаг**: сама
   разность не сохраняется, а заново берётся из `right_hz - left_hz` при загрузке, поэтому
   документ не может содержать блокировку, противоречащую собственной паре частот. Поле
@@ -269,6 +316,51 @@ def load() -> Session: ...
 
 Swift-версия хранит те же поля теми же именами, но в `Codable`-JSON по явному URL, а не в
 `QSettings` — см. отклонение 1 в `apple/DESIGN.md`.
+
+---
+
+## 7.1. `binaural.core.playback_timer`
+
+Таймер — **значение, а не идущие часы**: ни `QTimer`, ни потока, ни Qt. Окно вооружает его при
+старте воспроизведения и спрашивает `remaining(now)`, поэтому и отсчёт, и истечение
+тестируются до секунды, не ожидая секунды.
+
+```python
+@dataclass(frozen=True)
+class PlaybackTimer:
+    duration: float                    # секунды; 0 = выключен
+    deadline: float | None = None      # момент конца, None пока не вооружён
+
+    @classmethod
+    def for_minutes(cls, minutes: int, started_at: float | None = None) -> PlaybackTimer: ...
+    @classmethod
+    def for_session(cls, session: Session, started_at: float | None = None) -> PlaybackTimer: ...
+    @classmethod
+    def off(cls) -> PlaybackTimer: ...
+
+    @property
+    def is_enabled(self) -> bool: ...          # False при 0 минут
+    def remaining(self, now: float) -> float: ...   # секунды; math.inf у выключенного
+    def has_expired(self, now: float) -> bool: ...  # никогда True у выключенного
+    def countdown_text(self, now: float) -> str: ...  # "mm:ss" / "h:mm:ss"; "" у выключенного
+
+
+def countdown_text(remaining: float) -> str: ...
+def closest_choice(minutes: int, choices: tuple[int, ...] = TIMER_CHOICES) -> int: ...
+```
+
+Свойства, обязательные к соблюдению:
+
+- `TIMER_OFF` (0 минут) — это «играть, пока не остановят», а **не** «истекло»: у выключенного
+  таймера `deadline is None`, `remaining()` возвращает бесконечность, `has_expired()` — `False`,
+  а подпись отсчёта пуста;
+- `TIMER_CHOICES` — то, что можно **предложить**; значение `timer_minutes` внутри `0…1440`
+  может им не быть (17 минут, например), поэтому `closest_choice()` приводит его к ближайшему
+  предложению — это решение уровня окна, а не зажим сессии;
+- формат `mm:ss` пишется здесь, а не делегируется форматтеру, чтобы он был одинаков везде и
+  проверялся посимвольно.
+
+Swift держит то же значение в `apple/Sources/Core/PlaybackTimer.swift`.
 
 ---
 
