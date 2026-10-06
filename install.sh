@@ -14,7 +14,9 @@
 #
 # Strategy:
 #   1. primary  — download the prebuilt archive for this platform from GitHub Releases
-#                (self-contained PyInstaller bundle: its own Python and Qt).
+#                (self-contained PyInstaller bundle: its own Python and Qt). Linux is the
+#                only Python release platform: macOS ships the native app in apple/, so
+#                there a Mac installs from source (path 2) instead.
 #   2. fallback — no release available (HTTP 404, which is the normal state before the
 #                first release is published): create a private virtualenv in
 #                $PREFIX/venv from the source tree and pip-install the project into it.
@@ -204,18 +206,18 @@ show_help() {
     out "  NO_COLOR=1                 Disable colored output."
     out ""
     out "${C_BOLD}INSTALL LAYOUT${C_OFF}"
-    out "  \$PREFIX/app/            unpacked release bundle (or ${APP_DISPLAY_NAME}.app)"
+    out "  \$PREFIX/app/            unpacked release bundle"
     out "  \$PREFIX/venv/           virtualenv, only in --source mode"
     out "  \$PREFIX/install-meta    what was installed, from where"
     out "  \$BIN_DIR/${APP_NAME}         symlink to the installed entry point"
     out ""
-    out "Supported platforms: macos-arm64 macos-x64 linux-x64 linux-arm64"
+    out "Supported platforms: linux-x64 linux-arm64"
 }
 
 print_version() {
     out "${APP_DISPLAY_NAME} installer ${INSTALLER_VERSION}"
     out "default app version: ${APP_VERSION}"
-    out "platforms: macos-arm64 macos-x64 linux-x64 linux-arm64"
+    out "platforms: linux-x64 linux-arm64"
     out "repository: ${REPO_URL}"
 }
 
@@ -296,11 +298,18 @@ detect_platform() {
     _arch="$(uname -m 2>/dev/null || printf 'unknown')"
 
     case "$_os" in
-        Darwin) OS_NAME="macos" ;;
         Linux)  OS_NAME="linux" ;;
+        Darwin)
+            # macOS ships as the native Swift app (`apple/`), so there is no Python
+            # release archive for it any more. The Python app still runs from source on a
+            # Mac — that is how it is developed — so the platform is recognised and the
+            # source path is used instead of looking for a macos-* archive.
+            OS_NAME="macos"
+            ;;
         *)
             err "unsupported operating system: ${_os}"
-            say "Binaural is built for macOS and Linux only."
+            say "The Python build ships for Linux; Windows is not in this release."
+            say "On macOS use the native app from apple/ — see apple/README.md."
             exit "$EXIT_FAIL"
             ;;
     esac
@@ -446,9 +455,12 @@ http_get_stdout() {
 }
 
 normalize_tag() {
+    # The newline matters: candidate_tags prints this tag and the one from the API into
+    # the same stream, and without it the two run together into "v0.1.0v0.1.0" — a tag
+    # that 404s, so the release path silently never finds an archive.
     case "$1" in
-        v*) printf '%s' "$1" ;;
-        *)  printf 'v%s' "$1" ;;
+        v*) printf '%s\n' "$1" ;;
+        *)  printf 'v%s\n' "$1" ;;
     esac
 }
 
@@ -554,8 +566,8 @@ extract_archive() {
 # locate_executable ROOT — print the entry point of an unpacked release
 locate_executable() {
     _root="$1"
-    _level1="bin/${APP_NAME} ${APP_NAME} ${APP_DISPLAY_NAME}.app/Contents/MacOS/${APP_DISPLAY_NAME} ${APP_DISPLAY_NAME}.app/Contents/MacOS/${APP_NAME} Contents/MacOS/${APP_DISPLAY_NAME}"
-    _level2="bin/${APP_NAME} ${APP_NAME} ${APP_DISPLAY_NAME}.app/Contents/MacOS/${APP_DISPLAY_NAME}"
+    _level1="bin/${APP_NAME} ${APP_NAME}"
+    _level2="bin/${APP_NAME} ${APP_NAME}"
     for _c in $_level1; do
         if [ -x "$_root/$_c" ]; then
             printf '%s' "$_root/$_c"
@@ -620,7 +632,6 @@ find_installed() {
     for _c in "${BIN_DIR}/${APP_NAME}" \
              "${PREFIX}/app/bin/${APP_NAME}" \
              "${PREFIX}/app/${APP_NAME}" \
-             "${PREFIX}/app/${APP_DISPLAY_NAME}.app/Contents/MacOS/${APP_DISPLAY_NAME}" \
              "${PREFIX}/app/${APP_NAME}-${PLATFORM}/${APP_NAME}" \
              "${PREFIX}/venv/bin/${APP_NAME}"; do
         if [ -e "$_c" ] || [ -L "$_c" ]; then
@@ -980,7 +991,6 @@ verify_install() {
             say "Usual causes:"
             say "  * a dynamic library is missing"
             say "      ldd ${TARGET}          # Linux"
-            say "      otool -L ${TARGET}     # macOS"
             say "  * the GUI needs a display — nothing to fix for the version check"
             say "  * the app does not handle --version yet (development build)"
             say ""
@@ -1036,13 +1046,16 @@ plan_install() {
     fi
 
     _list="$(tmpfile plan-urls)"
-    candidate_release_urls >"$_list"
-    if [ -s "$_list" ]; then
+    if [ "$WANT_SOURCE" -eq 1 ]; then
+        info "release candidates: none (--source)"
+    elif candidate_release_urls >"$_list" && [ -s "$_list" ]; then
         info "release candidates:"
         while IFS= read -r _u; do
             [ -n "$_u" ] || continue
             info "  ${_u}"
         done <"$_list"
+    else
+        info "release candidates: none"
     fi
     rm -f "$_list"
     info "source fallback ${SOURCE_URL}"
@@ -1069,6 +1082,16 @@ do_install() {
 
     say "${C_BOLD}${APP_DISPLAY_NAME} installer${C_OFF} — ${PLATFORM}"
     say ""
+
+    if [ "$OS_NAME" = "macos" ] && [ "$WANT_SOURCE" -eq 0 ]; then
+        # No macOS Python archive exists any more: the native app (apple/) is the macOS
+        # product. Say so once, then install the Python app from source rather than
+        # probing for a macos-* release that will never be there.
+        warn "macOS is not a Python release platform: the native app in apple/ is."
+        warn "  (unsigned, so Gatekeeper asks on first launch — see apple/README.md)"
+        warn "installing the Python app from source instead"
+        WANT_SOURCE=1
+    fi
 
     if INSTALLED_TARGET="$(find_installed)"; then
         _have="$(installed_version "$INSTALLED_TARGET")"

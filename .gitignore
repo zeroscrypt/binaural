@@ -107,8 +107,8 @@ DerivedData/
 #   src/       — the application package, tracked
 #   tests/     — the test suite, tracked
 #   docs/      — SPEC.md, CONTRACT.md, tracked
-#   packaging/ — pyinstaller.spec, .desktop, Info.plist, tracked
-#   scripts/   — build_macos.sh, build_linux.sh, make_release.sh, tracked
+#   packaging/ — pyinstaller.spec, .desktop, tracked
+#   scripts/   — build_linux.sh, make_release.sh, tracked
 #   install.sh — the curl|sh installer, tracked
 #   apple/     — project.yml, DESIGN.md, README.md, Sources/, Tests/ tracked; only the
 #                generated Binaural.xcodeproj inside it is ignored (see the Xcode section

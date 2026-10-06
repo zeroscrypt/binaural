@@ -608,10 +608,8 @@ binaural/
 │   └── Tests/CoreTests/      # 73 теста на паритет с Python
 ├── packaging/
 │   ├── pyinstaller.spec
-│   ├── macos/                 # .app, entitlements, иконка
 │   └── linux/                 # .desktop, иконка
 ├── scripts/
-│   ├── build_macos.sh
 │   ├── build_linux.sh
 │   └── make_release.sh
 └── tests/
@@ -632,8 +630,8 @@ binaural/
 
 | Где | Что |
 |---|---|
-| `src/`, `tests/`, `docs/` | общее: приложение на Python + Qt (сейчас macOS и Linux, дальше Windows) |
-| `packaging/<ос>/`, `scripts/build_<ос>.*` | единственное место, где ОС действительно расходятся: `.desktop` / `Info.plist` / `.exe` |
+| `src/`, `tests/`, `docs/` | общее: приложение на Python + Qt (релизная сборка — Linux, дальше Windows) |
+| `packaging/<ос>/`, `scripts/build_<ос>.*` | единственное место, где ОС действительно расходятся: `.desktop` / `.exe` |
 | `apple/` | второй продукт на Swift — macOS и iOS, `xcodegen` + `xcodebuild` |
 
 `apple/Sources/Core` не импортирует AppKit и SwiftUI, поэтому он собирается и тестируется и под
@@ -645,10 +643,14 @@ macOS, и под iOS. Паритет с Python доказывают тесты, 
 copy-files, тесты читают его от `#filePath`. Вторая копия файла запрещена — её бы никто не
 обновлял.
 
-Когда Swift-версия выйдет на паритет, **релизная** сборка Python-приложения под macOS снимается
-(`scripts/build_macos.sh`, `packaging/macos/Info.plist`, ветки `macos-*` в `install.sh`).
-Сам Python-код остаётся: разработка идёт на Mac, поэтому `audio/platform/macos.py` и запуск из
-исходников сохраняются.
+**Решение принято: macOS — это Swift.** Релизная сборка Python-приложения под macOS снята:
+скрипт сборки `.app`, его `Info.plist` и ветки `macos-*` в `install.sh` удалены, вместе с
+macOS-таргетами в `scripts/make_release.sh` и в CI. Python остаётся реализацией для Linux и
+Windows.
+
+Сам Python-код на macOS **остаётся**: разработка идёт на Mac, поэтому `audio/platform/macos.py`
+и запуск из исходников работают как раньше, а `install.sh` на Mac ставит Python-версию из
+исходников. Удалено только упаковку релиза.
 
 ---
 
@@ -660,7 +662,7 @@ curl -fsSL https://raw.githubusercontent.com/zeroscrypt/binaural/main/install.sh
 
 Что делает скрипт:
 
-1. Определяет ОС и архитектуру (`macos-arm64`, `macos-x64`, `linux-x64`, `linux-arm64`)
+1. Определяет ОС и архитектуру (`linux-x64`, `linux-arm64`)
 2. Скачивает соответствующий релизный архив с GitHub Releases
 3. Распаковывает в `~/.binaural/`
 4. Кладёт симлинк `binaural` в `~/.local/bin` (добавляет в `PATH`, если надо)
@@ -668,7 +670,10 @@ curl -fsSL https://raw.githubusercontent.com/zeroscrypt/binaural/main/install.sh
 
 Флаги: `--uninstall`, `--prefix=DIR`, `--version`, `--help`.
 Зависимостей на машине пользователя **не нужно** — в архиве свой Python и Qt (PyInstaller).
-Аналогично для Linux — тот же скрипт, другой архив.
+
+Скрипт ставит Python-версию, а она релизится для Linux. На macOS продукт — нативное
+приложение из `apple/` (§8.1), и скрипт об этом говорит, после чего ставит Python-версию из
+исходников: она на Mac работает.
 
 ---
 

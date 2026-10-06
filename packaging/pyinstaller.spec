@@ -32,7 +32,8 @@ SRC = ROOT / "src"
 PKG = SRC / "binaural"
 DATA_DIR = PKG / "data"
 
-MACOS_DIR = SPEC_DIR / "macos"
+# Only Linux is packaged here. macOS ships the native Swift app (apple/), so there is no
+# PyInstaller bundle, no Info.plist and no .icns: nothing in this spec builds a .app.
 LINUX_DIR = SPEC_DIR / "linux"
 
 # PyInstaller cannot use src/binaural/app.py as the entry script directly: it runs the
@@ -59,9 +60,8 @@ LAUNCHER.write_text(
 
 APP_NAME = "Binaural"
 # The console script is `binaural` (lowercase, matches pyproject [project.scripts]),
-# the bundle is `Binaural.app` / the one-dir folder `Binaural`.
+# and the one-dir bundle folder is `Binaural`.
 EXE_NAME = "binaural"
-BUNDLE_IDENTIFIER = "io.github.zeroscrypt.binaural"
 
 # --------------------------------------------------------------------------------------
 # Qt: make sure the multimedia backend and the plugins get collected
@@ -255,27 +255,3 @@ coll = COLLECT(
     upx_exclude=[],
     name=APP_NAME,
 )
-
-# --------------------------------------------------------------------------------------
-# macOS bundle
-# --------------------------------------------------------------------------------------
-
-if sys.platform == "darwin":
-    _icon = None
-    for _candidate in (
-        MACOS_DIR / "binaural.icns",
-        MACOS_DIR / "icon.icns",
-        ROOT / "packaging" / "macos" / "binaural.icns",
-    ):
-        if _candidate.is_file():
-            _icon = str(_candidate)
-            break
-
-    app = BUNDLE(
-        coll,
-        name=f"{APP_NAME}.app",
-        icon=_icon,
-        bundle_identifier=BUNDLE_IDENTIFIER,
-        version="0.1.0",
-        info_plist=str(MACOS_DIR / "Info.plist") if (MACOS_DIR / "Info.plist").is_file() else None,
-    )

@@ -27,10 +27,14 @@ Nothing has to be installed on your machine: the archive ships its own Python an
 > If the script reports that no release exists for your platform, use
 > [install from source](#install-from-source) — it is a first-class path, not a workaround.
 
+> **macOS.** Linux is the only platform this script installs a Python build for. On a Mac the
+> product is the native app under [`apple/`](../apple/README.md); the script says so and then
+> installs the Python app from source, which still works on macOS.
+
 ### What the script does
 
 1. Detects the operating system and architecture and maps them to an archive name:
-   `macos-arm64`, `macos-x64`, `linux-x64`, `linux-arm64`.
+   `linux-x64`, `linux-arm64`.
 2. Downloads the matching archive from GitHub Releases into a temporary directory.
 3. Extracts it into `~/.binaural/`. An existing installation there is replaced.
 4. Creates a symlink named `binaural` in `~/.local/bin` pointing at the executable. If
@@ -200,21 +204,24 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest
 workaround for running the UI over a real remote session — for that use X11 forwarding or a
 Wayland session.
 
-### macOS: "binaural cannot be opened because the developer cannot be verified"
+### macOS: "cannot be opened because the developer cannot be verified"
 
-The release binary is not notarised. Two ways around it:
+The Swift app in `apple/` is **unsigned**: no Apple Developer certificate is configured, so it
+is built with `CODE_SIGNING_ALLOWED=NO` and there is no notarisation. Gatekeeper blocks it for
+anyone but the person who built it. Two ways around it:
 
 1. **Right-click → Open** in Finder, then confirm in the dialog. This works once per binary.
 2. From a terminal, after the first launch attempt has been blocked:
 
    ```bash
-   xattr -d com.apple.quarantine ~/.binaural/binaural
+   xattr -d com.apple.quarantine /path/to/Binaural.app
    ```
 
    On Apple Silicon, System Settings → Privacy & Security also offers "Open Anyway" after the first
    blocked attempt.
 
-A source install has no such problem: the binary is built locally and never goes through Gatekeeper.
+This applies to `apple/dist/Binaural.app`, not to the Python app: a source install is built
+locally and never goes through Gatekeeper.
 
 ### `binaural: command not found` after install
 

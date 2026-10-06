@@ -3,16 +3,18 @@
 # Build every release artifact and produce SHA256SUMS.
 #
 #   sh scripts/make_release.sh                  # build for the host platform
-#   sh scripts/make_release.sh --all            # try all four, skip what cannot run here
+#   sh scripts/make_release.sh --all            # try both Linux targets, skip what cannot run here
 #   sh scripts/make_release.sh --target linux-x64
 #   sh scripts/make_release.sh --checksums-only # just refresh SHA256SUMS
 #
 # Naming matches install.sh exactly:
 #
-#   binaural-<version>-macos-arm64.tar.gz   -> Binaural.app/...      (installed as .app)
-#   binaural-<version>-macos-x64.tar.gz
 #   binaural-<version>-linux-x64.tar.gz     -> Binaural/ one-dir
 #   binaural-<version>-linux-arm64.tar.gz
+#
+# macOS is not in this list: the macOS product is the native Swift app (apple/, built by
+# apple/build_release.sh), so there is no Python bundle to build for it. The Python code
+# still runs on a Mac from source.
 #
 # PyInstaller bundles are platform-specific in both architecture *and* OS, so an artifact
 # can only be produced on a matching host. --all reports the ones it cannot build instead
@@ -52,7 +54,7 @@ usage() {
 Build release artifacts for Binaural.
 
   --target PLATFORM   Build only PLATFORM. One of:
-                        macos-arm64 macos-x64 linux-x64 linux-arm64
+                        linux-x64 linux-arm64
   --all               Attempt every platform, skip the ones this host cannot build
   --clean             remove build/ and dist/ before building
   --checksums-only    Regenerate dist/SHA256SUMS from whatever is already in dist/
@@ -107,10 +109,10 @@ checksum() {
     fi
 }
 
-ALL_PLATFORMS="macos-arm64 macos-x64 linux-x64 linux-arm64"
+ALL_PLATFORMS="linux-x64 linux-arm64"
 
 # The lists are space-separated words, so pad both sides before matching: without the
-# leading space, "macos-arm64" fails to match itself in a `*" $x "*` test.
+# leading space, "linux-x64" fails to match itself in a `*" $x "*` test.
 is_known_platform() {
     case " ${ALL_PLATFORMS} " in
         *" $1 "*) return 0 ;;
@@ -127,7 +129,6 @@ host_platform() {
         *) _arch="unknown" ;;
     esac
     case "$_os" in
-        Darwin) printf 'macos-%s' "$_arch" ;;
         Linux)  printf 'linux-%s' "$_arch" ;;
         *)      printf 'unknown-%s' "$_arch" ;;
     esac
@@ -185,7 +186,7 @@ write_checksums() {
             [ -f "$_archive" ] || continue
             _base="$(basename "$_archive")"
             case "$_base" in
-                *.dSYM*|*-macos-*.app*) continue ;;
+                *.dSYM*) continue ;;
             esac
             if command -v sha256sum >/dev/null 2>&1 </dev/null; then
                 (cd "$DIST_DIR" && sha256sum "$_base") >>"$_sums"
@@ -236,41 +237,11 @@ One of: ${ALL_PLATFORMS}"
     fi
 
     _arch="${_target#*-}"
-    case "$_target" in
-        macos-*)
-            step "building ${_target}"
-            # shellcheck disable=SC2086
-            sh "${SCRIPT_DIR}/build_macos.sh" $CLEAN_FLAG --python "$PYTHON" \
-                || die "the macOS build failed"
-            # Both formats on purpose:
-            #  * .tar.gz is what install.sh fetches (name must match exactly);
-            #  * .zip is what a macOS user double-clicks, and tar's handling of the
-            #    symlinks and modes inside a .app is not something to bet an install on.
-            _tarball="${DIST_DIR}/${EXE_NAME}-${VERSION}-${_target}.tar.gz"
-            rm -f "$_tarball"
-            tar -czf "$_tarball" -C "$DIST_DIR" "${APP_NAME}.app"
-            info "$(basename "$_tarball")  ($(du -h "$_tarball" | cut -f1))"
-            BUILT="${BUILT} $(basename "$_tarball")"
-
-            if command -v zip >/dev/null 2>&1 </dev/null; then
-                _zip="${DIST_DIR}/${EXE_NAME}-${VERSION}-${_target}.zip"
-                rm -f "$_zip"
-                # -y keeps symlinks as symlinks, which a .app needs to stay valid.
-                (cd "$DIST_DIR" && zip -q -r -y "$_zip" "${APP_NAME}.app")
-                info "$(basename "$_zip")  ($(du -h "$_zip" | cut -f1))"
-                BUILT="${BUILT} $(basename "$_zip")"
-            else
-                info "zip not installed, skipping the .zip (install.sh uses the .tar.gz)"
-            fi
-            ;;
-        linux-*)
-            step "building ${_target}"
-            # shellcheck disable=SC2086
-            sh "${SCRIPT_DIR}/build_linux.sh" $CLEAN_FLAG --arch "$_arch" --python "$PYTHON" \
-                || die "the Linux build failed"
-            BUILT="${BUILT} ${EXE_NAME}-${VERSION}-${_target}.tar.gz"
-            ;;
-    esac
+    step "building ${_target}"
+    # shellcheck disable=SC2086
+    sh "${SCRIPT_DIR}/build_linux.sh" $CLEAN_FLAG --arch "$_arch" --python "$PYTHON" \
+        || die "the Linux build failed"
+    BUILT="${BUILT} ${EXE_NAME}-${VERSION}-${_target}.tar.gz"
 done
 
 # --------------------------------------------------------------------------- #

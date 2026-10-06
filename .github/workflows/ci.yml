@@ -145,8 +145,11 @@ jobs:
           PY
 
   # -----------------------------------------------------------------------------
-  # Build artifact. Manual only: a release needs all four platforms, and PyInstaller
+  # Build artifact. Manual only: a release needs both Linux platforms, and PyInstaller
   # cannot cross-compile, so each target runs on a runner of its own.
+  #
+  # macOS is not in this matrix: the macOS product is the native app in apple/, which
+  # apple/build_release.sh builds on a Mac. There is no Python bundle for macOS.
   # -----------------------------------------------------------------------------
   build-release:
     name: pyinstaller ${{ matrix.target }}
@@ -160,13 +163,6 @@ jobs:
           - target: linux-x64
             os: ubuntu-latest
             arch: x64
-          # macos-13 is Intel; macos-latest is Apple silicon.
-          - target: macos-x64
-            os: macos-13
-            arch: x64
-          - target: macos-arm64
-            os: macos-latest
-            arch: arm64
           # No public arm64 Linux runner: build this one on a self-hosted x64 box with
           # docker buildx + QEMU, or add a native arm64 runner.
           - target: linux-arm64

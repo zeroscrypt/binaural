@@ -106,8 +106,10 @@ done
 # Preconditions
 # --------------------------------------------------------------------------- #
 
+# Linux is the only Python release platform: macOS ships the native app in apple/, and
+# there is no PyInstaller bundle for it to build any more.
 [ "$(uname -s)" = "Linux" ] || die "this script only builds on Linux (found $(uname -s)).
-For macOS use: sh scripts/build_macos.sh"
+macOS ships the native app from apple/ — see apple/README.md"
 
 command -v "$PYTHON" >/dev/null 2>&1 </dev/null || die "python interpreter not found: ${PYTHON}
 Install Python 3.10+ (apt install python3 / dnf install python3) or pass --python"
