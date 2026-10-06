@@ -1,12 +1,15 @@
 # Binaural
 
-![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey) ![python](https://img.shields.io/badge/python-3.10%2B-blue)
+![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-macOS%20(Swift)%20%7C%20Linux%20(Python)-lightgrey) ![python](https://img.shields.io/badge/python-3.10%2B-blue) ![release](https://img.shields.io/badge/release-v0.1.0-blue)
 
 **Two independent frequencies, one perceived difference.**
 
-Binaural is a desktop generator of binaural beats for **macOS** and **Linux**. You set one
-frequency for the left ear and another for the right ear. The brain merges the two tones and
-perceives a third, virtual tone whose pitch is the **difference** between them.
+Binaural is a desktop generator of binaural beats. You set one frequency for the left ear and
+another for the right ear. The brain merges the two tones and perceives a third, virtual tone
+whose pitch is the **difference** between them.
+
+**macOS** gets the native Swift app under [`apple/`](apple/README.md); **Linux** gets the
+Python/Qt app in `src/`. Windows is future work.
 
 ```
 Left ear:   fL = 205.0 Hz
@@ -26,6 +29,9 @@ Formally: `beat = |fL − fR|`, `carrier = (fL + fR) / 2`.
 - [What it actually does](#what-it-actually-does)
 - [Why headphones are mandatory](#why-headphones-are-mandatory)
 - [Install](#install)
+  - [macOS — the native app](#macos--the-native-app)
+  - [Linux — the one-liner](#linux--the-one-liner)
+  - [From source (either platform)](#from-source-either-platform)
 - [Screenshots](#screenshots)
 - [Features](#features)
 - [Language](#language)
@@ -74,14 +80,36 @@ Both ears receive the same jumbled waveform, so there is nothing left for the br
 differentiate. The difference, and with it the effect, is gone. There is no setting in the app
 that can fix this.
 
-Put the headphones on before you press play. The app checks this on startup and tells you if it
-thinks you are on speakers.
+Put the headphones on before you press play. The app checks the output device on every start and
+tells you if it thinks you are on speakers. The dialog with the full L/R test appears until you
+confirm it once, and you can bring it back any time from Settings or *Help*.
 
 ---
 
 ## Install
 
-### One-liner
+### macOS — the native app
+
+```bash
+git clone https://github.com/zeroscrypt/binaural.git
+cd binaural/apple
+./build_release.sh          # builds apple/dist/Binaural.app
+open apple/dist/Binaural.app
+```
+
+The script builds Release into a throwaway derived-data directory, copies the finished bundle to
+`apple/dist/Binaural.app`, verifies the bundled `frequencies.json` against the single copy in
+`src/` with `shasum`, and deletes the build tree. No Xcode needed afterwards — it is a plain
+`.app` you can double-click.
+
+> **It is unsigned.** No Apple Developer identity is configured on the build machine, so the app
+> is built with `CODE_SIGNING_ALLOWED=NO` and there is no notarisation. It runs for whoever built
+> it; for anyone else Gatekeeper blocks the first launch, and right-click → *Open* is the way
+> past it. Proper distribution — signing, notarisation, the App Store — needs an Apple Developer
+> account and is not done. **v0.1.0 on GitHub is source only**: no binaries are attached to the
+> release.
+
+### Linux — the one-liner
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zeroscrypt/binaural/main/install.sh | sh
@@ -92,11 +120,14 @@ into `~/.binaural/`, symlinks `binaural` into `~/.local/bin` (adding it to `PATH
 verifies the result with `binaural --version`. No Python or Qt on your machine is required — the
 archive ships its own runtime.
 
-> **Heads up:** release archives are produced by the packaging step, which has not shipped yet.
-> If the one-liner reports that no release is available for your platform, build from source
-> instead — it is a fully supported path.
+> **Heads up:** Linux is the only platform this script installs a Python build for, and the
+> release archives have not shipped yet. If it reports that no release is available, it falls back
+> to installing from source on its own — a fully supported path, not an error.
+>
+> On macOS the script says what the situation is and then does the source install, because the
+> macOS product is the Swift app above.
 
-### From source
+### From source (either platform)
 
 ```bash
 git clone https://github.com/zeroscrypt/binaural.git
@@ -107,7 +138,8 @@ python3 -m venv .venv
 ```
 
 `pip install -e .` also installs the `binaural` console script, so `.venv/bin/binaural` is the
-entry point.
+entry point. This path is fully supported on macOS too — the Python app still detects CoreAudio
+devices there.
 
 Full details, including manual builds and troubleshooting, are in
 **[docs/INSTALL.md](docs/INSTALL.md)**.
@@ -116,13 +148,15 @@ Full details, including manual builds and troubleshooting, are in
 
 ## Screenshots
 
-*Screenshots will be added here once the packaging and the UI polish land.* Expected content:
+*Screenshots will be added here once the UI polish lands.* Expected content:
 
 - **Main window, light theme** — large left/right frequency readouts, two sliders, the BEAT and
-  CARRIER metrics in the centre, play button, volume, and the preset chips along the bottom.
+  CARRIER metrics in the centre, the *Lock difference* checkbox under the beat, play button,
+  volume, the playback timer, and the two-level preset chips along the bottom.
 - **Headphone check dialog** — the warning shown when speakers are detected, with
   *Continue anyway* and *Retry check*.
 - **Perceptual L/R test** — the left-then-right tone sequence and the question "what did you hear?".
+- **Settings** — language, timer, volume, and the button that re-runs the headphone check.
 - **Frequency reference dialog** — the category sidebar with counters, the search field, and an
   entry card showing name → frequency → *Apply* → effect text → evidence badge.
 
@@ -132,8 +166,8 @@ No image files are referenced until they exist, so nothing here is broken.
 
 ## Features
 
-Planned scope, from the project specification. See [Project status](#project-status) for what is
-already implemented and what is still being built.
+The scope from the project specification, in both implementations. See
+[Project status](#project-status) for what is already implemented and what is still being built.
 
 - **Two independent frequencies** — separate fields and sliders for left and right, exact keyboard
   entry, 0.1 Hz steps, 1–20000 Hz. Moving the left channel never moves the right one.
@@ -141,35 +175,49 @@ already implemented and what is still being built.
   type, with a hint when the beat falls outside the usual 0.5–100 Hz perception range.
 - **Click-free playback** — frequency changes are applied without breaking phase, amplitude ramps
   over tens of milliseconds, `Space` toggles play/stop.
-- **Band presets** — one click sets **both** frequencies to produce a target difference, e.g.
-  `fL = 205, fR = 215 → 10 Hz`.
-- **Headphone check on startup** — device heuristics first (Bluetooth/USB/HDMI/built-in, port
-  names), then a fast perceptual left/right test. If the channels come back swapped, the app
-  remembers it and swaps its output so you get the right difference on the right side.
+- **Two-level preset registry, 7 categories / 20 presets** — pick a category (Sleep, Meditation,
+  Relaxation, Awareness, Concentration, Work, Sport), then a preset. Every preset sits inside
+  1–30 Hz and in exactly one brainwave band, and one click sets **both** frequencies around the
+  200 Hz carrier so the difference is the beat: `fL = 200 − beat/2`, `fR = 200 + beat/2`. The
+  chosen category is remembered between sessions.
+- **Playback timer** — 0 (off) or 5–120 minutes from a fixed list, default 15. The remaining time
+  counts down on screen and playback stops by itself when it runs out.
+- **Lock difference** — tick it and editing one channel moves the other by the same amount, so the
+  signed difference stays where you put it. A preset sets its own difference and clears the lock;
+  at the edge of the 1–20000 Hz range the edited channel stops rather than the lock being broken.
+  *Swift implementation only — the Python app persists the flag but has no control for it.*
+- **Headphone check** — device heuristics first (Bluetooth/USB/HDMI/built-in, port names), then a
+  fast perceptual left/right test. If the channels come back swapped, the app remembers it and
+  swaps its output so you get the right difference on the right side. The heuristic runs on every
+  start; the dialog appears until the first confirmation, and the whole check can be re-run at any
+  time from Settings or *Help*.
+- **Settings** — language, playback timer, volume, and the headphone-check button, each writing
+  straight through to the running window.
 - **Frequency reference, 9 categories** — brainwave bands, Schumann resonance, planetary tones,
   solfeggio, tuning references, research frequencies, Rife, space/consciousness claims, healing and
   energy. Bilingual (en/ru), searchable, with an evidence badge per entry. Details in
   **[docs/FREQUENCIES.md](docs/FREQUENCIES.md)**.
-- **Light and dark theme**, native Qt widgets, HiDPI, full keyboard navigation.
+- **Light and dark theme**, native widgets, HiDPI, full keyboard navigation.
 - **English and Russian interface**, switchable at runtime — see [Language](#language).
-- **macOS and Linux** from one codebase, Windows next.
-- **Two implementations** — the Python/Qt app above, plus a native Swift app for macOS and iOS
-  under [`apple/`](apple/README.md). They share the frequency reference file and the API
-  contract, never source code.
+- **Two implementations, one product per platform** — the native Swift app is the macOS (and
+  iOS) build under [`apple/`](apple/README.md); the Python/Qt app here is the Linux build, with
+  Windows next. They share the frequency reference file and the API contract, never source code.
 
 Explicitly out of scope: 3D/HRTF positioning, overlaying onto files or radio, spectrum analysis,
-recording or streaming. iOS is in scope through `apple/` rather than through Python; Android is
-not planned.
+recording or streaming, WAV export. iOS is in scope through `apple/` rather than through Python;
+Android is not planned.
 
 ---
 
 ## Language
 
-The interface is **English or Russian**, switched from the app menu: *View → Language*
-(*Вид → Язык*). The switch applies immediately — including the open main window — and the
-choice is remembered in `QSettings` under `ui/language`, so the next start opens in the same
-language. On the very first start there is nothing stored yet, so the app follows the system
-locale (a Russian locale opens in Russian).
+The interface is **English or Russian**, switched from the app menu (*View → Language*) or from
+Settings. The switch applies immediately — including the open window and the open dialog — and the
+choice is remembered under `ui/language`, so the next start opens in the same language. On the very
+first start there is nothing stored yet, so the app follows the system locale (a Russian locale
+opens in Russian). Both implementations share the key and the Russian text: the Swift catalogue is
+**generated** from the Python one (`src/binaural/locales/ru.py`) and a test fails the build if the
+two ever disagree about which strings are translated.
 
 The frequency reference is bilingual independently of the UI language: category names and
 effect descriptions come from `frequencies.json`, which carries both variants, and the other
@@ -181,7 +229,7 @@ language stays available on hover.
 
 The app ships a static reference of **99 entries across 9 categories**, stored as data in
 `src/binaural/data/frequencies.json` and shown in-app with search, per-category counters and an
-evidence badge.
+evidence badge. That file is the only copy in the repository — the Swift app reads it too.
 
 The complete tables are in **[docs/FREQUENCIES.md](docs/FREQUENCIES.md)**.
 
@@ -252,13 +300,13 @@ The same disclaimer is shown in the app under *Help → About*.
 
 ## Requirements
 
-**Running the packaged app** — no runtime dependencies:
+**The macOS app** — macOS 12 or newer. `apple/build_release.sh` needs nothing but the tools
+below; the finished `.app` runs on its own.
 
-- macOS 12 or newer, or
-- Linux (x86_64 or arm64) with a running PulseAudio or PipeWire session
-
-**Building from source** — Python 3.10 or newer (developed against 3.12) plus `pip`. PySide6
-6.5+ (Essentials and Addons) is pulled in automatically; `numpy` comes with the `dev` extra.
+**The Linux app** — Linux (x86_64 or arm64) with a running PulseAudio or PipeWire session. The
+release archive carries its own Python and Qt; a source install needs Python 3.10 or newer
+(developed against 3.12) plus `pip`, and pulls in PySide6 6.5+ (Essentials and Addons) itself —
+`numpy` comes with the `dev` extra.
 
 **Building the Swift implementation (`apple/`)** — Xcode 27 (Swift 6.4) and `xcodegen`
 (`brew install xcodegen`). No Apple Developer account is needed to build and test; deploying to
@@ -299,65 +347,73 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest
 
 ### The native Swift implementation (`apple/`)
 
-The second implementation is written in Swift and built with Xcode. It reads the same
-`src/binaural/data/frequencies.json` — there is deliberately no second copy of the reference.
+The macOS (and iOS) build. It reads the same `src/binaural/data/frequencies.json` — there is
+deliberately no second copy of the reference — and honours the same API contract.
 
 ```bash
 cd apple
 xcodegen generate
 xcodebuild -project Binaural.xcodeproj -scheme BinauralCore \
-  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test
+  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test    # 208 core tests
+xcodebuild -project Binaural.xcodeproj -scheme Binaural \
+  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test    # + 135 window tests
+./build_release.sh                                              # apple/dist/Binaural.app
 ```
 
-`CODE_SIGNING_ALLOWED=NO` is required: no Apple Developer certificate is configured. What M1
-delivered, what M2 owes and the signing constraints are written up in
+`CODE_SIGNING_ALLOWED=NO` is required: no Apple Developer certificate is configured. What the
+milestones delivered, what is still open, and the signing constraints are written up in
 [apple/README.md](apple/README.md) and `apple/DESIGN.md`.
 
 ---
 
 ## Project status
 
-Alpha. Honest breakdown of what exists in the tree today:
+**v0.1.0 is tagged and published** (source only — no binaries are attached to the release). Alpha
+otherwise. Honest breakdown of what exists in the tree today:
 
 | Area | Status |
 |---|---|
 | `core/oscillator.py` — phase-continuous stereo oscillator, click-free ramps | implemented, tested |
 | `core/engine.py` — `QAudioSink` output, volume, start/stop | implemented, tested |
 | `core/session.py` — last frequencies, volume, swap flag, playback timer, preset category | implemented, tested |
+| `core/playback_timer.py` — the timer as a testable value, not a running clock | implemented, tested |
 | `audio/platform/` — device enumeration and classification (CoreAudio, `pactl`/`pw-cli`/`amixer`) | implemented, tested |
 | `audio/headphones.py` — heuristics plus the perceptual L/R test sequence | implemented, tested |
 | `data/frequencies.json` — 99 entries, 9 categories, bilingual | implemented, tested |
-| `ui/` — main window, reference dialog, headphone-check dialogs | in progress |
-| `app.py`, packaging, `install.sh` | in progress |
-| `apple/` — Swift foundation: beat math, oscillator, synthesiser, catalogue, session | implemented, 73 parity tests |
-| `apple/` — live audio, real UI, iOS Simulator test run | not started (M2) |
+| `ui/presets.py` — the preset registry, 7 categories / 20 presets | implemented, tested |
+| `ui/` — main window, reference dialog, headphone-check and L/R dialogs, Settings, tray | implemented, tested |
+| `app.py`, `install.sh`, Linux packaging | implemented; no release archive published yet |
+| Python suite | **420 tests**, 2 skipped |
+| `apple/` — the macOS app: live audio, full UI, presets, timer, *Lock difference*, EN/RU | implemented, **208 core + 135 macOS tests** |
+| `apple/` Release build | `apple/dist/Binaural.app`, **unsigned** |
+| `apple/` iOS | compiles against `generic/platform=iOS Simulator`; **never run** — no Simulator runtime on this machine |
+| Windows | not started |
 
 ---
 
 ## Roadmap
 
-**P1 — finishing the current scope**
+**Landed** — everything the plan below used to list as pending is now in the tree and tested in
+both implementations: the main window with live beat/carrier, the two-level preset registry, the
+playback timer, the headphone-check and L/R dialogs, the frequency reference with search and
+evidence badges, Settings, light/dark theme, keyboard shortcuts, and the accessibility rules from
+the specification.
 
-- Main window: frequency controls, live beat/carrier readout, preset chips
-- Headphone-check and L/R-test dialogs wired to the existing detection code
-- Frequency reference dialog with search, category filters and evidence badges
-- Settings dialog with the language switch inside it, a headphone-check button in the main
-  window, the playback timer and two-level presets — `Session.timer_minutes` and
-  `Session.preset_category` are already persisted, they simply have no control yet
-- Light/dark theme, keyboard shortcuts, accessibility rules from the spec
+**Next**
 
-**P2 — after that**
-
-- WAV export of a session
+- **Linux release archives** — the packaging is in place; nothing has been built and attached to a
+  release yet. `v0.1.0` is source only.
+- **Windows** — a WASAPI backend behind `audio/platform/`, a PyInstaller build, `install.ps1`
 - Optional `miniaudio` fallback output where `QAudioSink` is unavailable
-- Smooth fade-out when the timer expires
-- Windows: a WASAPI backend behind `audio/platform/`, a PyInstaller build, `install.ps1`
+- WAV export of a session — deliberately absent from both implementations; SPEC calls it optional
+- **iOS** — the scheme builds and links, but it has never been run: this machine has no Simulator
+  runtime. Installing one (`xcodebuild -downloadPlatform iOS`) turns it into a real check
 
-**Swift (`apple/`)**
+**Still honest limits**
 
-- **M2** — live audio, headphone detection, the real UI, EN/RU, tests on the iOS Simulator
-- After parity — drop the *release* build of the Python app for macOS; keep running it from
-  source, since that is how the Python side is developed
+- The macOS app is **unsigned** — no Apple Developer identity on the build machine, no
+  notarisation, no App Store. Gatekeeper blocks it for anyone but the builder.
+- Only a human with headphones on can judge the perceptual L/R test and its edge cases.
 
 ---
 
