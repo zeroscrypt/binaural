@@ -610,6 +610,43 @@ indicator switches to "Speakers detected" and `session.json` gains
 3. **The window carries its own "Check headphones…" button** (SPEC §7 asks for it; Python
    only has the menu item), and it goes through the same coordinator, so there is one check.
 
+## 11. M2-b item 3: the Settings dialog (SPEC §7)
+
+`Sources/macOS/SettingsDialogController.swift`. Python has **no settings layer at all**, so
+this is not a port: the four things SPEC §7's dialog list names are the four rows —
+language, headphone check, timer, volume — and nothing else was invented.
+
+**No OK button, because there is nothing to apply.** Every control writes through to the
+live window:
+
+| Row | Writes to | Live effect |
+|---|---|---|
+| Language | `L10n.setLanguage` — the *same* call the *View → Language* menu makes | the whole app, including the open dialog (§7.4) |
+| Timer | `MainWindowController.selectTimerMinutes` | a running session re-arms with the new duration |
+| Volume | `MainWindowController.setVolume` | the engine's gain; persisted by the window's own save |
+| Headphone check | `HeadphoneCheckCoordinator.rerunFromUser` | the §4.3 dialog, then the verdict comes back into the row |
+
+**The window builds its own Settings dialog** (`makeSettingsDialog()`), rather than the app
+delegate wiring four closures. The wiring is then in exactly one place, so the menu item
+and a test cannot end up with a dialog whose sliders move nothing — which is precisely the
+bug the first version of the test had, and which the factory made impossible. `Presenting`
+and `NSWindowController.endModalSessionAndClose` moved out of the coordinator into
+`DialogPresentation.swift`: by now three dialogs need both halves of modality, and
+"present" and "end" living in one file is what keeps them paired.
+
+**Cancel restores the language.** With no OK button there is no commit, so closing the
+dialog after switching the language would otherwise leave a silent, permanent change. The
+dialog remembers the language it opened with and puts it back on `cancel()`; the unit test
+pins that.
+
+**The timer popup offers `Session.timerChoices`**, exactly as the main window does — a
+settings dialog offering a different set of durations would be a second source of truth for
+a value that already has one. Out-of-range stored values snap to the nearest offered one, as
+in §9.
+
+**Placed in the application menu with `Cmd-,`**, which is where macOS puts it; Python has
+no menu for it because it has no dialog.
+
 ## 8. Build and verify (M2)
 
 The M1 commands (§6) still hold, plus one:

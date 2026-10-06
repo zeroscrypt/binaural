@@ -19,6 +19,19 @@ final class HeadphoneCheckTests: XCTestCase {
 
     // MARK: - Fixtures
 
+    /// `L10n` is process-wide state, and several tests here switch it to check that captions
+    /// follow. Resetting it here rather than at the end of each test means a test that fails
+    /// half-way through cannot leave Russian behind for the rest of the suite.
+    override func setUp() async throws {
+        try await super.setUp()
+        L10n.setLanguage("en")
+    }
+
+    override func tearDown() async throws {
+        L10n.setLanguage("en")
+        try await super.tearDown()
+    }
+
     /// The window, plus a record of what the coordinator asked it to do.
     private final class TargetSpy: HeadphoneCheckCoordinator.Target {
         var applied: [HeadphoneReport] = []
@@ -80,19 +93,20 @@ final class HeadphoneCheckTests: XCTestCase {
     /// acknowledged (its only exit) and the §4.2 dialog gets the scripted answer.
     ///
     @MainActor
-    private final class ScriptedPresenter: HeadphoneCheckCoordinator.Presenting {
+    private final class ScriptedPresenter: Presenting {
         let answer: LRTestResult?
 
         init(answer: LRTestResult?) {
             self.answer = answer
         }
 
-        func present(_ dialog: HeadphoneCheckDialogController) {
-            dialog.continueAnyway()
-        }
-
-        func present(_ dialog: LRTestDialogController) {
-            if let answer { dialog.submit(answer) }
+        func present(_ dialog: NSWindowController) {
+            switch dialog {
+            case let check as HeadphoneCheckDialogController: check.continueAnyway()
+            case let test as LRTestDialogController:
+                if let answer { test.submit(answer) }
+            default: break
+            }
         }
     }
 

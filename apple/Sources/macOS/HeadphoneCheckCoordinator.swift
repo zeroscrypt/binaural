@@ -41,43 +41,6 @@ final class HeadphoneCheckCoordinator {
         func persistHeadphoneState(acknowledged: Bool, channelsSwapped: Bool)
     }
 
-    /// Shows a dialog and returns when it is done.
-    ///
-    /// Behind a protocol because `NSApp.runModal(for:)` **never returns on its own** — it
-    /// spins a nested event loop until the dialog ends. Injected, the launch sequence can be
-    /// driven to completion in a test without a modal loop; the app passes the real one.
-    @MainActor
-    protocol Presenting: AnyObject {
-        func present(_ dialog: HeadphoneCheckDialogController)
-        func present(_ dialog: LRTestDialogController)
-    }
-
-    /// The real presenter: a modal window, the AppKit counterpart of Python's
-    /// `dialog.exec()`.
-    ///
-    /// `MainActor` like every AppKit operation in this file; the protocol is too, so the
-    /// conformance is checked with the isolation it is meant to run under rather than
-    /// needing `assumeIsolated` at every call.
-    @MainActor
-    final class ModalPresenter: Presenting {
-
-        func present(_ dialog: HeadphoneCheckDialogController) {
-            run(dialog)
-        }
-
-        func present(_ dialog: LRTestDialogController) {
-            run(dialog)
-        }
-
-        private func run(_ controller: NSWindowController) {
-            controller.showWindow(nil)
-            controller.window?.center()
-            guard let window = controller.window else { return }
-            NSApp.runModal(for: window)
-            controller.close()
-        }
-    }
-
     private let player: LRTonePlayer
     private weak var target: (any Target)?
     /// Injected for tests; the app passes nothing and gets the CoreAudio backend. Takes the
@@ -236,28 +199,5 @@ final class HeadphoneCheckCoordinator {
     /// than implied, so the rule can be asserted in a test.
     func needsPerceptualTest(_ report: HeadphoneReport) -> Bool {
         report.verdict == .unknown || report.verdict == .virtual || report.confidence == .low
-    }
-}
-
-/// Ending a modal session — the one piece every dialog here needs.
-///
-/// `NSApp.runModal(for:)` is a **nested event loop**, and closing its window from the
-/// inside does not reliably unwind it: the dialog disappears while the loop keeps
-/// spinning, so whatever presented the dialog never continues. `NSApp.stopModal(withCode:)`
-/// is the documented way to end it, and it only applies while *this* window is the modal
-/// one — a dialog that was merely shown, or that is running under a test's stub presenter,
-/// is closed plainly.
-extension NSWindowController {
-
-    /// End the modal session this window is running in, then close it.
-    ///
-    /// Safe to call unconditionally: with no modal session the effect is `close()`. That is
-    /// what lets one button handler serve a real modal dialog, a sheet parent and a test
-    /// without the dialog knowing which of them it is in.
-    func endModalSessionAndClose(code: NSApplication.ModalResponse = .OK) {
-        if let window, NSApp.modalWindow === window {
-            NSApp.stopModal(withCode: code)
-        }
-        close()
     }
 }

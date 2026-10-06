@@ -27,6 +27,7 @@ enum RussianWindowAdditions {
         "%1 min": "%1 мин",
         // SPEC §7 lists a Settings dialog; Python has no settings layer at all.
         "Settings": "Настройки",
+        "Settings…": "Настройки…",
         // SPEC §7 asks for a headphone-check button in the window itself, not only at
         // start-up. `ru.py` already has "Check headphones…" for the tray item, so only the
         // button's help text is new.

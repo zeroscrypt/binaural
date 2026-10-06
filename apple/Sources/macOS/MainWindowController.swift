@@ -460,6 +460,38 @@ final class MainWindowController: NSWindowController {
     /// The report the indicator is currently showing.
     var currentHeadphoneReport: HeadphoneReport { headphoneState }
 
+    // MARK: - Settings (SPEC §7)
+
+    /// Build the Settings dialog wired to this window.
+    ///
+    /// A factory rather than four loose closures handed over by the app delegate: this is
+    /// the **only** place where "Settings writes into the window" is decided, so the menu
+    /// item and a test cannot end up with a dialog whose sliders move nothing.
+    func makeSettingsDialog() -> SettingsDialogController {
+        let dialog = SettingsDialogController(
+            values: SettingsDialogController.Values(
+                language: L10n.language,
+                timerMinutes: timerView.selectedMinutes,
+                volume: volumeSlider.doubleValue,
+                headphoneReport: headphoneState
+            )
+        )
+        dialog.onTimerChange = { [weak self] minutes in self?.selectTimerMinutes(minutes) }
+        dialog.onVolumeChange = { [weak self] level in self?.setVolume(level) }
+        dialog.onLanguageChange = { [weak self] _ in self?.saveNow() }
+        dialog.onCheckHeadphones = { [weak self] in
+            guard let self else { return }
+            // The §4.3 dialog, not a second check: Settings offers the entry point.
+            coordinator?.rerunFromUser()
+            dialog.apply(headphoneReport: coordinator?.report ?? headphoneState)
+        }
+        settingsDialog = dialog
+        return dialog
+    }
+
+    /// Kept so the Settings dialog cannot outlive the window it edits.
+    private weak var settingsDialog: SettingsDialogController?
+
     // MARK: - Language
 
     /// Re-read every visible string (SPEC §7.4). The window is built once and lives for

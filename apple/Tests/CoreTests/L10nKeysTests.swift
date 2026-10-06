@@ -49,6 +49,8 @@ final class L10nKeysTests: XCTestCase {
         "Speakers detected — binaural beats need headphones", "Unknown device",
         // timer (SPEC §5 F5)
         "Timer", "Off", "%1 min",
+        // Settings dialog (SPEC §7)
+        "Settings…", "Settings",
         // headphone check at launch (SPEC §4)
         "Headphones recommended", "Headphones detected", "Speakers detected",
         "Virtual audio device — cannot tell what is playing",
