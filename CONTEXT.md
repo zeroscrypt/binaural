@@ -68,7 +68,7 @@ Every command below was run on `main` before this file was committed. If a numbe
 match your run, something changed — find out what before you trust either.
 
 ```bash
-# Python — 481 passed, 2 skipped
+# Python — 488 passed, 2 skipped
 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest
 
 # Swift — regenerate the project first; Binaural.xcodeproj is generated and gitignored
@@ -78,7 +78,7 @@ cd apple && xcodegen generate
 xcodebuild -project Binaural.xcodeproj -scheme BinauralCore \
   -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test
 
-# 135 window tests (BinauralMacTests, drives the real MainWindowController)
+# 141 window tests (BinauralMacTests, drives the real MainWindowController)
 xcodebuild -project Binaural.xcodeproj -scheme Binaural \
   -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test
 
@@ -142,7 +142,7 @@ Each of these cost real time. They are not stylistic preferences.
 5. **`src/binaural/locales/ru.py` is the i18n source of truth.**
    `apple/Sources/Core/Locales/RussianCatalogue.swift` is **generated** from it by
    `python3 apple/Tools/generate_russian_catalogue.py` and must be regenerated whenever `ru.py`
-   changes. It currently carries **203 keys**. A hand-written key in `RussianWindowAdditions.swift`
+   changes. It currently carries **218 keys**. A hand-written key in `RussianWindowAdditions.swift`
    (4 keys) is legitimate only for a string `ru.py` has no call site for; **the two files must not
    overlap.** `L10nTests.testCatalogMatchesThePythonKeyCount` parses `ru.py` at test time and fails
    on any mismatch — so **the Swift suite fails if you forget to regenerate.**
@@ -194,10 +194,10 @@ assets attached, because the unsigned `.app` cannot be distributed.
 | Python core | oscillator, engine, session, playback timer, `difference_lock` — implemented, tested |
 | Python audio | device enumeration and classification (CoreAudio, `pactl`/`pw-cli`/`amixer`), headphone heuristics + perceptual L/R test — implemented, tested |
 | Python UI | main window, F3 preset registry, reference dialog, headphone dialogs, Settings, tray — implemented, tested |
-| Python suite | **481 passed, 2 skipped** |
+| Python suite | **488 passed, 2 skipped** |
 | `apple/` core | `BinauralCore` — provably equal to Python by test, not merely compiling |
 | `apple/` macOS | **All of M2**: live audio, main window, F3 preset registry (7 categories, 20 presets), the full frequency reference, headphone check, Settings, About, playback timer, menu-bar item, session persistence, the **"Lock difference"** checkbox |
-| Swift suites | **208 core + 135 macOS window** |
+| Swift suites | **208 core + 141 macOS window** |
 | `apple/` Release | `apple/dist/Binaural.app`, unsigned |
 | `apple/` iOS | compiles and links; **never run** |
 | Windows | not started |
@@ -209,7 +209,23 @@ half-open band, a click setting both channels around the 200 Hz carrier so `fL =
 Python is at parity with the Swift app for the interface: the F3 presets, Settings, the timer and the
 "Lock difference" checkbox are implemented on both sides. Milestone plan: `apple/M2.md`.
 
+The **About dialog** now carries four descriptive sections (SPEC §7 item 6): «Кто создал»,
+«Как это работает», «Что это и зачем», «Технические детали». Every sentence is one shared `tr()`
+key — `AboutContent.swift` holds the English constants, `about.py` holds the identical strings,
+and `tests/test_dialogs.py::test_about_section_text_matches_the_swift_wording` parses the Swift
+file and fails if either side is reworded alone. Only the platform line and the stack line differ,
+for the same reason the tagline does: `apple/` is a separate product (SPEC §3), so their Russian
+is the only part of the four sections in `RussianWindowAdditions.swift`. Both bodies scroll
+(`QScrollArea` / `NSScrollView`) — the new sections make the dialog far taller than its window and
+clipping is the failure mode a scrolling container hides, so both suites assert the sections are
+inside the scroll area and in order.
+
 ## 9. Open questions and blocked work
+
+**Approved and landed (2026-10-07).** The About dialog was expanded into four descriptive
+sections — who made it, how it works, what it is and what it is for, technical details — in both
+implementations, at user level and without health claims. See §8 for what that means for the
+shared keys.
 
 **Approved and landed (2026-10-07).** The proposal to add frequency entries about substances and
 positive affect was approved and is in the tree: **11 entries in two new categories**, `substance`

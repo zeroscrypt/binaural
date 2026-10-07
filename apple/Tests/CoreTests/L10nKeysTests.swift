@@ -105,6 +105,22 @@ final class L10nKeysTests: XCTestCase {
         "Two sine tones of different frequency are sent to the left and the right ear. Your brain fuses them into a third tone that has no sound source: the difference between the two frequencies. That phantom tone is the binaural beat.",
         "Headphones are a physical requirement, not a recommendation: on speakers both frequencies mix in the air before they reach your ears, and the effect is gone. The application checks the audio output on every start and reports what it found.",
         "The frequency reference keeps every record it has — from peer-reviewed EEG literature to esoteric traditions — each marked with how well it is studied.",
+        // SPEC §7 item 6: the four descriptive sections of the About dialog, in the
+        // order `AboutDialogController` shows them. Two of them (platform, stack) are
+        // macOS-only and live in `RussianWindowAdditions`, like the tagline above.
+        "Who made it", "How it works", "What it is and what it is for",
+        "Technical details",
+        "Written by @zeroscrypt (Dmitriy Solontsov), with special thanks to @hakatao.",
+        "The project lives at github.com/zeroscrypt/binaural. Released in 2026.",
+        "Two sine tones of different frequency, one sent to each ear, and the brain hears a third tone that is not there. That third tone is the difference between the two frequencies, and it is called the beat.",
+        "The beat is the difference between the two frequencies. The carrier is their average — the tone you actually hear in each ear, with the beat pulsing inside it.",
+        "Headphones are not a preference but a physical requirement: the two frequencies have to reach your ears separately, and only headphones do that. On speakers they mix in the air first, and there is nothing left to fuse.",
+        "The application itself does the plain part: two independent frequencies you set, play and stop, volume, a timer, presets, the frequency reference and a headphone check. Nothing is added to the sound and nothing is sent anywhere.",
+        "Binaural is a desktop generator of binaural beats. It makes a sound and shows you what is known about the frequencies it can play.",
+        "It is not a medical device and makes no health claim. It does not diagnose, treat or prevent anything, and it does not promise an effect. The disclaimer below is the full version of that sentence.",
+        "Platform: macOS. Licence: MIT — use it, change it, ship it.",
+        "Built with Swift and AVAudioEngine. Two applications are built from this repository; they share their frequency arithmetic, not their code.",
+        "The macOS app is unsigned: no Apple Developer identity is available, so it runs for whoever built it and Gatekeeper blocks it for anyone else. Right-click, then Open, gets past it. GitHub releases carry source only.",
         "Version {version} · macOS {system}",
         "Disclaimer",
         "These frequencies and the descriptions of their effects come from research, and also from esoteric, energy and alternative practices. This application is not a medical device and is not intended for the diagnosis, treatment or prevention of any disease. Do not use it if you have epilepsy or a pacemaker, during pregnancy, or if you are photosensitive, without consulting a doctor. Do not turn the volume above a comfortable level. Binaural beats are sound, not a substance, and they do not replace one. Nothing here helps with withdrawal, craving, tolerance or relapse, and this app does not treat dependence of any kind. Dependence is a medical condition with risks of its own: withdrawal from alcohol and from sedatives can be dangerous. If you are dependent on something, or want to use less of it, that is a question for a doctor or a specialist service, not for a tone generator.",

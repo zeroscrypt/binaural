@@ -134,7 +134,13 @@ final class AboutDialogController: NSWindowController {
             root.topAnchor.constraint(equalTo: content.topAnchor),
             root.bottomAnchor.constraint(equalTo: content.bottomAnchor),
             scrollView.heightAnchor.constraint(greaterThanOrEqualToConstant: 320),
-            row.widthAnchor.constraint(equalTo: root.widthAnchor)
+            row.widthAnchor.constraint(equalTo: root.widthAnchor),
+            // A vertical `NSStackView` sizes an arranged subview to its **intrinsic**
+            // width, and `NSScrollView` has none. Without this the scroll view lays out
+            // at zero width, every label inside it collapses to a few points, and the
+            // whole body renders blank — with the text still present in the
+            // accessibility tree, which is why a label-based test cannot see it.
+            scrollView.widthAnchor.constraint(equalTo: root.widthAnchor)
         ])
         window?.contentView = content
     }
@@ -161,6 +167,50 @@ final class AboutDialogController: NSWindowController {
             "Medical disclaimer — read it before using the application."
         )
         return box
+    }
+
+    /// One titled section of SPEC §7 item 6: a heading and its body lines.
+    ///
+    /// A heading in `heading()`'s 16pt would compete with the `Binaural` title, so the
+    /// section heading gets its own size — visible as a heading, clearly below the title.
+    /// The body lines are plain paragraphs: nothing here is legal text, so they are not
+    /// `selectable()` and not 11pt caption type the way the disclaimer and licence are.
+    private func sectionBox(title: String, lines: [String]) -> NSView {
+        let stack = NSStackView(views: [
+            sectionHeading(title),
+        ])
+        for line in lines {
+            stack.addArrangedSubview(paragraph(line))
+        }
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 6
+        // Autoresizing, not Auto Layout, like every other label in this dialog. An
+        // `NSStackView` has no intrinsic content size, so pinning it into constraints
+        // gives it an undetermined — in practice zero — height and the section renders
+        // as empty space. The parent `body` stack sizes it from its arranged subviews.
+        return stack
+    }
+
+    /// The four sections, in the order ``AboutContent`` declares them.
+    ///
+    /// A table rather than four `addArrangedSubview` calls at the call site: the order is
+    /// part of what the dialog says, and one list is the one place to change it. Each
+    /// entry is `(title, body)` with the title already translated, because the headings
+    /// go through ``AboutContentText``.
+    private var sections: [(title: String, body: [String])] {
+        [
+            (AboutContentText.whoMadeItTitle,
+             [AboutContentText.creditsLine, AboutContentText.creditsWhere]),
+            (AboutContentText.howItWorksTitle,
+             [AboutContentText.mechanismLine, AboutContentText.termsLine,
+              AboutContentText.headphonesWhyLine, AboutContentText.appDoesLine]),
+            (AboutContentText.whatItIsForTitle,
+             [AboutContentText.scopeLine, AboutContentText.notMedicalLine]),
+            (AboutContentText.technicalTitle,
+             [AboutContentText.platformLicenceLine, AboutContentText.stackLine,
+              AboutContentText.unsignedLine]),
+        ]
     }
 
     private func licenseBox() -> NSBox {
@@ -227,6 +277,14 @@ final class AboutDialogController: NSWindowController {
         return label
     }
 
+    /// A section heading: semibold, but smaller than `heading()` so the `Binaural`
+    /// title at the top of the dialog stays the largest thing on screen.
+    private func sectionHeading(_ text: String) -> NSTextField {
+        let label = NSTextField(labelWithString: text)
+        label.font = .systemFont(ofSize: 13, weight: .semibold)
+        return label
+    }
+
     private func caption(_ text: String) -> NSTextField {
         let label = NSTextField(labelWithString: text)
         label.font = .systemFont(ofSize: 11)
@@ -277,6 +335,14 @@ final class AboutDialogController: NSWindowController {
         )
         link.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         body.addArrangedSubview(link)
+
+        // The four sections of SPEC §7 item 6, between the link and the disclaimer: what
+        // it is, how it works, who made it and the technical facts come before the legal
+        // text, which is the order a reader arriving at the dialog wants them in. Same
+        // position as in `about.py`, so the two dialogs read identically.
+        for section in sections {
+            body.addArrangedSubview(sectionBox(title: section.title, lines: section.body))
+        }
 
         body.addArrangedSubview(disclaimerBox())
         body.addArrangedSubview(licenseBox())

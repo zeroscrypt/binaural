@@ -39,6 +39,7 @@ __all__ = [
     "LICENSE_SUMMARY_EN",
     "license_text",
     "PROJECT_URL",
+    "sections",
     "version_line",
 ]
 
@@ -93,6 +94,99 @@ _EVIDENCE_NOTE = (
     "The frequency reference keeps every record it has — from peer-reviewed EEG "
     "literature to esoteric traditions — each marked with how well it is studied."
 )
+
+# --------------------------------------------------------------------------
+# The four sections of SPEC §7 item 6.
+#
+# Same English sentences as ``AboutContent.swift``, one key each: two
+# implementations, one contract (CONTRACT rule 9). A sentence shared between the
+# two dialogs has to be the *same* key, or the two drift and nobody notices.
+# --------------------------------------------------------------------------
+
+_WHO_MADE_IT_TITLE = "Who made it"
+_HOW_IT_WORKS_TITLE = "How it works"
+_WHAT_IT_IS_FOR_TITLE = "What it is and what it is for"
+_TECHNICAL_TITLE = "Technical details"
+
+# «Кто создал». Two handles, a name, a year and the repository — nothing else.
+# A biography, a company and a contact address would all be invented.
+_CREDITS_LINE = (
+    "Written by @zeroscrypt (Dmitriy Solontsov), with special thanks to @hakatao."
+)
+_CREDITS_WHERE = "The project lives at github.com/zeroscrypt/binaural. Released in 2026."
+
+# «Как это работает». Part 1 names the third tone before the two terms arrive, so
+# the reader has the whole idea before `beat` and `carrier` are used.
+_MECHANISM_LINE = (
+    "Two sine tones of different frequency, one sent to each ear, and the brain hears "
+    "a third tone that is not there. That third tone is the difference between the two "
+    "frequencies, and it is called the beat."
+)
+_TERMS_LINE = (
+    "The beat is the difference between the two frequencies. The carrier is their "
+    "average — the tone you actually hear in each ear, with the beat pulsing inside it."
+)
+# Why the check in `_WHAT_IT_NEEDS` can fail at all: the part a reader without that
+# paragraph would be missing.
+_HEADPHONES_WHY_LINE = (
+    "Headphones are not a preference but a physical requirement: the two frequencies "
+    "have to reach your ears separately, and only headphones do that. On speakers "
+    "they mix in the air first, and there is nothing left to fuse."
+)
+_APP_DOES_LINE = (
+    "The application itself does the plain part: two independent frequencies you set, "
+    "play and stop, volume, a timer, presets, the frequency reference and a headphone "
+    "check. Nothing is added to the sound and nothing is sent anywhere."
+)
+
+# «Что это и зачем». Part 2 turns on the three words SPEC §6.13 turns on and then
+# points at the disclaimer panel: a disclaimer quoted twice is two texts to keep in
+# step, and the short one softens first.
+_SCOPE_LINE = (
+    "Binaural is a desktop generator of binaural beats. It makes a sound and shows "
+    "you what is known about the frequencies it can play."
+)
+_NOT_MEDICAL_LINE = (
+    "It is not a medical device and makes no health claim. It does not diagnose, treat "
+    "or prevent anything, and it does not promise an effect. The disclaimer below is "
+    "the full version of that sentence."
+)
+
+# «Технические детали». The version line is *not* repeated: `version_line()` already
+# shows it once. Platform and stack are the two lines that differ per implementation —
+# `apple/` is a separate product (SPEC §3) — the same split `_APP_TAGLINE` has.
+_PLATFORM_LICENCE_LINE = (
+    "Platform: macOS and Linux. Licence: MIT — use it, change it, ship it."
+)
+_STACK_LINE = (
+    "Built with Python 3.10 or newer and PySide6. Two applications are built from this "
+    "repository; they share their frequency arithmetic, not their code."
+)
+_UNSIGNED_LINE = (
+    "The macOS app is unsigned: no Apple Developer identity is available, so it runs "
+    "for whoever built it and Gatekeeper blocks it for anyone else. Right-click, then "
+    "Open, gets past it. GitHub releases carry source only."
+)
+
+def sections() -> list[tuple[str, list[str]]]:
+    """The four sections of SPEC §7 item 6, translated, in the order shown.
+
+    ``(heading, body lines)``. Translated here rather than through a tuple of keys
+    because ``test_no_orphan_catalogue_entries`` finds a key by walking the AST for
+    ``tr(NAME)`` calls, and a table of keys read with a subscript gives it nothing to
+    match — which would let a key sit in ``ru.py`` that no dialog shows.
+    """
+    return [
+        (tr(_WHO_MADE_IT_TITLE), [tr(_CREDITS_LINE), tr(_CREDITS_WHERE)]),
+        (tr(_HOW_IT_WORKS_TITLE), [
+            tr(_MECHANISM_LINE), tr(_TERMS_LINE), tr(_HEADPHONES_WHY_LINE),
+            tr(_APP_DOES_LINE),
+        ]),
+        (tr(_WHAT_IT_IS_FOR_TITLE), [tr(_SCOPE_LINE), tr(_NOT_MEDICAL_LINE)]),
+        (tr(_TECHNICAL_TITLE), [
+            tr(_PLATFORM_LICENCE_LINE), tr(_STACK_LINE), tr(_UNSIGNED_LINE),
+        ]),
+    ]
 
 
 def disclaimer_text() -> str:
@@ -152,6 +246,9 @@ class AboutDialog(QDialog):
         self._link_row = open_link_label(PROJECT_URL, PROJECT_URL)
         content.addWidget(self._link_row)
 
+        for heading, body in sections():
+            content.addWidget(self._build_section(heading, body))
+
         self._disclaimer_panel = self._build_disclaimer()
         content.addWidget(self._disclaimer_panel)
 
@@ -183,6 +280,22 @@ class AboutDialog(QDialog):
         self._close_button.setFocus(Qt.FocusReason.OtherFocusReason)
 
     # ------------------------------------------------------------------ build
+
+    def _build_section(self, heading: str, body: list[str]) -> QWidget:
+        """One titled block: a heading and its body lines, as a plain panel.
+
+        Not ``_build_disclaimer``'s bordered panel: these sections have no legal
+        text to set off, and four more borders would turn the dialog into a stack
+        of boxes. Word wrap on every label is what keeps long sentences readable at
+        any width — the body scrolls, so nothing may rely on a fixed height.
+        """
+        panel = make_panel()
+        panel.setAccessibleName(heading)
+        layout = panel_layout(panel, spacing=SPACE_SM, margins=0)
+        layout.addWidget(make_label(heading, role="heading"))
+        for line in body:
+            layout.addWidget(make_label(line, word_wrap=True, selectable=True))
+        return panel
 
     def _build_disclaimer(self) -> QWidget:
         panel = make_panel(object_name="disclaimer")

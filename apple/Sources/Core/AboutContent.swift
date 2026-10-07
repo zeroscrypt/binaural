@@ -44,6 +44,98 @@ public enum AboutContent {
         + "— from peer-reviewed EEG literature to esoteric traditions — each marked with "
         + "how well it is studied."
 
+    // MARK: - The four descriptive sections
+
+    // SPEC §7 item 6 names the four sections the About dialog shows. They are here,
+    // in `Core`, for the same reason the disclaimer is: a sentence both products
+    // show must be one string translated through `L10n.tr`, not two sentences that
+    // can drift (CONTRACT rule 9).
+
+    /// Section headings. Each is a bare noun phrase in the key, which is also how
+    /// `ru.py` carries them — a heading is not a full sentence and does not read
+    /// like one when a translator reads the key alone.
+    public static let whoMadeItTitle = "Who made it"
+    public static let howItWorksTitle = "How it works"
+    public static let whatItIsForTitle = "What it is and what it is for"
+    public static let technicalTitle = "Technical details"
+
+    /// «Кто создал». Two handles, one name, a year and the repository — and nothing
+    /// else. A biography, a company and a contact address are all invented, so they
+    /// are all absent.
+    public static let creditsLine = "Written by @zeroscrypt (Dmitriy Solontsov), "
+        + "with special thanks to @hakatao."
+    public static let creditsWhere = "The project lives at github.com/zeroscrypt/binaural. "
+        + "Released in 2026."
+
+    /// «Как это работает», part 1: the effect itself. Names the third tone and says
+    /// what it is, so the reader has the whole idea before `beat` and `carrier`
+    /// arrive in the next sentence.
+    public static let mechanismLine = "Two sine tones of different frequency, one sent "
+        + "to each ear, and the brain hears a third tone that is not there. That third "
+        + "tone is the difference between the two frequencies, and it is called the beat."
+
+    /// …part 2: the two numbers, defined. ``beat`` is the difference, ``carrier`` is
+    /// the average — the tone each ear actually hears, with the beat inside it. A
+    /// reader who does not know either word can still follow this sentence.
+    public static let termsLine = "The beat is the difference between the two "
+        + "frequencies. The carrier is their average — the tone you actually hear in "
+        + "each ear, with the beat pulsing inside it."
+
+    /// …part 3: why headphones are a requirement. ``whatItNeeds`` says the app
+    /// *checks* the output; this says why the check can fail, which is the part a
+    /// reader without the other paragraph would be missing.
+    public static let headphonesWhyLine = "Headphones are not a preference but a "
+        + "physical requirement: the two frequencies have to reach your ears separately, "
+        + "and only headphones do that. On speakers they mix in the air first, and "
+        + "there is nothing left to fuse."
+
+    /// …part 4: what the app actually does. The feature list in words, and the two
+    /// absences — nothing touches the signal, nothing leaves the machine — which are
+    /// the claims a user is most likely to want checked.
+    public static let appDoesLine = "The application itself does the plain part: two "
+        + "independent frequencies you set, play and stop, volume, a timer, presets, "
+        + "the frequency reference and a headphone check. Nothing is added to the "
+        + "sound and nothing is sent anywhere."
+
+    /// «Что это и зачем», part 1: what the thing is, in one sentence.
+    public static let scopeLine = "Binaural is a desktop generator of binaural beats. "
+        + "It makes a sound and shows you what is known about the frequencies it can play."
+
+    /// …part 2: what it is not. The three words SPEC §6.13 turns on — not a medical
+    /// device, no diagnosis / treatment / prevention, no promised effect — and a
+    /// pointer to the disclaimer panel rather than a second copy of it: a disclaimer
+    /// quoted twice is two texts to keep in step, and the short one would soften first.
+    public static let notMedicalLine = "It is not a medical device and makes no health "
+        + "claim. It does not diagnose, treat or prevent anything, and it does not "
+        + "promise an effect. The disclaimer below is the full version of that sentence."
+
+    /// «Технические детали», part 1: the licence, and the sentence about the two
+    /// applications. The version line is deliberately **not** here —
+    /// ``versionTemplate`` already shows it once, and a second copy would be two
+    /// lines to keep in step for no gain.
+    ///
+    /// ``platformLicenceLine`` is macOS-only on purpose and follows ``tagline``: the
+    /// Swift build is a separate product (SPEC §3), so the shared "macOS and Linux"
+    /// wording would be false in it. Its Russian lives in `RussianWindowAdditions`.
+    public static let platformLicenceLine = "Platform: macOS. Licence: MIT — use it, change it, ship it."
+
+    /// …part 2: the stack, and what the two implementations do and do not share. The
+    /// frequency arithmetic is one contract (CONTRACT §2) and the code is not, which
+    /// is the one thing worth saying about the stack to somebody deciding whether to
+    /// read the repository or install something from it.
+    ///
+    /// One literal, not a `+` run: `L10nTests.testEveryAdditionIsShownByTheApp` finds
+    /// a Swift-only key by `contains`, so a joined literal would not be found at all.
+    public static let stackLine = "Built with Swift and AVAudioEngine. Two applications are built from this repository; they share their frequency arithmetic, not their code."
+
+    /// …part 3: why there is no `.app` to download. In the technical section rather
+    /// than a fifth one because it is part of what "this is a build you can actually
+    /// get" means, and it is already in this form in `apple/README.md` and `README.md`.
+    public static let unsignedLine = "The macOS app is unsigned: no Apple Developer "
+        + "identity is available, so it runs for whoever built it and Gatekeeper blocks "
+        + "it for anyone else. Right-click, then Open, gets past it. GitHub releases "
+        + "carry source only."
+
     /// ``versionLine``'s key, which carries `{version}` and `{system}` placeholders.
     public static let versionTemplate = "Version {version} · macOS {system}"
 
@@ -142,6 +234,12 @@ public enum AboutContent {
         aboutTitle, tagline, whatItIs, whatItNeeds, evidenceNote, versionTemplate,
         disclaimerTitle, disclaimerEnglish, licenseName, licenseSummary,
         "Copyright (c) {year} {holder}",
+        // The four sections of SPEC §7 item 6.
+        whoMadeItTitle, howItWorksTitle, whatItIsForTitle, technicalTitle,
+        creditsLine, creditsWhere,
+        mechanismLine, termsLine, headphonesWhyLine, appDoesLine,
+        scopeLine, notMedicalLine,
+        platformLicenceLine, stackLine, unsignedLine,
     ]
 
 }
@@ -157,6 +255,23 @@ public enum AboutContentText {
     public static var whatItIs: String { L10n.tr(AboutContent.whatItIs) }
     public static var whatItNeeds: String { L10n.tr(AboutContent.whatItNeeds) }
     public static var evidenceNote: String { L10n.tr(AboutContent.evidenceNote) }
+    public static var whoMadeItTitle: String { L10n.tr(AboutContent.whoMadeItTitle) }
+    public static var howItWorksTitle: String { L10n.tr(AboutContent.howItWorksTitle) }
+    public static var whatItIsForTitle: String { L10n.tr(AboutContent.whatItIsForTitle) }
+    public static var technicalTitle: String { L10n.tr(AboutContent.technicalTitle) }
+    public static var creditsLine: String { L10n.tr(AboutContent.creditsLine) }
+    public static var creditsWhere: String { L10n.tr(AboutContent.creditsWhere) }
+    public static var mechanismLine: String { L10n.tr(AboutContent.mechanismLine) }
+    public static var termsLine: String { L10n.tr(AboutContent.termsLine) }
+    public static var headphonesWhyLine: String { L10n.tr(AboutContent.headphonesWhyLine) }
+    public static var appDoesLine: String { L10n.tr(AboutContent.appDoesLine) }
+    public static var scopeLine: String { L10n.tr(AboutContent.scopeLine) }
+    public static var notMedicalLine: String { L10n.tr(AboutContent.notMedicalLine) }
+    public static var platformLicenceLine: String {
+        L10n.tr(AboutContent.platformLicenceLine)
+    }
+    public static var stackLine: String { L10n.tr(AboutContent.stackLine) }
+    public static var unsignedLine: String { L10n.tr(AboutContent.unsignedLine) }
     public static var disclaimerTitle: String { L10n.tr(AboutContent.disclaimerTitle) }
     public static var aboutTitle: String { L10n.tr(AboutContent.aboutTitle) }
     public static var licenseName: String { L10n.tr(AboutContent.licenseName) }

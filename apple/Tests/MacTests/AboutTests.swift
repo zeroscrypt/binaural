@@ -130,6 +130,117 @@ final class AboutTests: XCTestCase {
         )
     }
 
+    // MARK: - The four sections (SPEC §7 item 6)
+
+    /// The four headings, in the order the dialog shows them. Named as constants so a
+    /// heading reworded on one side and not the other fails here rather than reading as
+    /// a different section with the same meaning.
+    private static let sectionTitles = [
+        AboutContent.whoMadeItTitle,
+        AboutContent.howItWorksTitle,
+        AboutContent.whatItIsForTitle,
+        AboutContent.technicalTitle,
+    ]
+
+    /// Every section is there, as a heading, before the disclaimer panel — which is the
+    /// only text in the product whose position is fixed by SPEC §6.13.
+    func testTheDialogShowsTheFourSections() {
+        let dialog = makeDialog()
+        let lines = dialog.visibleLines
+        for title in Self.sectionTitles {
+            XCTAssertTrue(lines.contains(title), "About is missing the section: \(title)")
+        }
+        let firstHeading = try? XCTUnwrap(lines.firstIndex(of: AboutContent.whoMadeItTitle))
+        let disclaimer = try? XCTUnwrap(lines.firstIndex(of: AboutContentText.disclaimer))
+        XCTAssertLessThan(
+            firstHeading ?? .max, disclaimer ?? 0,
+            "the sections come before the disclaimer"
+        )
+    }
+
+    /// Each section says what SPEC §7 item 6 asks it to say. Named per phrase, so a
+    /// section that loses a sentence is one named failure rather than a whole-text match.
+    func testTheSectionsSayWhatTheyShould() {
+        let dialog = makeDialog()
+        let lines = dialog.visibleLines
+        let expected: [String: [String]] = [
+            AboutContent.whoMadeItTitle: [
+                "@zeroscrypt", "@hakatao", "2026", "github.com/zeroscrypt/binaural",
+            ],
+            AboutContent.howItWorksTitle: [
+                "one sent to each ear", "third tone",
+                "The beat is the difference", "The carrier is their average",
+                "physical requirement", "volume", "timer", "presets", "headphone check",
+            ],
+            AboutContent.whatItIsForTitle: [
+                "desktop generator of binaural beats", "not a medical device",
+                "diagnose, treat or prevent",
+            ],
+            AboutContent.technicalTitle: [
+                "Platform:", "macOS", "MIT", "Swift", "AVAudioEngine", "unsigned",
+            ],
+        ]
+        XCTAssertEqual(Set(expected.keys), Set(Self.sectionTitles))
+        for (title, phrases) in expected {
+            let body = lines.filter { $0 != title }
+            let text = body.joined(separator: "\n")
+            for phrase in phrases {
+                XCTAssertTrue(
+                    text.contains(phrase),
+                    "the About text lost \(phrase) — is it still in \(title)?"
+                )
+            }
+        }
+    }
+
+    /// No section makes a health claim. SPEC §6.13 forbids promising treatment, diagnosis
+    /// or a cure anywhere, and the new prose is the most likely place for one to creep in.
+    func testTheSectionsClaimNoHealth() {
+        let dialog = makeDialog()
+        let text = dialog.visibleLines.joined(separator: "\n").lowercased()
+        for word in ["treats", "cures", "heals", "guarantees", "proven to", "safe for"] {
+            XCTAssertFalse(text.contains(word), "the About text must not claim: \(word)")
+        }
+    }
+
+    /// The macOS `.app` is unsigned, and the dialog says so rather than leaving a reader
+    /// to find out from Gatekeeper.
+    func testTheTechnicalSectionSaysTheAppIsUnsigned() {
+        let dialog = makeDialog()
+        XCTAssertTrue(dialog.visibleLines.contains(AboutContentText.unsignedLine))
+        XCTAssertTrue(AboutContentText.unsignedLine.contains("unsigned"))
+        XCTAssertTrue(AboutContentText.unsignedLine.contains("Gatekeeper"))
+    }
+
+    /// The version is shown once, by the version line above. A second copy inside the
+    /// technical section would be two numbers to keep in step for no gain.
+    func testTheTechnicalSectionDoesNotRepeatTheVersion() {
+        let dialog = makeDialog()
+        let text = AboutContentText.technicalTitle
+            + " " + AboutContentText.platformLicenceLine
+            + " " + AboutContentText.stackLine
+            + " " + AboutContentText.unsignedLine
+        XCTAssertFalse(text.contains("Version"), "the version line is already shown above")
+        XCTAssertTrue(dialog.visibleLines.contains(AboutContent.versionText()))
+    }
+
+    /// §7.4 again, for the new sections specifically: the Russian comes from `ru.py`,
+    /// so a language switch leaves no English heading behind.
+    func testTheSectionsFollowTheLanguage() {
+        let dialog = makeDialog()
+        L10n.setLanguage("ru")
+        for title in Self.sectionTitles {
+            let russian = RussianCatalogue.all[title] ?? RussianWindowAdditions.messages[title]
+            XCTAssertNotNil(russian, "no Russian for the section heading: \(title)")
+            XCTAssertTrue(
+                dialog.visibleLines.contains(russian ?? ""),
+                "the Russian heading is not shown: \(russian ?? "")"
+            )
+        }
+        XCTAssertFalse(dialog.visibleLines.contains(AboutContent.howItWorksTitle))
+        L10n.setLanguage("en")
+    }
+
     func testTheDialogShowsTheVersionAndTheLicence() {
         let dialog = makeDialog()
         let lines = dialog.visibleLines

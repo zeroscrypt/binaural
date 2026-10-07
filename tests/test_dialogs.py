@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import time
+from pathlib import Path
 
 import pytest
 
@@ -23,6 +24,7 @@ from PySide6.QtWidgets import (  # noqa: E402
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
 )
 
 from binaural import __version__  # noqa: E402
@@ -43,6 +45,8 @@ from binaural.ui.dialogs import (  # noqa: E402
     contrast_ratio,
     resolve_theme,
 )
+from binaural.ui.dialogs import tr  # noqa: E402
+from binaural.ui.dialogs import about  # noqa: E402
 from binaural.ui.dialogs.reference import frequencies_for  # noqa: E402
 
 HEADPHONES_DEVICE = AudioDevice("AirPods Pro", "bluetooth", True)
@@ -828,6 +832,184 @@ def test_about_contains_mit_licence(qapp):
     assert "MIT License" in text
     assert "Copyright (c) 2026 Dmitriy Solontsov" in text
     assert "without warranty of any kind" in text
+
+
+# --------------------------------------------------------------------------
+# The four sections of SPEC §7 item 6
+# --------------------------------------------------------------------------
+
+#: The four headings of SPEC §7 item 6, in order, as the English keys they are.
+SECTION_HEADINGS = (
+    "_WHO_MADE_IT_TITLE",
+    "_HOW_IT_WORKS_TITLE",
+    "_WHAT_IT_IS_FOR_TITLE",
+    "_TECHNICAL_TITLE",
+)
+
+#: English heading → phrases that must appear in **that** section's body. Named per
+#: section so a section that loses a sentence is one named failure, and so a phrase
+#: cannot be satisfied by a sentence that ended up in the wrong section.
+SECTION_EXPECTATIONS = {
+    "_WHO_MADE_IT_TITLE": (
+        "@zeroscrypt",
+        "@hakatao",
+        "2026",
+        "github.com/zeroscrypt/binaural",
+    ),
+    "_HOW_IT_WORKS_TITLE": (
+        "one sent to each ear",
+        "third tone",
+        "The beat is the difference",
+        "The carrier is their average",
+        "physical requirement",
+        "volume",
+        "timer",
+        "presets",
+        "headphone check",
+    ),
+    "_WHAT_IT_IS_FOR_TITLE": (
+        "desktop generator of binaural beats",
+        "not a medical device",
+        "diagnose, treat or prevent",
+    ),
+    "_TECHNICAL_TITLE": (
+        "Platform:",
+        "macOS and Linux",
+        "MIT",
+        "PySide6",
+        "unsigned",
+    ),
+}
+
+
+def _section(heading_key: str) -> tuple[str, list[str]]:
+    """The translated heading and body of one section, as ``sections()`` builds them."""
+    from binaural.ui.dialogs.about import sections
+
+    wanted = tr(getattr(about, heading_key))
+    for heading, body in sections():
+        if heading == wanted:
+            return heading, body
+    raise AssertionError(f"About no longer has the section {heading_key!r}")
+
+
+def test_about_shows_the_four_sections(qapp):
+    """SPEC §7 item 6: who made it, how it works, what it is for, technical details."""
+    from binaural.ui.dialogs.about import sections
+
+    assert [heading for heading, _ in sections()] == [
+        tr(getattr(about, key)) for key in SECTION_HEADINGS
+    ]
+
+    labels = _labels_text(AboutDialog())
+    for key in SECTION_HEADINGS:
+        assert tr(getattr(about, key)) in labels, (
+            f"About is missing the section {tr(getattr(about, key))!r}"
+        )
+
+
+@pytest.mark.parametrize("heading_key", SECTION_EXPECTATIONS)
+def test_about_section_says_what_it_should(qapp, heading_key):
+    _, body = _section(heading_key)
+    text = " ".join(body)
+    for phrase in SECTION_EXPECTATIONS[heading_key]:
+        assert phrase in text, f"{tr(getattr(about, heading_key))!r} lost: {phrase!r}"
+
+
+def test_about_section_text_matches_the_swift_wording():
+    """CONTRACT rule 9: a sentence both products show is the same string.
+
+    The shared sentences are read out of `AboutContent.swift` rather than imported from
+    `BinauralCore` — the Python suite cannot import Swift, so the file is parsed the way
+    `apple/Tests` reads `ru.py`. A reword on one side that leaves the other saying
+    something else fails here, which is the drift the contract forbids.
+    """
+    import re
+
+    from binaural.ui.dialogs import about
+
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "apple"
+        / "Sources"
+        / "Core"
+        / "AboutContent.swift"
+    ).read_text(encoding="utf-8")
+
+    # `public static let name = "a" + "b"` and the one-literal spelling both.
+    swift = {
+        name: "".join(re.findall(r'"([^"]*)"', literal))
+        for name, literal in re.findall(
+            r'public static let (\w+) = ((?:"[^"]*"(?:\s*\+\s*)?)+)', source
+        )
+    }
+
+    # Swift name → the Python constant that has to hold the identical string. The
+    # platform and stack lines are deliberately absent: they are macOS- and Python-
+    # specific (SPEC §3), the same split the tagline has.
+    shared = {
+        "whoMadeItTitle": "_WHO_MADE_IT_TITLE",
+        "howItWorksTitle": "_HOW_IT_WORKS_TITLE",
+        "whatItIsForTitle": "_WHAT_IT_IS_FOR_TITLE",
+        "technicalTitle": "_TECHNICAL_TITLE",
+        "creditsLine": "_CREDITS_LINE",
+        "creditsWhere": "_CREDITS_WHERE",
+        "mechanismLine": "_MECHANISM_LINE",
+        "termsLine": "_TERMS_LINE",
+        "headphonesWhyLine": "_HEADPHONES_WHY_LINE",
+        "appDoesLine": "_APP_DOES_LINE",
+        "scopeLine": "_SCOPE_LINE",
+        "notMedicalLine": "_NOT_MEDICAL_LINE",
+        "unsignedLine": "_UNSIGNED_LINE",
+    }
+    for swift_name, python_name in shared.items():
+        assert swift_name in swift, f"AboutContent.swift no longer has {swift_name}"
+        assert getattr(about, python_name) == swift[swift_name], (
+            f"{swift_name} and {python_name} have drifted apart"
+        )
+
+    # …and the section order is the same on both sides.
+    from binaural.ui.dialogs.about import sections
+
+    assert [heading for heading, _ in sections()] == [
+        tr(about._WHO_MADE_IT_TITLE),
+        tr(about._HOW_IT_WORKS_TITLE),
+        tr(about._WHAT_IT_IS_FOR_TITLE),
+        tr(about._TECHNICAL_TITLE),
+    ]
+
+
+def test_about_does_not_clip_the_new_sections(qapp):
+    """The body scrolls (SPEC §7.1): the new sections must be inside it, in order.
+
+    Clipping is the one failure mode a scrolling dialog hides — the labels exist, a test
+    that greps for them passes, and the user never sees the bottom of the text. So this
+    asks for the labels in **order** from the scroll area's own widget: anything outside
+    it is off-screen whatever the text says.
+    """
+    dialog = AboutDialog()
+    scroll = dialog.findChild(QScrollArea)
+    assert scroll is not None, "the About body must stay scrollable"
+
+    from binaural.ui.dialogs.about import sections
+
+    body_widget = scroll.widget()
+    assert body_widget is not None
+    inside = [label.text() for label in body_widget.findChildren(QLabel)]
+
+    for heading, body_lines in sections():
+        assert heading in inside, f"not laid out in the scroll area: {heading!r}"
+        for line in body_lines:
+            assert line in inside, f"not laid out in the scroll area: {line[:40]!r}"
+        # Heading before its own body, so the sections read in the declared order.
+        assert inside.index(heading) < min(
+            inside.index(line) for line in body_lines
+        ), f"{heading!r} is not above its body"
+
+    # The version line is shown once, not repeated inside the technical section: a
+    # second copy is two numbers to keep in step for no gain.
+    technical = " ".join(_section("_TECHNICAL_TITLE")[1])
+    assert "Version" not in technical, "the version line is already shown above"
 
 
 # --------------------------------------------------------------------------

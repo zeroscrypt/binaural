@@ -31,7 +31,16 @@ enum RussianWindowAdditions {
         // PySide6 app, which ships macOS *and* Linux), so the shared "macOS and Linux"
         // tagline would be wrong here.
         "Binaural beats for macOS": "Бинауральные биения для macOS",
-        "Version {version} · macOS {system}": "Версия {version} · macOS {system}"
+        "Version {version} · macOS {system}": "Версия {version} · macOS {system}",
+        // SPEC §7 item 6's four About sections. Every other line of them lives in
+        // `ru.py` — these two are macOS-specific for the same reason the tagline
+        // above is, so they cannot use the shared wording.
+        "Platform: macOS. Licence: MIT — use it, change it, ship it.": (
+            "Платформа: macOS. Лицензия: MIT — используйте, изменяйте, распространяйте."
+        ),
+        "Built with Swift and AVAudioEngine. Two applications are built from this repository; they share their frequency arithmetic, not their code.": (
+            "Сделано на Swift и AVAudioEngine. Из этого репозитория собираются два приложения: у них общая арифметика частот, а не общий код."
+        )
     ]
 }
 

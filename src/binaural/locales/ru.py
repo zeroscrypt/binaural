@@ -270,6 +270,93 @@ MESSAGES: dict[str, str] = {
     "Version {version} · Python {python} · PySide6 {qt}": (
         "Версия {version} · Python {python} · PySide6 {qt}"
     ),
+    # --- About dialog: the four descriptive sections ------------------------
+    # Added with the expanded About dialog (SPEC §7 item 6). The wording is shared
+    # with the Swift app by key: `AboutContent.swift` holds the same English
+    # sentences, so both implementations describe the project identically
+    # (CONTRACT rule 9). Section headings come first, then the body of each.
+    "Who made it": "Кто создал",
+    "How it works": "Как это работает",
+    "What it is and what it is for": "Что это и зачем",
+    "Technical details": "Технические детали",
+    # «Кто создал» — short and factual on purpose: a handle, a name, a
+    # contributor, a year and the repository. No biography is invented.
+    "Written by @zeroscrypt (Dmitriy Solontsov), with special thanks to @hakatao.": (
+        "Автор — @zeroscrypt (Dmitriy Solontsov), отдельное спасибо — @hakatao."
+    ),
+    "The project lives at github.com/zeroscrypt/binaural. Released in 2026.": (
+        "Проект живёт на github.com/zeroscrypt/binaural. Вышел в 2026 году."
+    ),
+    # «Как это работает» — the mechanism, in words. `beat` and `carrier` are
+    # named and then explained, so a reader who does not know the terms can still
+    # follow the sentence that uses them.
+    "Two sine tones of different frequency, one sent to each ear, and the brain hears "
+    "a third tone that is not there. That third tone is the difference between the two "
+    "frequencies, and it is called the beat.": (
+        "В каждое ухо отправляется свой синусоидальный тон, и мозг слышит третий тон, "
+        "которого нет в сигнале. Этот третий тон — разность двух частот, и называется "
+        "она биением."
+    ),
+    "The beat is the difference between the two frequencies. The carrier is their "
+    "average — the tone you actually hear in each ear, with the beat pulsing inside "
+    "it.": (
+        "Биение — это разность двух частот. Несущая — их среднее: тот тон, который вы "
+        "действительно слышите в каждом ухе, с биением, пульсирующим внутри."
+    ),
+    "Headphones are not a preference but a physical requirement: the two frequencies "
+    "have to reach your ears separately, and only headphones do that. On speakers "
+    "they mix in the air first, and there is nothing left to fuse.": (
+        "Наушники — не предпочтение, а физическое требование: две частоты должны "
+        "доходить до ушей раздельно, и только наушники это обеспечивают. На динамиках "
+        "они смешиваются в воздухе, и сливать больше нечего."
+    ),
+    "The application itself does the plain part: two independent frequencies you set, "
+    "play and stop, volume, a timer, presets, the frequency reference and a headphone "
+    "check. Nothing is added to the sound and nothing is sent anywhere.": (
+        "Само приложение делает простую часть: две независимые частоты, которые вы "
+        "задаёте, запуск и остановка, громкость, таймер, пресеты, справочник частот и "
+        "проверка наушников. К звуку ничего не добавляется и никуда ничего не "
+        "отправляется."
+    ),
+    # «Что это и зачем» — scope, stated as plainly as possible. The medical
+    # sentence is §6.13 and is restated here only in the three words that matter;
+    # the full disclaimer is two panels below and is not repeated.
+    "Binaural is a desktop generator of binaural beats. It makes a sound and shows "
+    "you what is known about the frequencies it can play.": (
+        "Binaural — это настольный генератор бинауральных биений. Он издаёт звук и "
+        "показывает, что известно о частотах, которые умеет играть."
+    ),
+    "It is not a medical device and makes no health claim. It does not diagnose, treat "
+    "or prevent anything, and it does not promise an effect. The disclaimer below is "
+    "the full version of that sentence.": (
+        "Это не медицинское изделие, и здесь нет никаких обещаний о здоровье. Оно не "
+        "диагностирует, не лечит и не предотвращает ничего и не обещает эффекта. "
+        "Полная версия этой фразы — в дисклеймере ниже."
+    ),
+    # «Технические детали». The version line is already above and is not repeated.
+    # Platform and licence are shared between the two implementations; the stack is
+    # not, because it is the one thing that genuinely differs between them.
+    # Platform and stack differ per implementation — the same split the tagline has,
+    # and for the same reason: `apple/` is a separate product (SPEC §3) and the Python
+    # build is not the Swift build. The licence, the shared-arithmetic sentence and the
+    # unsigned note are one key each, so the two dialogs say them identically.
+    "Platform: macOS and Linux. Licence: MIT — use it, change it, ship it.": (
+        "Платформа: macOS и Linux. Лицензия: MIT — используйте, изменяйте, "
+        "распространяйте."
+    ),
+    "Built with Python 3.10 or newer and PySide6. Two applications are built from this "
+    "repository; they share their frequency arithmetic, not their code.": (
+        "Сделано на Python 3.10 или новее и на PySide6. Из этого репозитория собираются "
+        "два приложения: у них общая арифметика частот, а не общий код."
+    ),
+    "The macOS app is unsigned: no Apple Developer identity is available, so it runs "
+    "for whoever built it and Gatekeeper blocks it for anyone else. Right-click, then "
+    "Open, gets past it. GitHub releases carry source only.": (
+        "Приложение для macOS не подписано: identity Apple Developer недоступно, "
+        "поэтому оно запускается у того, кто его собрал, а у остальных его блокирует "
+        "Gatekeeper. Обойти можно через правую кнопку и «Открыть». Релизы на GitHub "
+        "содержат только исходный код."
+    ),
     "Close the About dialog": "Закрыть окно «О программе»",
     "MIT License": "Лицензия MIT",
     "Copyright (c) {year} {holder}": "© {year} {holder}",
