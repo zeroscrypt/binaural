@@ -36,7 +36,8 @@ separate tone rather than a beat.
 Carrier frequency is the centre of the pair, `(fL + fR) / 2`. Responses have been measured at
 carriers around 400 Hz, become unreliable above roughly 3 kHz, and sensitivity appears to peak near
 250 Hz. This is the single most practically useful finding: it is why the app defaults to a 200 Hz
-carrier and warns before you push much higher.
+carrier. Note what it does *not* do: there is no carrier warning. The app only flags the beat when
+it leaves the perceivable range, so a high carrier will not be second-guessed for you.
 
 **Two measurable responses exist in the EEG.**
 The **frequency-following response (FFR)** locks onto the carrier frequency, and the
@@ -83,7 +84,7 @@ claim of any kind.
 | Evidence point | Consequence in the app |
 |---|---|
 | Beats are perceived around 1–30 Hz | A hint appears when the beat falls outside 0.5–100 Hz; presets stay near the studied range |
-| Lower carriers work better | Default carrier 200 Hz; a warning above 1000 Hz |
+| Lower carriers work better | Default carrier 200 Hz; no carrier-based warning (only the beat range is checked) |
 | FFR and ASSR are measurable | Both the carrier and the beat are always shown, so you can see what you are actually generating |
 | Noise weakens entrainment | No noise in the signal by default |
 | Sessions run 5–15 minutes | Planned 15-minute timer with a smooth fade-out |

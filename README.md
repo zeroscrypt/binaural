@@ -498,7 +498,8 @@ Short version: the auditory effect is real and measurable, the behavioural claim
   range you are unlikely to perceive much.
 - **Low carriers work better.** A carrier around 400 Hz produces a measurable response; above about
   3 kHz the effect is not detectable. A peak in sensitivity has been reported near 250 Hz. This is
-  why the app defaults to a 200 Hz carrier and warns before you go much higher.
+  why the app defaults to a 200 Hz carrier. The app itself does not warn about the carrier — the
+  only range check it makes is on the beat.
 - Two measurable responses exist in the EEG: the **frequency-following response (FFR)** locked to
   the carrier, and the **auditory steady-state response (ASSR)** at the beat frequency. Both have
   been demonstrated experimentally.
