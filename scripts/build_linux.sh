@@ -121,10 +121,21 @@ Install Python 3.10+ (apt install python3 / dnf install python3) or pass --pytho
     || die "PyInstaller is not installed for ${PYTHON}.
 Install it with:  ${PYTHON} -m pip install pyinstaller"
 
-"$PYTHON" -c 'import PySide6.QtMultimedia' </dev/null >/dev/null 2>&1 \
-    || die "PySide6.QtMultimedia is missing for ${PYTHON}. Audio output would be broken.
-Install it with:
-    ${PYTHON} -m pip install 'PySide6-Essentials>=6.5' 'PySide6-Addons>=6.5'"
+# Two different causes, one check: the wheel can be missing, or it can be installed
+# and still fail to load because the system library it needs is absent. On Linux the
+# second is the common one -- libQt6Multimedia.so.6 links libpulse.so.0 directly, so
+# without libpulse0 the import raises
+#   ImportError: libpulse.so.0: cannot open shared object file
+# which says nothing about pip. Show the real error so the cause is visible.
+_mm_error="$("$PYTHON" -c 'import PySide6.QtMultimedia' </dev/null 2>&1)" || die "PySide6.QtMultimedia will not import for ${PYTHON}. Audio output would be broken.
+
+${_mm_error}
+
+If the error is a missing module name, install the wheels:
+    ${PYTHON} -m pip install 'PySide6-Essentials>=6.5' 'PySide6-Addons>=6.5'
+If it names a shared library, install the system package that provides it:
+    Debian/Ubuntu : sudo apt-get install -y libpulse0
+    Fedora        : sudo dnf install -y pulseaudio-libs"
 
 command -v tar >/dev/null 2>&1 </dev/null || die "tar is not installed; it is needed to build the archive."
 command -v gzip >/dev/null 2>&1 </dev/null || die "gzip is not installed; it is needed to build the archive."
