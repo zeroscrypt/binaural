@@ -17,6 +17,14 @@
 - [About the Project](#about-the-project)
   - [Why headphones are not optional](#why-headphones-are-not-optional)
   - [Built With](#built-with)
+- [What are binaural beats?](#what-are-binaural-beats)
+  - [The phenomenon](#the-phenomenon)
+  - [Where it happens in the brain](#where-it-happens-in-the-brain)
+  - [A short history](#a-short-history)
+  - [The five brainwave bands](#the-five-brainwave-bands)
+  - [What the evidence actually shows](#what-the-evidence-actually-shows)
+  - [Why headphones are a physical requirement](#why-headphones-are-a-physical-requirement)
+  - [What this app does about it](#what-this-app-does-about-it)
 - [Features](#features)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
@@ -112,6 +120,154 @@ confirm it once, and you can bring it back any time from Settings or *Help*.
   ([`docs/CONTRACT.md`][contract]). Data and behaviour are shared; source code never is.
 
 <a href="#about-the-project">⬆ Back to top</a>
+
+---
+
+## What are binaural beats?
+
+The one-sentence version: **a tone that is not in the signal.** Two slightly different frequencies
+are sent to the two ears, and the listener hears a third one — their difference — which exists
+nowhere in the audio data. Every design decision in this app follows from that fact.
+
+### The phenomenon
+
+Send `205 Hz` to the left ear and `215 Hz` to the right ear at the same time, each through its own
+channel. Nobody hears "205 and 215". They hear one steady tone at about 210 Hz — the **carrier** —
+with something moving inside it: a slow pulse, a flicker, a wobble at 10 Hz. That wobble is the
+binaural beat.
+
+```
+beat    = |fL − fR|          # 10 Hz in the example above
+carrier = (fL + fR) / 2      # 210 Hz — the pitch you actually hear as a tone
+```
+
+The carrier is the pitch, the beat is the motion. They are independent numbers: the same 200 Hz
+carrier can carry a 1 Hz beat or a 25 Hz one, and those are different experiences.
+
+### Where it happens in the brain
+
+Both signals travel along the auditory nerve to the **medial superior olive (MSO)** — a small
+nucleus in the brainstem, and the first station in the auditory pathway where the two ears are
+compared at all. Above it, in the thalamus and the auditory cortex, the brain is still working on
+one fused stream. The MSO notices that the left input is very slightly slower than the right one
+and responds at the rate of their difference.
+
+The consequence is the strange part:
+
+> **The beat frequency is not present in the audio signal.** Each ear receives a plain sine wave.
+> There is no 10 Hz in either channel. The difference exists only after the two signals meet in the
+> listener's brain.
+
+So it is an internal sound: there is no waveform of it anywhere, and no microphone at the ear will
+find it, because the difference is created downstream by the listener's own circuitry. The app
+cannot fake it for you either, which is why it is a two-channel generator and nothing more.
+
+### A short history
+
+- **1839 — Heinrich Wilhelm Dove**, a Prussian physicist, publishes the phenomenon: two pure tones
+  of slightly different frequency, presented separately and simultaneously to the two ears, are
+  heard as producing illusory beats between them. His setup did not need headphones — two tuning
+  forks and a tube to each ear do the same job, because all that matters is that the two paths
+  stay separate.
+- For more than a century and a quarter it stays a curiosity in acoustics.
+- **1973 — Gerald Oster** publishes *"Auditory Beats in the Brain"* in *Scientific American*. That
+  paper is what brought the effect to wide attention and turned it into a research programme.
+  Oster's subject was how the auditory system works, not what binaural beats treat.
+
+### The five brainwave bands
+
+A **brainwave** is the rhythmic electrical activity of neurons, recorded on the scalp as an EEG and
+divided by frequency into named bands. Five of them are what this method is usually discussed in
+terms of:
+
+| Band | Beat | Normally associated with |
+|---|---|---|
+| **Delta** | 0.5–4 Hz | Deep sleep without dreams; physical restoration, growth hormone release, immune support |
+| **Theta** | 4–8 Hz | Meditation, REM sleep, the drowsy state on the way into sleep; creativity, memory consolidation |
+| **Alpha** | 8–13 Hz | Relaxed alertness — awake but not tense; stress reduction, sustained focus, the pre-sleep state |
+| **Beta** | 13–30 Hz | Active thinking; concentration, alertness, problem solving. Long exposure at the high end goes with over-arousal and anxiety |
+| **Gamma** | 30–100 Hz | Higher-order cognitive processing, binding perception into one whole; 40 Hz specifically is studied in neurodegeneration research |
+
+These five are the part of the [frequency reference](#frequency-reference) with actual research
+behind them — every one of them carries the 🟢 badge for peer-reviewed EEG literature.
+
+The overlap with what is perceivable is not a coincidence. Beats are perceived roughly in the
+**1–30 Hz** range, which is exactly the amplitude-modulation range that a sustained tone can
+follow: below about 1 Hz the fluctuation is too slow to track, and above about 30 Hz the
+difference stops being heard as a beat and becomes a separate tone instead. Delta, theta, alpha and
+beta therefore sit inside the window. **Gamma mostly does not** — which is why the 20 presets stop
+at 30 Hz even though gamma entries are still in the reference.
+
+One caveat, stated plainly: the bands and what they go with are not in dispute. The extra step —
+that a beat at 10 Hz *entrains* alpha activity and so produces the behavioural effects alpha goes
+with — is exactly the step the studies disagree about. *Entrainment* is the name for the hypothesis
+that an external rhythm pulls the brain's own rhythm along with it, the way two pendulums on the
+same board fall into step.
+
+### What the evidence actually shows
+
+**Solid.**
+
+- The phenomenon is **real and measurable**. Two responses are recorded from scalp EEG: the
+  **frequency-following response (FFR)**, which locks onto the carrier, and the **auditory
+  steady-state response (ASSR)**, which appears at the beat frequency. Both have been demonstrated
+  experimentally. The brain measurably tracks the beat.
+- **Low carriers work better.** Responses are measurable at a carrier around 400 Hz, become
+  unreliable above roughly 3 kHz, and sensitivity appears to peak near 250 Hz.
+- **Noise masks it.** Broadband noise in the signal weakens the response — measurably so: it is
+  smaller with noise in the signal than without.
+- **Not everyone perceives a beat**, and among those who do, the reported intensity differs widely.
+
+**Contested.**
+
+- A **2023 systematic review** looked at 14 relevant studies: **6 supported the entrainment
+  hypothesis, 9 did not or were inconclusive.** The studies also measure different things — EEG
+  markers, subjective reports, sleep quality, cognitive performance — which makes them hard to
+  compare directly.
+- **Tracking is not the same as benefit.** The FFR and ASSR findings show that the auditory system
+  *follows* the beat. They do not on their own show that listening to it improves sleep, mood,
+  attention or health. That step needs its own evidence, and that evidence is where the studies
+  disagree.
+- **Much of the popular material is not scientific at all.** The 🟣 and 🟡 entries in the reference
+  come from esoteric, energy-based or alternative practice. "DNA repair", detoxification and agency
+  endorsements are claims, not findings.
+
+So: the phenomenon is real, subjective reports of an effect are common, and the claim that it
+*does* something specific for you is contested — this is a field with genuinely ambiguous data.
+The longer version with every source is in [What the research says](#what-the-research-says) and
+in **[`docs/SCIENCE.md`][science]**. The [Disclaimer](#disclaimer) applies to everything above.
+
+### Why headphones are a physical requirement
+
+On speakers the two tones leave the same box into the same air, and air adds waveforms together:
+the two frequencies **mix before they reach your ears**. Both ears then receive the same jumbled
+waveform, the signal no longer has a `fL` and an `fR` to separate, the MSO has nothing to compare,
+and the beat is gone. Not quieter — *gone*, because the comparison has nothing left to do.
+
+Keeping the two paths separate is the only requirement. Two tuning forks and two tubes were enough
+in 1839; headphones are the version everybody owns. No setting in this app can recover the effect
+on speakers. What the app does about it is in [Why headphones are not
+optional](#why-headphones-are-not-optional), and in [Troubleshooting](#troubleshooting) for the
+case where the beat is expected and missing.
+
+### What this app does about it
+
+Every finding above has a consequence in the code:
+
+| Decision | Reason |
+|---|---|
+| Two independent frequencies, one per channel, nothing else | The difference has to be computed by the listener's brain. The app cannot fake it and does not try |
+| Default carrier **200 Hz** | Responses are measurable near 400 Hz, unreliable above ~3 kHz, sensitivity peaking near 250 Hz |
+| **No noise layer at all** | Broadband noise weakens the effect |
+| Default **15-minute timer** with a smooth fade-out | Sessions in the literature run 5–15 minutes |
+| **20 presets, all inside 1–30 Hz**, exactly one band each | The perception range. Gamma stays in the reference but is not a preset, because presets stop at 30 Hz |
+| `BEAT` and `CARRIER` shown live at all times | So you can see what is actually being generated instead of trusting a label |
+| A hint when the difference leaves **0.5–100 Hz** | The same idea — say so when the numbers are outside the range where a beat is worth expecting |
+| Every one of the **110 reference entries** carries an evidence badge | 🟢 12 well-studied, 🔵 16 studied, 🟡 14 reported, 🟣 68 traditional. Nothing hidden, nothing ranked, esoteric claims labelled rather than dropped |
+
+The complete tables behind the last row are in **[`docs/FREQUENCIES.md`][frequencies]**.
+
+<a href="#what-are-binaural-beats">⬆ Back to top</a>
 
 ---
 
