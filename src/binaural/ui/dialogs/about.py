@@ -48,14 +48,21 @@ DISCLAIMER_TITLE = "Disclaimer"
 
 #: SPEC §6.13, translated to English. The meaning is preserved on purpose: not a
 #: medical device, no diagnosis / treatment / prevention, ask a doctor with
-#: epilepsy, a pacemaker, pregnancy or photosensitivity, keep the volume sane.
+#: epilepsy, a pacemaker, pregnancy or photosensitivity, keep the volume sane, and
+#: beats are sound rather than a substance — nothing here treats dependence.
 DISCLAIMER_EN = (
     "These frequencies and the descriptions of their effects come from research, "
     "and also from esoteric, energy and alternative practices. This application is "
     "not a medical device and is not intended for the diagnosis, treatment or "
     "prevention of any disease. Do not use it if you have epilepsy or a pacemaker, "
     "during pregnancy, or if you are photosensitive, without consulting a doctor. "
-    "Do not turn the volume above a comfortable level."
+    "Do not turn the volume above a comfortable level. "
+    "Binaural beats are sound, not a substance, and they do not replace one. "
+    "Nothing here helps with withdrawal, craving, tolerance or relapse, and this "
+    "app does not treat dependence of any kind. Dependence is a medical condition "
+    "with risks of its own: withdrawal from alcohol and from sedatives can be "
+    "dangerous. If you are dependent on something, or want to use less of it, that "
+    "is a question for a doctor or a specialist service, not for a tone generator."
 )
 
 LICENSE_NAME = "MIT License"

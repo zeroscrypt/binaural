@@ -19,6 +19,8 @@ EXPECTED_CATEGORIES = [
     "rife",
     "nasa",
     "healing",
+    "substance",
+    "affect",
 ]
 
 EXPECTED_BADGES = {
@@ -57,10 +59,10 @@ def test_category_fields_are_complete(raw):
         assert category["color"].startswith("#") and len(category["color"]) == 7
 
 
-def test_all_nine_categories_present_and_non_empty(loaded):
+def test_all_eleven_categories_present_and_non_empty(loaded):
     categories, entries = loaded
     assert [c.id for c in categories] == EXPECTED_CATEGORIES
-    assert [c.order for c in categories] == list(range(1, 10))
+    assert [c.order for c in categories] == list(range(1, 12))
     for category in categories:
         assert any(e.category == category.id for e in entries), f"{category.id} is empty"
 
@@ -152,6 +154,23 @@ def test_spec_coverage(loaded):
     # SPEC §6.10–6.11
     assert 5 <= len(by_category["nasa"]) <= 10
     assert 5 <= len(by_category["healing"]) <= 10
+
+    # SPEC §6.14–6.15: substances and mood, with the study-backed beats named
+    assert len(by_category["substance"]) >= 4
+    assert len(by_category["affect"]) >= 7
+    assert {4.0, 5.0} <= beats("substance")
+    assert {7.0, 16.0, 24.0, 40.0} <= beats("affect")
+
+
+def test_substance_and_affect_entries_are_evidence_backed(loaded):
+    """The two researched categories carry study citations, not tradition.
+
+    Every record must name the study it comes from, so a reader can open it.
+    """
+    for entry in loaded[1]:
+        if entry.category in {"substance", "affect"}:
+            assert entry.evidence in {"studied", "reported"}, entry.id
+            assert "DOI" in entry.source or "PMID" in entry.source, entry.id
 
 
 def test_tonal_entries_are_flagged(loaded):

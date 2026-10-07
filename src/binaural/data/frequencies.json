@@ -90,6 +90,26 @@
       "label_ru": "Исцеление и энергетика",
       "description_en": "Sound therapy and energy-medicine practices: tones, space harmonisation, grounding",
       "description_ru": "Звукотерапия и энергетическая медицина: тоны, гармонизация пространства, заземление"
+    },
+    {
+      "id": "substance",
+      "order": 10,
+      "icon": "🧪",
+      "color": "#B45309",
+      "label_en": "Substances & Medication",
+      "label_ru": "Вещества и лекарства",
+      "description_en": "Beats documented in connection with substances: studies of analgesic, sedative and anaesthetic consumption, withdrawal, and the 'digital drug' claim tradition",
+      "description_ru": "Биения, документированные в связи с веществами: исследования расхода анальгетиков, седативных и анестетиков, абстинентный синдром и традиция «цифровых наркотиков»"
+    },
+    {
+      "id": "affect",
+      "order": 11,
+      "icon": "☀️",
+      "color": "#DB2777",
+      "label_en": "Mood & Positive Affect",
+      "label_ru": "Настроение и позитивные эмоции",
+      "description_en": "Beats whose sources discuss mood, pleasure and positive affect — including the studies that found no change",
+      "description_ru": "Биения, которые в источниках связывают с настроением, удовольствием и позитивными эмоциями — включая исследования, где изменений не нашли"
     }
   ],
   "frequencies": [
@@ -1656,6 +1676,199 @@
         "healing",
         "tonal",
         "reference"
+      ]
+    },
+    {
+      "id": "substance-morphine-4",
+      "category": "substance",
+      "label": "4 Hz — morphine use after knee replacement",
+      "beat_hz": 4.0,
+      "carrier_hz": 200.0,
+      "effect_en": "A randomised trial in older adults having total knee replacement: 4 Hz binaural beats played before the operation were followed by roughly half the morphine the control group used on the first postoperative day (5.75 vs 11.85 mg). Pain ratings and anxiety did not differ. A hospital surgical population, not a relaxation claim.",
+      "effect_ru": "Рандомизированное исследование пациентов пожилого возраста с тотальным эндопротезированием колена: бинауральные биения 4 Гц, прозвучавшие перед операцией, сопровождались примерно вдвое меньшим расходом морфина, чем в контрольной группе, в первый послеоперационный день (5,75 против 11,85 мг). Оценки боли и тревожности не различались. Это больничная хирургическая популяция, а не заявление о расслаблении.",
+      "evidence": "studied",
+      "source": "Tani A. et al. Altern Ther Health Med. 2021;27(2):27–30. PMID 32412916 — https://pubmed.ncbi.nlm.nih.gov/32412916/",
+      "tags": [
+        "substance",
+        "analgesia",
+        "surgery",
+        "theta"
+      ]
+    },
+    {
+      "id": "substance-propofol-1-10",
+      "category": "substance",
+      "label": "1–10 Hz — propofol dose with sound and light",
+      "beat_min": 1.0,
+      "beat_max": 10.0,
+      "carrier_hz": 200.0,
+      "effect_en": "A randomised trial in boys undergoing sub-umbilical surgery under caudal block: a beat stepping down from 10 Hz by 2 Hz every 150 s to 2 Hz, then held at 1–2 Hz, was delivered together with a synchronised flashing light, and the propofol infusion rate was lower (3.0 vs 4.2 mg/kg/h). The result belongs to the sound-plus-light protocol, not to one frequency.",
+      "effect_ru": "Рандомизированное исследование мальчиков, оперируемых ниже пупка под каудальной блокадой: биение, ступенчато снижавшееся с 10 Гц на 2 Гц каждые 150 с до 2 Гц, а затем удерживаемое в диапазоне 1–2 Гц, подавалось вместе с синхронизированной мигающей лампой, и скорость инфузии пропофола была ниже (3,0 против 4,2 мг/кг/ч). Результат относится к протоколу «звук плюс свет», а не к одной частоте.",
+      "evidence": "studied",
+      "source": "Schmid W. et al. Br J Anaesth. 2020;125(3):330–335. DOI 10.1016/j.bja.2020.05.050",
+      "tags": [
+        "substance",
+        "anaesthetic",
+        "surgery",
+        "theta",
+        "delta"
+      ]
+    },
+    {
+      "id": "substance-withdrawal-alcohol-5",
+      "category": "substance",
+      "label": "5 Hz — anxiety in alcohol withdrawal",
+      "beat_hz": 5.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Single-group pre-post study, 100 men with moderate or severe alcohol withdrawal: after 10 minutes of pure theta beats clinician-rated anxiety fell slightly, significantly so only in the severe group (mean −1.31 points) and not at all in the moderate group. No control group, and a published comment notes the change may follow the natural course of withdrawal. Nothing here concerns craving, tolerance or relapse.",
+      "effect_ru": "Исследование «до — после» без контрольной группы, 100 мужчин с абстинентным синдромом средней или тяжёлой степени: после 10 минут чистых тета-биений оцениваемая врачом тревожность снизилась незначительно, значимо — только в группе с тяжёлой степенью (в среднем −1,31 балла) и совсем не снизилась в группе со средней степенью. Контрольной группы нет, а опубликованный комментарий отмечает, что изменение может следовать естественному течению абстиненции. Ничто здесь не касается тяги, толерантности или рецидива.",
+      "evidence": "reported",
+      "source": "Prithiviraj R. et al. Indian J Psychol Med. 2026. DOI 10.1177/02537176261435752 (published comment: DOI 10.1177/02537176261468210)",
+      "tags": [
+        "substance",
+        "withdrawal",
+        "alcohol",
+        "theta",
+        "anxiety"
+      ]
+    },
+    {
+      "id": "substance-sedation-5",
+      "category": "substance",
+      "label": "5 Hz — sedation-free colonoscopy",
+      "beat_hz": 5.0,
+      "carrier_hz": 200.0,
+      "effect_en": "A randomised single-blind trial in 92 patients having colonoscopy without sedation: theta beats at 5 Hz mixed into music were followed by lower self-rated anxiety and better tolerance of the procedure than headphones with silence. The study is about procedural tolerance, not craving or withdrawal, and the beats were not isolated from the music. Caveat: the journal it appeared in, The European Research Journal, is of unclear standing; the citation is checkable and openable, which is why it is here, but so is that caveat.",
+      "effect_ru": "Рандомизированное исследование с ослеплением испытателей на 92 пациентах, проходящих колоноскопию без седации: тета-биения 5 Гц, подмешанные к музыке, сопровождались более низкой самооценочной тревожностью и лучшей переносимостью процедуры, чем в наушниках с тишиной. Исследование касается переносимости процедуры, а не тяги или абстиненции, и биения не были отделены от музыки. Оговорка: журнал, в котором вышла работа (The European Research Journal), не имеет ясной репутации; ссылка проверяема и открывается — именно поэтому она здесь, но и оговорка тоже.",
+      "evidence": "studied",
+      "source": "Demirci S. et al. 2025. DOI 10.18621/eurj.1604977 (The European Research Journal — journal standing unclear)",
+      "tags": [
+        "substance",
+        "sedation",
+        "procedure",
+        "theta",
+        "anxiety"
+      ]
+    },
+    {
+      "id": "affect-beta-16",
+      "category": "affect",
+      "label": "16 Hz — beta, vigilance and mood",
+      "beat_hz": 16.0,
+      "carrier_hz": 200.0,
+      "effect_en": "A blinded study of 29 people doing a 30-minute visual vigilance task: beta-range beats at 16 and 24 Hz gave more correct detections and fewer false alarms than beats at 1.5 and 4 Hz, and were rated with less negative mood. One study, 29 participants, 1998; the opposite mood was reported at the 1.5 and 4 Hz comparison points.",
+      "effect_ru": "Слепое исследование 29 участников 30-минутной зрительной задачи на устойчивость внимания: биения бета-диапазона на 16 и 24 Гц давали больше верных обнаружений и меньше ложных срабатываний, чем биения на 1,5 и 4 Гц, и оценивались как сопровождающиеся менее негативным настроением. Одно исследование, 29 участников, 1998 год; противоположный результат по настроению отмечен в точках сравнения 1,5 и 4 Гц.",
+      "evidence": "studied",
+      "source": "Lane JD, Kasian SJ, Owens JE, Marsh GR. Physiol Behav. 1998;63(2):249–252. DOI 10.1016/S0031-9384(97)00436-8",
+      "tags": [
+        "affect",
+        "beta",
+        "mood",
+        "attention"
+      ]
+    },
+    {
+      "id": "affect-beta-24",
+      "category": "affect",
+      "label": "24 Hz — beta, vigilance and mood",
+      "beat_hz": 24.0,
+      "carrier_hz": 200.0,
+      "effect_en": "The upper of the two beta points in that same blinded study: 24 Hz was presented together with 16 Hz, and both were rated with less negative mood than the 1.5 and 4 Hz comparison. One study, 29 participants, 1998.",
+      "effect_ru": "Верхняя из двух бета-точек в том же слепом исследовании: 24 Гц предъявлялось вместе с 16 Гц, и оба оценивались как сопровождающиеся менее негативным настроением по сравнению с точками 1,5 и 4 Гц. Одно исследование, 29 участников, 1998 год.",
+      "evidence": "studied",
+      "source": "Lane JD, Kasian SJ, Owens JE, Marsh GR. Physiol Behav. 1998;63(2):249–252. DOI 10.1016/S0031-9384(97)00436-8",
+      "tags": [
+        "affect",
+        "beta",
+        "mood",
+        "attention"
+      ]
+    },
+    {
+      "id": "affect-theta-5-5-8-5",
+      "category": "affect",
+      "label": "5.5–8.5 Hz — theta, relaxation after exercise",
+      "beat_min": 5.5,
+      "beat_max": 8.5,
+      "carrier_hz": 200.0,
+      "effect_en": "Double-blind, placebo-controlled, 21 young adults relaxing after treadmill exercise: a wide-band beat swinging between 5.5 and 8.5 Hz around 7 Hz produced more self-reported relaxation and a heart-rate-variability shift towards parasympathetic activity. By the end of the 20 minutes the heart-rate differences were gone, and the recording mixed beats with pink noise and music.",
+      "effect_ru": "Двойное слепое плацебо-контролируемое исследование, 21 молодой взрослый, отдыхающий после бега на дорожке: широкополосное биение, колебавшееся между 5,5 и 8,5 Гц вокруг 7 Гц, дало больше самоотчётной релаксации и сдвиг вариабельности сердечного ритма в сторону парасимпатической активности. К концу 20 минут различия по частоте сердечного ритма исчезли, а запись смешивала биения с розовым шумом и музыкой.",
+      "evidence": "studied",
+      "source": "McConnell PA, Froeliger B, Garland EL, Ives JC, Sforzo GA. Front Psychol. 2014;5:1248. DOI 10.3389/fpsyg.2014.01248",
+      "tags": [
+        "affect",
+        "relaxation",
+        "theta",
+        "heart-rate-variability"
+      ]
+    },
+    {
+      "id": "affect-delta-0-5-4",
+      "category": "affect",
+      "label": "0.5–4 Hz — two weeks of sleep and mood",
+      "beat_min": 0.5,
+      "beat_max": 4.0,
+      "carrier_hz": 200.0,
+      "effect_en": "A two-week pilot in 20 healthy students, one week without beats and one week with 90 minutes of delta-range beats each night: sleep measures and the “anxiety” and “anger” items of a mood questionnaire improved after the beat week; other mood items did not move. No control group, and no measurement of pleasure, joy or gratitude.",
+      "effect_ru": "Двухнедельное пилотное исследование на 20 здоровых студентах: неделя без биений и неделя с 90 минутами биений дельта-диапазона каждую ночь; показатели сна и пункты «тревожность» и «гнев» в опроснике настроения улучшились после недели с биениями, другие пункты настроения не изменились. Контрольной группы нет, удовольствие, радость и благодарность не измерялись.",
+      "evidence": "reported",
+      "source": "Dabiri M, Monazzam ES, Salmani N. Digit Health. 2022;8:20552076221102243. DOI 10.1177/20552076221102243",
+      "tags": [
+        "affect",
+        "sleep",
+        "mood",
+        "delta"
+      ]
+    },
+    {
+      "id": "affect-null-7",
+      "category": "affect",
+      "label": "7 Hz — theta, no change in mood",
+      "beat_hz": 7.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Single-blind, active-controlled comparison of binaural against monaural beats: neither 7 Hz nor 40 Hz changed self-reported mood, although both produced cross-frequency connectivity effects. Kept in the reference so that no mood effect is implied here that the study did not find.",
+      "effect_ru": "Сравнение с одной слепой стороной и активным контролем: бинауральные биения против моноуральных; ни 7 Гц, ни 40 Гц не изменили самооценочное настроение, хотя оба дали эффекты межчастотной связности. Запись оставлена в справочнике, чтобы здесь не подразумевался эффект на настроение, которого исследование не обнаружило.",
+      "evidence": "studied",
+      "source": "Orozco Perez HD, Dumas G, Lehmann A. eNeuro. 2020;7(2):ENEURO.0232-19.2020. DOI 10.1523/ENEURO.0232-19.2020",
+      "tags": [
+        "affect",
+        "theta",
+        "mood",
+        "null-result"
+      ]
+    },
+    {
+      "id": "affect-null-40",
+      "category": "affect",
+      "label": "40 Hz — gamma, no change in mood",
+      "beat_hz": 40.0,
+      "carrier_hz": 200.0,
+      "effect_en": "The gamma point in that same controlled comparison: 40 Hz did not change self-reported mood against a monaural control. Other studies do report attention and memory effects at this frequency; mood is not among them.",
+      "effect_ru": "Гамма-точка в том же контролируемом сравнении: 40 Гц не изменило самооценочное настроение относительно моноурального контроля. Другие исследования сообщают о влиянии на внимание и память на этой частоте; настроение среди заявленных результатов не значится.",
+      "evidence": "studied",
+      "source": "Orozco Perez HD, Dumas G, Lehmann A. eNeuro. 2020;7(2):ENEURO.0232-19.2020. DOI 10.1523/ENEURO.0232-19.2020",
+      "tags": [
+        "affect",
+        "gamma",
+        "mood",
+        "null-result"
+      ]
+    },
+    {
+      "id": "affect-gamma-40-mood",
+      "category": "affect",
+      "label": "40 Hz — gamma, mood in an exploratory pilot",
+      "beat_hz": 40.0,
+      "carrier_hz": 200.0,
+      "effect_en": "Exploratory pilot, 9 participants, three frequency groups (40, 25 and 100 Hz) over eight sessions: mood-questionnaire scores moved in the direction of better mood, most strongly in the 40 Hz group. The result rests on an indirect negative correlation, has no sham condition, and the authors call it preliminary.",
+      "effect_ru": "Разведывательное пилотное исследование, 9 участников, три группы частот (40, 25 и 100 Гц) за восемь сеансов: оценки опросника настроения сместились в сторону лучшего настроения, сильнее всего в группе 40 Гц. Результат опирается на косвенную отрицательную корреляцию, не имеет условия sham, и авторы называют его предварительным.",
+      "evidence": "reported",
+      "source": "Brain Informatics. 2020. DOI 10.1186/s40708-020-00119-9",
+      "tags": [
+        "affect",
+        "gamma",
+        "mood",
+        "preliminary"
       ]
     }
   ]

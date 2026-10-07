@@ -50,13 +50,13 @@ recommendation — on speakers the tones mix in the air before either ear.
 | `apple/DESIGN.md` | Recorded design decisions and deviations. **Append; never rewrite its history.** | English |
 
 **`src/binaural/data/frequencies.json` is the only copy of the reference in the repo** — CONTRACT
-rule 10. It currently holds **[pinned] 99 entries in 9 categories**:
+rule 10. It currently holds **[pinned] 110 entries in 11 categories**:
 
-| Category | `brainwave` | `schumann` | `planetary` | `solfeggio` | `tuning` | `research` | `rife` | `nasa` | `healing` |
-|---|---|---|---|---|---|---|---|---|---|
-| Entries | 12 | 5 | 10 | 9 | 5 | 4 | 40 | 7 | 7 |
+| Category | `brainwave` | `schumann` | `planetary` | `solfeggio` | `tuning` | `research` | `rife` | `nasa` | `healing` | `substance` | `affect` |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Entries | 12 | 5 | 10 | 9 | 5 | 4 | 40 | 7 | 7 | 4 | 7 |
 
-Evidence totals **[pinned]**: 68 🟣 traditional, 12 🟢 well-studied, 11 🟡 reported, 8 🔵 studied.
+Evidence totals **[pinned]**: 68 🟣 traditional, 12 🟢 well-studied, 14 🟡 reported, 16 🔵 studied.
 
 Two implementations, one file: the Python app reads it beside its module, the Swift app through a
 copy-files phase in `apple/project.yml` (`sources[].buildPhase.copyFiles`), and `build_release.sh`
@@ -68,7 +68,7 @@ Every command below was run on `main` before this file was committed. If a numbe
 match your run, something changed — find out what before you trust either.
 
 ```bash
-# Python — 480 passed, 2 skipped
+# Python — 481 passed, 2 skipped
 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest
 
 # Swift — regenerate the project first; Binaural.xcodeproj is generated and gitignored
@@ -156,9 +156,16 @@ Each of these cost real time. They are not stylistic preferences.
    `[4, 8)`, Alpha `[8, 13)`, Beta `[13, 30)`, Gamma `[30, 100]`. Closed intervals would put 4, 8,
    13 and 30 in two bands each, and "exactly one band per preset" would be false.
 9. **The reference counts are pinned hard** in `apple/Tests/CoreTests/FrequencyCatalogueTests.swift`:
-   `entries.count == 99`, `categories.count == 9`, per-category counts, evidence totals. Adding
+   `entries.count == 110`, `categories.count == 11`, per-category counts, evidence totals. Adding
    entries breaks Swift tests **by design** — update the JSON *and* those literals *and*
    `docs/FREQUENCIES.md` in one commit.
+10. **A study-backed entry must name its study.** `substance` and `affect` records cite a DOI or
+    PMID in `source`, and `tests/test_frequencies.py` asserts it. Two of the eleven are
+    deliberately weak and say so in their own text: the withdrawal study has no control group, and
+    the colonoscopy one is from a journal of unclear standing. Do not tidy those caveats away.
+    The `affect` category also carries two **null results** (`affect-null-7`, `affect-null-40`) on
+    purpose — the badge is a hint and the reference must not imply a mood effect the study did not
+    find. The §6.13 disclaimer says beats are sound, not a substance.
 
 ## 7. Conventions
 
@@ -187,7 +194,7 @@ assets attached, because the unsigned `.app` cannot be distributed.
 | Python core | oscillator, engine, session, playback timer, `difference_lock` — implemented, tested |
 | Python audio | device enumeration and classification (CoreAudio, `pactl`/`pw-cli`/`amixer`), headphone heuristics + perceptual L/R test — implemented, tested |
 | Python UI | main window, F3 preset registry, reference dialog, headphone dialogs, Settings, tray — implemented, tested |
-| Python suite | **480 passed, 2 skipped** |
+| Python suite | **481 passed, 2 skipped** |
 | `apple/` core | `BinauralCore` — provably equal to Python by test, not merely compiling |
 | `apple/` macOS | **All of M2**: live audio, main window, F3 preset registry (7 categories, 20 presets), the full frequency reference, headphone check, Settings, About, playback timer, menu-bar item, session persistence, the **"Lock difference"** checkbox |
 | Swift suites | **208 core + 135 macOS window** |
@@ -204,12 +211,16 @@ Python is at parity with the Swift app for the interface: the F3 presets, Settin
 
 ## 9. Open questions and blocked work
 
-**Awaiting a decision — researched, not approved.** A proposal to add **9 frequency entries** (3
-concerning substances, 6 concerning positive affect) in two new categories, `substance` and
-`affect`, taking the reference from 99 entries / 9 categories to **108 / 11**, plus an
-addiction-safety sentence for the §6.13 disclaimer. It was written up with citations. **Do not
-apply it as if it were approved.** Two further optional entries are also undecided. If it is
-approved, trap 9 applies: JSON + Swift test literals + `docs/FREQUENCIES.md` in one commit.
+**Approved and landed (2026-10-07).** The proposal to add frequency entries about substances and
+positive affect was approved and is in the tree: **11 entries in two new categories**, `substance`
+(order 10, 4 entries) and `affect` (order 11, 7 entries), taking the reference to **110 entries in
+11 categories**. An addiction-safety sentence was added to the §6.13 disclaimer in both
+implementations (`about.py::DISCLAIMER_EN`, `AboutContent.disclaimerEnglish`) and to every place
+that restates it. Existing category orders 1–9 did not shift. Trap 10 records the two weak studies
+that keep their caveats in the entry text and the two null results the `affect` category carries on
+purpose.
+
+No other proposal is pending.
 
 **Blocked, and not fixable here:**
 
