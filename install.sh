@@ -6,6 +6,9 @@
 #
 # Constraints that shape this file:
 #   * POSIX sh only (no bashisms): runs under dash, busybox ash, bash, zsh, ksh.
+#     That includes the error handling: `trap ... ERR` is not POSIX, and dash rejects
+#     the condition outright ("trap: ERR: bad trap"), so failures are caught by must()
+#     at the call site and by the on_exit() backstop instead.
 #   * Never reads stdin. When the script is piped, stdin *is* the script itself, so any
 #     interactive read would swallow the remaining program text. Everything that could
 #     consume stdin is redirected from /dev/null.
@@ -78,6 +81,11 @@ EDIT_PATH=1
 DO_VERIFY=1
 VERIFY_TIMEOUT=25
 
+# Error reporting. ERROR_REPORTED is set by everything that explains its own failure
+# (die, usage_error, on_error), so the on_exit() backstop stays quiet for those and
+# speaks up only when a command simply failed with nobody watching.
+ERROR_REPORTED=0
+
 OS_NAME=""
 ARCH_NAME=""
 PLATFORM=""
@@ -125,6 +133,7 @@ err()   { printf '%serror%s %s\n' "$C_RED" "$C_OFF" "$*" >&2; }
 
 die() {
     err "$*"
+    ERROR_REPORTED=1
     exit "$EXIT_FAIL"
 }
 
@@ -132,13 +141,31 @@ usage_error() {
     err "$*"
     say ""
     say "Run 'sh install.sh --help' for usage."
+    ERROR_REPORTED=1
     exit "$EXIT_USAGE"
 }
 
+# on_error CODE [LINE] [STEP] [CMD] — the one place an unexplained failure is
+# reported, so a failure caught at a call site, one caught by the on_exit() backstop
+# and one caught by the zsh hook below all read the same. LINE is "?" when the shell
+# cannot be trusted to produce a real one; STEP and CMD are optional.
 on_error() {
-    _code="$1"
+    _code="${1:-1}"
     _line="${2:-?}"
-    err "installer failed at line ${_line} (exit status ${_code})"
+    _step="${3:-}"
+    _cmd="${4:-}"
+    ERROR_REPORTED=1
+    if [ "$_line" = "?" ]; then
+        err "installer failed with exit status ${_code}"
+    else
+        err "installer failed at line ${_line} (exit status ${_code})"
+    fi
+    if [ -n "$_step" ]; then
+        say "  step:    ${_step}"
+    fi
+    if [ -n "$_cmd" ]; then
+        say "  command: ${_cmd}"
+    fi
     say ""
     say "Likely causes:"
     say "  * no network or a blocking proxy — github.com and codeload.github.com are needed"
@@ -156,8 +183,50 @@ cleanup_tmpdir() {
     return 0
 }
 
-trap 'on_error "$?" "${LINENO:-?}"' ERR
-trap 'cleanup_tmpdir' EXIT
+# on_exit — removes the temporary directory and is the backstop for everything must()
+# does not cover: `set -e` still turns any unhandled non-zero status into an exit,
+# and this makes sure that exit is never a silent one.
+on_exit() {
+    _status=$?
+    trap - EXIT
+    cleanup_tmpdir
+    # No step and no command to name here: must() reports the failures it catches, and
+    # whatever reaches this handler came out of a construct we cannot describe.
+    # Pointing at the previous command would be a guess, and a wrong guess is worse
+    # than none.
+    if [ "$_status" -ne 0 ] && [ "$ERROR_REPORTED" -eq 0 ]; then
+        on_error "$_status"
+    fi
+    exit "$_status"
+}
+
+# zsh is the one shell here that skips the EXIT trap when `set -e` aborts inside a
+# function, and every command in this installer lives in one — so on zsh the backstop
+# above would never run and an unexpected failure would exit in silence. zsh's own ERR
+# hook covers that case. In every other shell TRAPZERR is an ordinary function that
+# simply never gets called, so this costs nothing and is not a bashism: it fires on
+# exactly the commands `set -e` acts on, and on nothing else.
+TRAPZERR() {
+    on_error "$?"
+}
+
+trap 'on_exit' EXIT
+
+# Not every shell tracks $LINENO inside a function: bash, ksh and macOS sh report the
+# line being executed, dash always reports 1 and zsh always 0. A line number that points
+# at the wrong line is worse than none, so the installer probes once, at the top level
+# where all of them are correct, and drops line numbers where they cannot be trusted.
+#
+# The probe must stay a one-line function on the line directly below the assignment,
+# because a shell that tracks $LINENO reports the function's *body* line — which is
+# exactly the line a must() call reports, and here that is assignment + 1.
+_LINENO_TOP="${LINENO:-0}"
+_probe_lineno() { _PROBE_LINENO_IN="${LINENO:-0}"; }
+_probe_lineno
+LINENO_TRUSTED=0
+if [ "$_PROBE_LINENO_IN" -eq "$((_LINENO_TOP + 1))" ]; then
+    LINENO_TRUSTED=1
+fi
 
 # run: print the command, execute it unless this is a dry run
 run() {
@@ -166,6 +235,38 @@ run() {
         return 0
     fi
     "$@"
+}
+
+# must LINE STEP CMD... — the POSIX replacement for `trap ... ERR` at a call site.
+#
+# Runs CMD (through run(), so --dry-run still touches nothing) and aborts through
+# on_error() if it fails, naming the step, the command and the line it was called
+# from. LINE is always passed as "${LINENO:-?}"; whether it is printed depends on the
+# probe above.
+must() {
+    _must_line="${1:-}"
+    shift
+    _must_step="${1:-}"
+    shift
+    if [ "$LINENO_TRUSTED" -ne 1 ]; then
+        _must_line="?"
+    fi
+    run "$@" || on_error "$?" "$_must_line" "$_must_step" "$*"
+}
+
+# append_to FILE CMD... — append CMD's output to FILE, and overwrite_file FILE SRC...
+# — replace FILE's contents. A redirection is not an argument, so the two places that
+# need one call through these instead of writing `>>"$file"` themselves.
+append_to() {
+    _append_file="$1"
+    shift
+    "$@" >>"$_append_file"
+}
+
+overwrite_file() {
+    _overwrite_target="$1"
+    shift
+    cat "$1" >"$_overwrite_target"
 }
 
 # --------------------------------------------------------------------------- #
@@ -310,6 +411,7 @@ detect_platform() {
             err "unsupported operating system: ${_os}"
             say "The Python build ships for Linux; Windows is not in this release."
             say "On macOS use the native app from apple/ — see apple/README.md."
+            ERROR_REPORTED=1
             exit "$EXIT_FAIL"
             ;;
     esac
@@ -320,6 +422,7 @@ detect_platform() {
         *)
             err "unsupported CPU architecture: ${_arch}"
             say "Supported: x86_64 (reported as x64) and arm64."
+            ERROR_REPORTED=1
             exit "$EXIT_FAIL"
             ;;
     esac
@@ -367,6 +470,7 @@ need_downloader() {
     say "  Fedora        : sudo dnf install -y curl"
     say "  Alpine        : apk add curl"
     say "  macOS         : /usr/bin/curl ships with the system"
+    ERROR_REPORTED=1
     exit "$EXIT_FAIL"
 }
 
@@ -380,6 +484,7 @@ need_extractor() {
     err "no archive extractor found (need tar + gzip, or unzip)."
     say "  Debian/Ubuntu : sudo apt-get install -y tar gzip"
     say "  macOS         : tar and gzip ship with the system"
+    ERROR_REPORTED=1
     exit "$EXIT_FAIL"
 }
 
@@ -429,6 +534,7 @@ need_python() {
     say "  Fedora        : sudo dnf install -y python3"
     say "  Alpine        : apk add python3"
     say "  macOS         : brew install python@3.12"
+    ERROR_REPORTED=1
     exit "$EXIT_FAIL"
 }
 
@@ -547,7 +653,7 @@ extract_archive() {
         err "archive is missing or empty: ${_archive}"
         return 1
     fi
-    run mkdir -p "$_dest"
+    must "${LINENO:-?}" "create ${_dest}" mkdir -p "$_dest"
     if [ "$HAVE_TAR" -eq 1 ] && [ "$HAVE_GZIP" -eq 1 ]; then
         if run tar -xzf "$_archive" -C "$_dest"; then
             return 0
@@ -661,6 +767,12 @@ write_meta() {
             "$C_YELLOW" "$C_OFF" "$PREFIX" >&2
         return 0
     fi
+    must "${LINENO:-?}" "write ${PREFIX}/install-meta" write_meta_body "$@"
+}
+
+# the actual write, split out so that must() can guard it: a redirection cannot be
+# passed as an argument, and a full disk must not pass unnoticed
+write_meta_body() {
     printf '%s\n' "$@" >"${PREFIX}/install-meta"
 }
 
@@ -701,17 +813,20 @@ write_path_block() {
             "$C_YELLOW" "$C_OFF" "$BIN_DIR" "$_rc" >&2
         return 0
     fi
-    {
-        printf '%s\n' "$PATH_MARKER"
-        printf '# Adds ~/.local/bin to PATH if it is not there yet. Added by install.sh.\n'
-        printf 'case ":${PATH}:" in\n'
-        printf '  *:%s:*) ;;\n' "$BIN_DIR"
-        printf '  *) PATH="%s:${PATH}" ;;\n' "$BIN_DIR"
-        printf 'esac\n'
-        printf 'export PATH\n'
-        printf '%s\n' "$PATH_MARKER_END"
-    } >>"$_rc"
-    return 0
+    must "${LINENO:-?}" "add ${BIN_DIR} to PATH in ${_rc}" \
+        append_to "$_rc" path_block_body
+}
+
+# path_block_body — the managed PATH block, printed to stdout
+path_block_body() {
+    printf '%s\n' "$PATH_MARKER"
+    printf '# Adds ~/.local/bin to PATH if it is not there yet. Added by install.sh.\n'
+    printf 'case ":${PATH}:" in\n'
+    printf '  *:%s:*) ;;\n' "$BIN_DIR"
+    printf '  *) PATH="%s:${PATH}" ;;\n' "$BIN_DIR"
+    printf 'esac\n'
+    printf 'export PATH\n'
+    printf '%s\n' "$PATH_MARKER_END"
 }
 
 setup_path() {
@@ -741,7 +856,7 @@ setup_path() {
         if [ ! -f "$_rc" ]; then
             if [ "$_created" -eq 0 ] && [ "$_rc" = "${HOME}/.profile" ]; then
                 step "creating ${_rc} with the PATH entry"
-                run mkdir -p "$HOME"
+                must "${LINENO:-?}" "create ${HOME}" mkdir -p "$HOME"
                 write_path_block "$_rc"
                 _touched="$_touched $_rc"
                 _created=1
@@ -781,7 +896,7 @@ strip_path_block() {
         _tmp="$(tmpfile rc-stripped)"
         sed "/${PATH_MARKER}/,/${PATH_MARKER_END}/d" "$_rc" >"$_tmp" 2>/dev/null </dev/null || true
         # write through the original file so its permissions and inode survive
-        cat "$_tmp" >"$_rc"
+        must "${LINENO:-?}" "restore ${_rc}" overwrite_file "$_rc" "$_tmp"
         rm -f "$_tmp"
         ok "removed the managed PATH block from ${_rc}"
     done <"$_list"
@@ -800,15 +915,15 @@ link_binary() {
     if [ -e "$_link" ] && [ ! -L "$_link" ]; then
         if [ "$FORCE" -eq 1 ]; then
             warn "${_link} is a regular file, replacing it (--force)"
-            run rm -f "$_link"
+            must "${LINENO:-?}" "remove ${_link}" rm -f "$_link"
         else
             die "${_link} already exists and is not a symlink. Move it aside or rerun with --force."
         fi
     fi
 
-    run mkdir -p "$BIN_DIR"
+    must "${LINENO:-?}" "create the symlink directory ${BIN_DIR}" mkdir -p "$BIN_DIR"
     step "linking ${_link} -> ${_target}"
-    run rm -f "$_link"
+    must "${LINENO:-?}" "remove the old ${_link}" rm -f "$_link"
     run ln -s "$_target" "$_link" || die "could not create the symlink ${_link}."
     ok "symlink created"
     return 0
@@ -888,7 +1003,7 @@ install_from_source() {
         else
             info "replacing the existing ${PREFIX}/venv"
         fi
-        run rm -rf "${PREFIX}/venv"
+        must "${LINENO:-?}" "remove the old ${PREFIX}/venv" rm -rf "${PREFIX}/venv"
     fi
 
     step "creating the virtualenv ${PREFIX}/venv"
@@ -996,6 +1111,7 @@ verify_install() {
             say ""
             say "Reinstall with:  sh install.sh --force --prefix=\"${PREFIX}\""
             say "Skip the check:  sh install.sh --no-verify"
+            ERROR_REPORTED=1
             exit "$EXIT_FAIL"
         fi
         if [ -n "$_out" ]; then
@@ -1120,7 +1236,7 @@ do_install() {
         return "$EXIT_OK"
     fi
 
-    run mkdir -p "$PREFIX"
+    must "${LINENO:-?}" "create the install prefix ${PREFIX}" mkdir -p "$PREFIX"
 
     TARGET=""
     if [ "$WANT_SOURCE" -eq 0 ]; then
@@ -1139,12 +1255,10 @@ do_install() {
         fi
     fi
     if [ -z "$TARGET" ]; then
-        err "installation failed, see the messages above."
-        exit "$EXIT_FAIL"
+        die "installation failed, see the messages above."
     fi
     if [ ! -x "$TARGET" ]; then
-        err "installation failed: ${TARGET} is not executable."
-        exit "$EXIT_FAIL"
+        die "installation failed: ${TARGET} is not executable."
     fi
 
     ok "entry point: ${TARGET}"
@@ -1179,13 +1293,13 @@ do_uninstall() {
     _link="${BIN_DIR}/${APP_NAME}"
     if [ -e "$_link" ] || [ -L "$_link" ]; then
         step "removing ${_link}"
-        run rm -f "$_link"
+        must "${LINENO:-?}" "remove the symlink ${_link}" rm -f "$_link"
         _found=1
     fi
 
     if [ -d "$PREFIX" ]; then
         step "removing ${PREFIX}"
-        run rm -rf "$PREFIX"
+        must "${LINENO:-?}" "remove ${PREFIX}" rm -rf "$PREFIX"
         _found=1
     fi
 
@@ -1226,12 +1340,16 @@ main() {
         esac
     fi
 
+    # Called plainly, not as `do_install || _status=$?`. On the right-hand side of an
+    # AND-OR list the shell suspends `set -e` for the whole call — a failing command
+    # inside the install would then be carried past in silence. (bash's ERR trap has
+    # the same blind spot, so this was not caught before either.)
     if [ "$MODE_UNINSTALL" -eq 1 ]; then
-        do_uninstall || _status=$?
+        do_uninstall
     else
-        do_install || _status=$?
+        do_install
     fi
-    exit "${_status:-0}"
+    exit "$EXIT_OK"
 }
 
 main "$@"
