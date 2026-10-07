@@ -1,6 +1,6 @@
 # Frequency reference
 
-The complete reference shipped with the app: **99 entries in 9 categories**, stored as data in
+The complete reference shipped with the app: **110 entries in 11 categories**, stored as data in
 [`src/binaural/data/frequencies.json`](../src/binaural/data/frequencies.json) and rendered in the
 app under *Help → Frequency reference*.
 
@@ -8,7 +8,7 @@ That file is the only copy in the repository. Both implementations read it — t
 beside its own module, the Swift app (`apple/`) through a copy-files phase pointing at the same
 path. `docs/CONTRACT.md` rule 10 forbids duplicating it.
 
-Nothing here is ranked or filtered out. Categories exist only so that 99 numbers do not become an
+Nothing here is ranked or filtered out. Categories exist only so that 110 numbers do not become an
 unreadable wall.
 
 - [How to use it in the app](#how-to-use-it-in-the-app)
@@ -23,6 +23,8 @@ unreadable wall.
 - [⚡ Rife & Therapeutic](#-rife--therapeutic)
 - [🚀 Space & Consciousness](#-space--consciousness)
 - [✨ Healing & Energy](#-healing--energy)
+- [🧪 Substances & Medication](#-substances--medication)
+- [☀️ Mood & Positive Affect](#-mood--positive-affect)
 - [Disclaimer](#disclaimer)
 
 ---
@@ -56,7 +58,7 @@ nothing is ordered by it.
 | 🟡 | `reported` | claimed; little research |
 | 🟣 | `traditional` | from traditional, esoteric or alternative practice |
 
-Distribution across the 99 entries: 12 🟢, 8 🔵, 11 🟡, 68 🟣.
+Distribution across the 110 entries: 12 🟢, 16 🔵, 14 🟡, 68 🟣.
 
 ## Contents
 
@@ -71,6 +73,8 @@ Distribution across the 99 entries: 12 🟢, 8 🔵, 11 🟡, 68 🟣.
 | 7 | ⚡ [Rife & Therapeutic](#-rife--therapeutic) | 40 |
 | 8 | 🚀 [Space & Consciousness](#-space--consciousness) | 7 |
 | 9 | ✨ [Healing & Energy](#-healing--energy) | 7 |
+| 10 | 🧪 [Substances & Medication](#-substances--medication) | 4 |
+| 11 | ☀️ [Mood & Positive Affect](#-mood--positive-affect) | 7 |
 
 ---
 
@@ -286,6 +290,69 @@ agency endorsement of these frequencies.
 
 ---
 
+## 🧪 Substances & Medication
+
+*Beats documented in connection with substances: studies of analgesic, sedative and anaesthetic
+consumption, withdrawal, and the 'digital drug' claim tradition.*
+
+Every row below describes **what one study reported**, not what the app delivers. Four records,
+four different sources.
+
+| Entry | Beat | Effect (as described in the data) | |
+|---|---|---|---|
+| 4 Hz — morphine use after knee replacement | 4.0 | A randomised trial in older adults having total knee replacement: 4 Hz binaural beats played before the operation were followed by roughly half the morphine the control group used on the first postoperative day (5.75 vs 11.85 mg). Pain ratings and anxiety did not differ. A hospital surgical population, not a relaxation claim. | 🔵 |
+| 1–10 Hz — propofol dose with sound and light | 1–10 | A randomised trial in boys undergoing sub-umbilical surgery under caudal block: a beat stepping down from 10 Hz by 2 Hz every 150 s to 2 Hz, then held at 1–2 Hz, was delivered together with a synchronised flashing light, and the propofol infusion rate was lower (3.0 vs 4.2 mg/kg/h). The result belongs to the sound-plus-light protocol, not to one frequency. | 🔵 |
+| 5 Hz — anxiety in alcohol withdrawal | 5.0 | Single-group pre-post study, 100 men with moderate or severe alcohol withdrawal: after 10 minutes of pure theta beats clinician-rated anxiety fell slightly, significantly so only in the severe group (mean −1.31 points) and not at all in the moderate group. No control group, and a published comment notes the change may follow the natural course of withdrawal. Nothing here concerns craving, tolerance or relapse. | 🟡 |
+| 5 Hz — sedation-free colonoscopy | 5.0 | A randomised single-blind trial in 92 patients having colonoscopy without sedation: theta beats at 5 Hz mixed into music were followed by lower self-rated anxiety and better tolerance of the procedure than headphones with silence. The study is about procedural tolerance, not craving or withdrawal, and the beats were not isolated from the music. Caveat: the journal it appeared in, The European Research Journal, is of unclear standing; the citation is checkable and openable, which is why it is here, but so is that caveat. | 🔵 |
+
+Sources: Tani A. et al. *Altern Ther Health Med.* 2021;27(2):27–30, PMID 32412916 ·
+Schmid W. et al. *Br J Anaesth.* 2020;125(3):330–335, DOI 10.1016/j.bja.2020.05.050 ·
+Prithiviraj R. et al. *Indian J Psychol Med.* 2026, DOI 10.1177/02537176261435752 (comment:
+DOI 10.1177/02537176261468210) · Demirci S. et al. 2025, DOI 10.18621/eurj.1604977.
+
+### A note on this category
+
+None of these entries is a treatment for a substance, and none of them should be read as one. The
+studies measure a drug dose or a score in a hospital or a procedure; two of them have weaknesses
+the data says out loud (no control group, or a journal of unclear standing). Nothing in this
+category concerns craving, tolerance, relapse or reducing a dose on your own.
+
+The disclaimer in this file, in both implementations and in the READMEs says it in one sentence:
+binaural beats are sound, not a substance, and they do not replace one. Dependence is a medical
+condition with risks of its own — withdrawal from alcohol and from sedatives can be dangerous — and
+anything to do with using less of something is a question for a doctor or a specialist service.
+
+---
+
+## ☀️ Mood & Positive Affect
+
+*Beats whose sources discuss mood, pleasure and positive affect — including the studies that found
+no change.*
+
+| Entry | Beat | Effect (as described in the data) | |
+|---|---|---|---|
+| 16 Hz — beta, vigilance and mood | 16.0 | A blinded study of 29 people doing a 30-minute visual vigilance task: beta-range beats at 16 and 24 Hz gave more correct detections and fewer false alarms than beats at 1.5 and 4 Hz, and were rated with less negative mood. One study, 29 participants, 1998; the opposite mood was reported at the 1.5 and 4 Hz comparison points. | 🔵 |
+| 24 Hz — beta, vigilance and mood | 24.0 | The upper of the two beta points in that same blinded study: 24 Hz was presented together with 16 Hz, and both were rated with less negative mood than the 1.5 and 4 Hz comparison. One study, 29 participants, 1998. | 🔵 |
+| 5.5–8.5 Hz — theta, relaxation after exercise | 5.5–8.5 | Double-blind, placebo-controlled, 21 young adults relaxing after treadmill exercise: a wide-band beat swinging between 5.5 and 8.5 Hz around 7 Hz produced more self-reported relaxation and a heart-rate-variability shift towards parasympathetic activity. By the end of the 20 minutes the heart-rate differences were gone, and the recording mixed beats with pink noise and music. | 🔵 |
+| 0.5–4 Hz — two weeks of sleep and mood | 0.5–4 | A two-week pilot in 20 healthy students, one week without beats and one week with 90 minutes of delta-range beats each night: sleep measures and the "anxiety" and "anger" items of a mood questionnaire improved after the beat week; other mood items did not move. No control group, and no measurement of pleasure, joy or gratitude. | 🟡 |
+| 7 Hz — theta, no change in mood | 7.0 | Single-blind, active-controlled comparison of binaural against monaural beats: neither 7 Hz nor 40 Hz changed self-reported mood, although both produced cross-frequency connectivity effects. Kept in the reference so that no mood effect is implied here that the study did not find. | 🔵 |
+| 40 Hz — gamma, no change in mood | 40.0 | The gamma point in that same controlled comparison: 40 Hz did not change self-reported mood against a monaural control. Other studies do report attention and memory effects at this frequency; mood is not among them. | 🔵 |
+| 40 Hz — gamma, mood in an exploratory pilot | 40.0 | Exploratory pilot, 9 participants, three frequency groups (40, 25 and 100 Hz) over eight sessions: mood-questionnaire scores moved in the direction of better mood, most strongly in the 40 Hz group. The result rests on an indirect negative correlation, has no sham condition, and the authors call it preliminary. | 🟡 |
+
+Two of the seven are **null results** on purpose. `affect-null-7` and `affect-null-40` record a
+controlled comparison in which the beat did not change self-reported mood. They are here so that
+this category does not imply a mood effect the study did not find — a reference that only listed
+the positive results would be a selection, and the project keeps everything.
+
+Sources: Lane JD, Kasian SJ, Owens JE, Marsh GR. *Physiol Behav.* 1998;63(2):249–252,
+DOI 10.1016/S0031-9384(97)00436-8 · McConnell PA et al. *Front Psychol.* 2014;5:1248,
+DOI 10.3389/fpsyg.2014.01248 · Dabiri M, Monazzam ES, Salmani N. *Digit Health.*
+2022;8:20552076221102243, DOI 10.1177/20552076221102243 · Orozco Perez HD, Dumas G, Lehmann A.
+*eNeuro.* 2020;7(2):ENEURO.0232-19.2020, DOI 10.1523/ENEURO.0232-19.2020 · *Brain Informatics*
+2020, DOI 10.1186/s40708-020-00119-9.
+
+---
+
 ## Disclaimer
 
 These frequencies and the effect descriptions come from research literature **and** from esoteric,
@@ -293,5 +360,11 @@ energy-based and alternative practices. The application is **not a medical devic
 intended for the diagnosis, treatment or prevention of any disease. Do not use it with epilepsy, a
 cardiac pacemaker, during pregnancy, or with photosensitivity without consulting a doctor. Keep the
 volume at a reasonable level.
+
+Binaural beats are sound, not a substance, and they do not replace one. Nothing here helps with
+withdrawal, craving, tolerance or relapse, and this app does not treat dependence of any kind.
+Dependence is a medical condition with risks of its own: withdrawal from alcohol and from sedatives
+can be dangerous. If you are dependent on something, or want to use less of it, that is a question
+for a doctor or a specialist service, not for a tone generator.
 
 Read [docs/SCIENCE.md](SCIENCE.md) for what the research does and does not support.

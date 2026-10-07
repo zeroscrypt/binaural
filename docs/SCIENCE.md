@@ -106,5 +106,9 @@ See also [`docs/SPEC.md §2.1`](SPEC.md) for the project's own notes on the lite
 ## Disclaimer
 
 This application is **not a medical device** and is not intended for the diagnosis, treatment or
-prevention of any disease. Do not use it with epilepsy, a cardiac pacemaker, during pregnancy, or
-with photosensitivity without consulting a doctor. Keep the volume at a reasonable level.
+prevention of any disease. Binaural beats are sound, not a substance, and they do not replace one:
+nothing here helps with withdrawal, craving, tolerance or relapse, and the app does not treat
+dependence of any kind. Withdrawal from alcohol and from sedatives can be dangerous; anything to do
+with using less of something is a question for a doctor or a specialist service. Do not use it with
+epilepsy, a cardiac pacemaker, during pregnancy, or with photosensitivity without consulting a
+doctor. Keep the volume at a reasonable level.

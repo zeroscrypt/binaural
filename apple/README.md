@@ -34,7 +34,7 @@ the Python release packaging for it has been removed, see below.
 
 ## Status
 
-**Landed and green: 208 core tests + 135 macOS window tests, 480 Python tests.**
+**Landed and green: 208 core tests + 135 macOS window tests, 481 Python tests.**
 The Python release packaging for macOS is gone — this is the macOS product now (see
 "What happens to the Python macOS build" below). `v0.1.0` is tagged and published on GitHub
 as **source only**: no binaries are attached to the release, because this app cannot be
@@ -47,7 +47,7 @@ signed on the build machine.
   no SwiftUI inside it, so the same code is testable on both platforms.
 - Two app shells that build, launch and display that the catalogue actually loaded.
 - `BinauralCoreTests` — **73 tests proving parity with Python**, not merely that the code
-  compiles: 9 categories / 99 entries, evidence totals 68 🟣 / 12 🟢 / 11 🟡 / 8 🔵, per-category
+  compiles: 11 categories / 110 entries, evidence totals 68 🟣 / 12 🟢 / 14 🟡 / 16 🔵, per-category
   counts identical, `pair(10 Hz, 200 Hz) → 195 / 205`, synthesiser frequency within 1.0 Hz
   (and an exact closed-form check at 1e-6), peak amplitude within 1e-3, session save→load
   round-trip with Python's clamps.

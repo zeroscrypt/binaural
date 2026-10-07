@@ -194,10 +194,10 @@ The scope from the project specification, in both implementations. See
   time from Settings or *Help*.
 - **Settings** — language, playback timer, volume, and the headphone-check button, each writing
   straight through to the running window.
-- **Frequency reference, 9 categories** — brainwave bands, Schumann resonance, planetary tones,
+- **Frequency reference, 11 categories** — brainwave bands, Schumann resonance, planetary tones,
   solfeggio, tuning references, research frequencies, Rife, space/consciousness claims, healing and
-  energy. Bilingual (en/ru), searchable, with an evidence badge per entry. Details in
-  **[docs/FREQUENCIES.md](docs/FREQUENCIES.md)**.
+  energy, substances and medication, mood and positive affect. Bilingual (en/ru), searchable, with
+  an evidence badge per entry. Details in **[docs/FREQUENCIES.md](docs/FREQUENCIES.md)**.
 - **Light and dark theme**, native widgets, HiDPI, full keyboard navigation.
 - **English and Russian interface**, switchable at runtime — see [Language](#language).
 - **Two implementations, one product per platform** — the native Swift app is the macOS (and
@@ -228,7 +228,7 @@ language stays available on hover.
 
 ## Frequency reference
 
-The app ships a static reference of **99 entries across 9 categories**, stored as data in
+The app ships a static reference of **110 entries across 11 categories**, stored as data in
 `src/binaural/data/frequencies.json` and shown in-app with search, per-category counters and an
 evidence badge. That file is the only copy in the repository — the Swift app reads it too.
 
@@ -294,6 +294,12 @@ energy-based and alternative practices. The application is **not a medical devic
 intended for the diagnosis, treatment or prevention of any disease. Do not use it with epilepsy, a
 cardiac pacemaker, during pregnancy, or with photosensitivity without consulting a doctor. Keep the
 volume at a reasonable level.
+
+Binaural beats are sound, not a substance, and they do not replace one. Nothing here helps with
+withdrawal, craving, tolerance or relapse, and this app does not treat dependence of any kind.
+Dependence is a medical condition with risks of its own: withdrawal from alcohol and from sedatives
+can be dangerous. If you are dependent on something, or want to use less of it, that is a question
+for a doctor or a specialist service, not for a tone generator.
 
 The same disclaimer is shown in the app under *Help → About*.
 
@@ -380,11 +386,11 @@ otherwise. Honest breakdown of what exists in the tree today:
 | `core/playback_timer.py` — the timer as a testable value, not a running clock | implemented, tested |
 | `audio/platform/` — device enumeration and classification (CoreAudio, `pactl`/`pw-cli`/`amixer`) | implemented, tested |
 | `audio/headphones.py` — heuristics plus the perceptual L/R test sequence | implemented, tested |
-| `data/frequencies.json` — 99 entries, 9 categories, bilingual | implemented, tested |
+| `data/frequencies.json` — 110 entries, 11 categories, bilingual | implemented, tested |
 | `ui/presets.py` — the preset registry, 7 categories / 20 presets | implemented, tested |
 | `ui/` — main window, reference dialog, headphone-check and L/R dialogs, Settings, tray | implemented, tested |
 | `app.py`, `install.sh`, Linux packaging | implemented; no release archive published yet |
-| Python suite | **480 passed**, 2 skipped |
+| Python suite | **481 passed**, 2 skipped |
 | `apple/` — the macOS app: live audio, full UI, presets, timer, *Lock difference*, EN/RU | implemented, **208 core + 135 macOS tests** |
 | `apple/` Release build | `apple/dist/Binaural.app`, **unsigned** |
 | `apple/` iOS | compiles against `generic/platform=iOS Simulator`; **never run** — no Simulator runtime on this machine |
