@@ -12,6 +12,7 @@ final class FrequencyCatalogueTests: XCTestCase {
     private static let expectedCategoryIDs = [
         "brainwave", "schumann", "planetary", "solfeggio",
         "tuning", "research", "rife", "nasa", "healing",
+        "substance", "affect",
     ]
 
     private var catalogue: FrequencyCatalogue!
@@ -28,13 +29,13 @@ final class FrequencyCatalogueTests: XCTestCase {
 
     func testJSONParses() throws {
         XCTAssertEqual(catalogue.version, 1)
-        XCTAssertEqual(catalogue.categories.count, 9)
-        XCTAssertEqual(catalogue.entries.count, 99)
+        XCTAssertEqual(catalogue.categories.count, 11)
+        XCTAssertEqual(catalogue.entries.count, 110)
     }
 
-    func testAllNineCategoriesArePresentAndInOrder() {
+    func testAllElevenCategoriesArePresentAndInOrder() {
         XCTAssertEqual(catalogue.categories.map(\.id), Self.expectedCategoryIDs)
-        XCTAssertEqual(catalogue.categories.map(\.order), Array(1...9))
+        XCTAssertEqual(catalogue.categories.map(\.order), Array(1...11))
         for category in catalogue.categories {
             XCTAssertFalse(catalogue.entries(inCategory: category.id).isEmpty,
                            "\(category.id) is empty")
@@ -61,9 +62,9 @@ final class FrequencyCatalogueTests: XCTestCase {
         // Read out of src/binaural/data/frequencies.json with the Python loader.
         XCTAssertEqual(totals[.traditional], 68)
         XCTAssertEqual(totals[.wellStudied], 12)
-        XCTAssertEqual(totals[.reported], 11)
-        XCTAssertEqual(totals[.studied], 8)
-        XCTAssertEqual(totals.values.reduce(0, +), 99)
+        XCTAssertEqual(totals[.reported], 14)
+        XCTAssertEqual(totals[.studied], 16)
+        XCTAssertEqual(totals.values.reduce(0, +), 110)
     }
 
     func testOnlyTheFourDefinedLevelsCarryBadges() {
@@ -167,7 +168,8 @@ final class FrequencyCatalogueTests: XCTestCase {
         XCTAssertEqual(
             counts.map { "\($0.category.id):\($0.count)" },
             ["brainwave:12", "schumann:5", "planetary:10", "solfeggio:9",
-             "tuning:5", "research:4", "rife:40", "nasa:7", "healing:7"]
+             "tuning:5", "research:4", "rife:40", "nasa:7", "healing:7",
+             "substance:4", "affect:7"]
         )
         XCTAssertEqual(counts.reduce(0) { $0 + $1.count }, catalogue.entries.count)
         XCTAssertTrue(counts.allSatisfy { $0.count > 0 })
@@ -233,7 +235,7 @@ final class FrequencyCatalogueTests: XCTestCase {
     }
 
     func testSearchByCategoryAndEmptyQuery() {
-        XCTAssertEqual(catalogue.search("").count, 99)
+        XCTAssertEqual(catalogue.search("").count, 110)
         XCTAssertEqual(catalogue.search("", category: "solfeggio").count, 9)
         XCTAssertTrue(catalogue.search("", category: "solfeggio").allSatisfy { $0.category == "solfeggio" })
         XCTAssertTrue(catalogue.search("432", category: "brainwave").isEmpty)

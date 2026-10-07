@@ -67,6 +67,10 @@ final class AboutTests: XCTestCase {
             "photosensitive",
             "consulting a doctor",
             "volume",
+            // The addiction-safety sentence added with the substance/affect entries.
+            "not a substance",
+            "withdrawal",
+            "dependence",
         ]
         for clause in required {
             XCTAssertTrue(text.contains(clause), "the disclaimer lost: \(clause)")
