@@ -1,54 +1,71 @@
 # Binaural
 
-![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-macOS%20(Swift)%20%7C%20Linux%20(Python)-lightgrey) ![python](https://img.shields.io/badge/python-3.10%2B-blue) ![release](https://img.shields.io/badge/release-v0.1.0-blue)
+<h2 align="right">🇬🇧 <strong>English</strong> &nbsp;·&nbsp; 🇷🇺 <a href="README.ru.md"><strong>Русский</strong></a></h2>
 
-**Two independent frequencies, one perceived difference.**
+[![license](https://img.shields.io/badge/license-MIT-blue)][license]
+[![release](https://img.shields.io/badge/release-v0.1.0-blue)][releases]
+[![platform](https://img.shields.io/badge/platform-macOS%20(Swift)%20%7C%20Linux%20(Python)-lightgrey)][install]
+[![python](https://img.shields.io/badge/python-3.10%2B-blue)][install]
 
-Binaural is a desktop generator of binaural beats. You set one frequency for the left ear and
-another for the right ear. The brain merges the two tones and perceives a third, virtual tone
-whose pitch is the **difference** between them.
+**Two independent frequencies. One perceived difference.**
 
-**macOS** gets the native Swift app under [`apple/`](apple/README.md); **Linux** gets the
-Python/Qt app in `src/`. Windows is future work.
+---
 
-```
+<details>
+<summary>Table of contents</summary>
+
+- [About the Project](#about-the-project)
+  - [Why headphones are not optional](#why-headphones-are-not-optional)
+  - [Built With](#built-with)
+- [Features](#features)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [macOS — the native app](#macos--the-native-app)
+  - [Linux — one command](#linux--one-command)
+  - [From source (either platform)](#from-source-either-platform)
+- [Usage](#usage)
+  - [Start with your headphones on](#start-with-your-headphones-on)
+  - [Set the two frequencies](#set-the-two-frequencies)
+  - [Press play](#press-play)
+  - [Presets](#presets)
+  - [The timer](#the-timer)
+  - [Lock difference](#lock-difference)
+  - [The frequency reference](#the-frequency-reference)
+  - [Settings and the interface language](#settings-and-the-interface-language)
+- [Frequency reference](#frequency-reference)
+- [What the research says](#what-the-research-says)
+- [Disclaimer](#disclaimer)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [Roadmap](#roadmap)
+- [License](#license)
+- [Contact](#contact)
+- [Acknowledgments](#acknowledgments)
+
+</details>
+
+---
+
+## About the Project
+
+<pre align="center">
 Left ear:   fL = 205.0 Hz
 Right ear:  fR = 215.0 Hz
                     ↓
 Perceived:    10.0 Hz   ← the beat, produced by the brain, not present in the signal
+</pre>
+
+Binaural is a desktop generator of binaural beats. You set one frequency for the left ear and
+another for the right ear. The brain merges the two tones and perceives a third, virtual tone
+whose pitch is the **difference** between them. Formally:
+
+```
+beat    = |fL − fR|
+carrier = (fL + fR) / 2
 ```
 
-Formally: `beat = |fL − fR|`, `carrier = (fL + fR) / 2`.
-
-> English | [Русский](README.ru.md)
-
-Working on this repository? Read [`CONTEXT.md`](CONTEXT.md) first.
-
----
-
-## Table of contents
-
-- [What it actually does](#what-it-actually-does)
-- [Why headphones are mandatory](#why-headphones-are-mandatory)
-- [Install](#install)
-  - [macOS — the native app](#macos--the-native-app)
-  - [Linux — the one-liner](#linux--the-one-liner)
-  - [From source (either platform)](#from-source-either-platform)
-- [Screenshots](#screenshots)
-- [Features](#features)
-- [Language](#language)
-- [Frequency reference](#frequency-reference)
-- [What the research says](#what-the-research-says)
-- [Disclaimer](#disclaimer)
-- [Requirements](#requirements)
-- [Development](#development)
-- [Project status](#project-status)
-- [Roadmap](#roadmap)
-- [License](#license)
-
----
-
-## What it actually does
+**macOS** gets the native Swift app in [`apple/`][apple-dir]. **Linux** gets the Python/Qt app in
+[`src/`][src-dir]. Windows is future work.
 
 The signal is deliberately boring: two sine oscillators, one per channel, no effects, no scene,
 no music, no processing.
@@ -71,9 +88,7 @@ A 10 Hz tone is **not in the audio stream**. Each ear receives a plain tone arou
 10 Hz "flicker" you may perceive is the difference between the two channels, computed inside your
 auditory system. That is why each ear has to get its own frequency and nothing else.
 
----
-
-## Why headphones are mandatory
+### Why headphones are not optional
 
 This is not a recommendation. It is the physical condition under which the method works at all.
 
@@ -86,9 +101,50 @@ Put the headphones on before you press play. The app checks the output device on
 tells you if it thinks you are on speakers. The dialog with the full L/R test appears until you
 confirm it once, and you can bring it back any time from Settings or *Help*.
 
+### Built With
+
+- **macOS app** — Swift 6.4 in strict concurrency, `AVAudioEngine` + CoreAudio for output,
+  `BinauralCore` as a testable framework, AppKit for the window, a SwiftUI shell for iOS
+  ([`apple/`][apple-dir], Xcode + `xcodegen`)
+- **Linux app** — Python 3.10+ and PySide6 (Qt 6); output through `QAudioSink` from QtMultimedia,
+  `pytest` for the suite ([`src/`][src-dir] + [`tests/`][tests-dir])
+- **Shared by both** — one frequency reference file (`frequencies.json`) and one API contract
+  ([`docs/CONTRACT.md`][contract]). Data and behaviour are shared; source code never is.
+
+<a href="#about-the-project">⬆ Back to top</a>
+
 ---
 
-## Install
+## Features
+
+- **Zero configuration to hear something.** Two numbers, one button. No audio files, no
+  processing chain, no import step.
+- **You always know what you are hearing.** `BEAT` and `CARRIER` update as you type, with a hint
+  when the beat falls outside the usual 0.5–100 Hz perception range.
+- **Twenty presets, seven categories, one click.** Pick a category, pick a preset, and both
+  frequencies are set around the 200 Hz carrier so the difference is exactly the beat.
+- **The session ends by itself.** A playback timer stops the tone when it runs out, so you can
+  fall asleep to it.
+- **Tuning that does not click.** Frequency changes keep the phase continuous, ramps are smooth,
+  and *Lock difference* lets you tune one ear by hand while the other follows.
+- **It warns you before it goes silent.** A headphone check runs on every start; a perceptual
+  left/right test catches swapped channels and swaps the output for you.
+- **A reference that shows its sources.** 110 entries in 11 categories, each with an evidence
+  badge, searchable, and bilingual in English and Russian — including the claims that are
+  tradition or folklore rather than research.
+
+<a href="#features">⬆ Back to top</a>
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+| Platform | What you need |
+|---|---|
+| **macOS** | macOS 12 or newer. To build: Xcode (Swift 6.4) and `xcodegen` (`brew install xcodegen`). No Apple Developer account. |
+| **Linux** | Linux (x86_64 or arm64) with a running PulseAudio or PipeWire session. From source: Python 3.10+ (developed against 3.12) and `pip`. PySide6 6.5+ is pulled in for you. |
 
 ### macOS — the native app
 
@@ -99,19 +155,21 @@ cd binaural/apple
 open apple/dist/Binaural.app
 ```
 
-The script builds Release into a throwaway derived-data directory, copies the finished bundle to
-`apple/dist/Binaural.app`, verifies the bundled `frequencies.json` against the single copy in
-`src/` with `shasum`, and deletes the build tree. No Xcode needed afterwards — it is a plain
-`.app` you can double-click.
+`build_release.sh` builds Release into a throwaway derived-data directory, copies the finished
+bundle to `apple/dist/Binaural.app`, verifies the bundled `frequencies.json` against the single
+copy in `src/` with `shasum`, and deletes the build tree. No Xcode needed afterwards — it is a
+plain `.app` you can double-click. Add `--smoke` to have the script launch the app once and kill
+it, which is how a launch crash gets caught. What the milestones delivered and what the signing
+constraints are is written up in [`apple/README.md`][apple-readme].
 
 > **It is unsigned.** No Apple Developer identity is configured on the build machine, so the app
 > is built with `CODE_SIGNING_ALLOWED=NO` and there is no notarisation. It runs for whoever built
-> it; for anyone else Gatekeeper blocks the first launch, and right-click → *Open* is the way
-> past it. Proper distribution — signing, notarisation, the App Store — needs an Apple Developer
+> it; for anyone else Gatekeeper blocks the first launch, and right-click → *Open* is the way past
+> it. Proper distribution — signing, notarisation, the App Store — needs an Apple Developer
 > account and is not done. **v0.1.0 on GitHub is source only**: no binaries are attached to the
-> release.
+> release, so building it yourself is the install path on macOS.
 
-### Linux — the one-liner
+### Linux — one command
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zeroscrypt/binaural/main/install.sh | sh
@@ -121,6 +179,16 @@ The script detects your OS and architecture, downloads the matching release arch
 into `~/.binaural/`, symlinks `binaural` into `~/.local/bin` (adding it to `PATH` if needed) and
 verifies the result with `binaural --version`. No Python or Qt on your machine is required — the
 archive ships its own runtime.
+
+Useful flags: `--dry-run` prints every step and changes nothing, `--uninstall` removes the
+installation, and `--help` lists the rest. If you would rather read the script before running it,
+download it first:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/zeroscrypt/binaural/main/install.sh
+less install.sh
+sh install.sh --dry-run
+```
 
 > **Heads up:** Linux is the only platform this script installs a Python build for, and the
 > release archives have not shipped yet. If it reports that no release is available, it falls back
@@ -139,90 +207,90 @@ python3 -m venv .venv
 .venv/bin/binaural
 ```
 
-`pip install -e .` also installs the `binaural` console script, so `.venv/bin/binaural` is the
-entry point. This path is fully supported on macOS too — the Python app still detects CoreAudio
-devices there.
+The `dev` extra adds `pytest` and `numpy`, which the test suite needs. `pip install -e .` also
+installs the `binaural` console script, so `.venv/bin/binaural` is the entry point. This path is
+fully supported on macOS too — the Python app still detects CoreAudio devices there.
 
-Full details, including manual builds and troubleshooting, are in
-**[docs/INSTALL.md](docs/INSTALL.md)**.
+Full details, including manual builds and every troubleshooting case, are in
+**[`docs/INSTALL.md`][install]**.
 
----
-
-## Screenshots
-
-*Screenshots will be added here once the UI polish lands.* Expected content:
-
-- **Main window, light theme** — large left/right frequency readouts, two sliders, the BEAT and
-  CARRIER metrics in the centre, the *Lock difference* checkbox under the beat, play button,
-  volume, the playback timer, and the two-level preset chips along the bottom.
-- **Headphone check dialog** — the warning shown when speakers are detected, with
-  *Continue anyway* and *Retry check*.
-- **Perceptual L/R test** — the left-then-right tone sequence and the question "what did you hear?".
-- **Settings** — language, timer, volume, and the button that re-runs the headphone check.
-- **Frequency reference dialog** — the category sidebar with counters, the search field, and an
-  entry card showing name → frequency → *Apply* → effect text → evidence badge.
-
-No image files are referenced until they exist, so nothing here is broken.
+<a href="#getting-started">⬆ Back to top</a>
 
 ---
 
-## Features
+## Usage
 
-The scope from the project specification, in both implementations. See
-[Project status](#project-status) for what is already implemented and what is still being built.
+Three steps, in order.
 
-- **Two independent frequencies** — separate fields and sliders for left and right, exact keyboard
-  entry, 0.1 Hz steps, 1–20000 Hz. Moving the left channel never moves the right one.
-- **Live beat and carrier readout** — `Beat: |fL − fR|` and `Carrier: (fL + fR) / 2` update as you
-  type, with a hint when the beat falls outside the usual 0.5–100 Hz perception range.
-- **Click-free playback** — frequency changes are applied without breaking phase, amplitude ramps
-  over tens of milliseconds, `Space` toggles play/stop.
-- **Two-level preset registry, 7 categories / 20 presets** — pick a category (Sleep, Meditation,
-  Relaxation, Awareness, Concentration, Work, Sport), then a preset. Every preset sits inside
-  1–30 Hz and in exactly one brainwave band, and one click sets **both** frequencies around the
-  200 Hz carrier so the difference is the beat: `fL = 200 − beat/2`, `fR = 200 + beat/2`. The
-  chosen category is remembered between sessions.
-- **Playback timer** — 0 (off) or 5–120 minutes from a fixed list, default 15. The remaining time
-  counts down on screen and playback stops by itself when it runs out.
-- **Lock difference** — tick it and editing one channel moves the other by the same amount, so the
-  signed difference stays where you put it. A preset sets its own difference and clears the lock;
-  at the edge of the 1–20000 Hz range the edited channel stops rather than the lock being broken.
-- **Headphone check** — device heuristics first (Bluetooth/USB/HDMI/built-in, port names), then a
-  fast perceptual left/right test. If the channels come back swapped, the app remembers it and
-  swaps its output so you get the right difference on the right side. The heuristic runs on every
-  start; the dialog appears until the first confirmation, and the whole check can be re-run at any
-  time from Settings or *Help*.
-- **Settings** — language, playback timer, volume, and the headphone-check button, each writing
-  straight through to the running window.
-- **Frequency reference, 11 categories** — brainwave bands, Schumann resonance, planetary tones,
-  solfeggio, tuning references, research frequencies, Rife, space/consciousness claims, healing and
-  energy, substances and medication, mood and positive affect. Bilingual (en/ru), searchable, with
-  an evidence badge per entry. Details in **[docs/FREQUENCIES.md](docs/FREQUENCIES.md)**.
-- **Light and dark theme**, native widgets, HiDPI, full keyboard navigation.
-- **English and Russian interface**, switchable at runtime — see [Language](#language).
-- **Two implementations, one product per platform** — the native Swift app is the macOS (and
-  iOS) build under [`apple/`](apple/README.md); the Python/Qt app here is the Linux build, with
-  Windows next. They share the frequency reference file and the API contract, never source code.
+### Start with your headphones on
 
-Explicitly out of scope: 3D/HRTF positioning, overlaying onto files or radio, spectrum analysis,
-recording or streaming, WAV export. iOS is in scope through `apple/` rather than through Python;
-Android is not planned.
+Start the app with your headphones already on. If the output device looks like speakers, the app
+says so and offers a check; see [Why headphones are not
+optional](#why-headphones-are-not-optional).
 
----
+### Set the two frequencies
 
-## Language
+The window shows one control per ear — a large readout, a slider and a field you can type into.
+Move one and the other stays exactly where it was. Range 1–20000 Hz, 0.1 Hz steps.
 
-The interface is **English or Russian**, switched from the app menu (*View → Language*) or from
-Settings. The switch applies immediately — including the open window and the open dialog — and the
-choice is remembered under `ui/language`, so the next start opens in the same language. On the very
-first start there is nothing stored yet, so the app follows the system locale (a Russian locale
-opens in Russian). Both implementations share the key and the Russian text: the Swift catalogue is
-**generated** from the Python one (`src/binaural/locales/ru.py`) and a test fails the build if the
-two ever disagree about which strings are translated.
+In the middle, `BEAT` is the difference and `CARRIER` is the mean of the two. Start from the
+example: 205 Hz left, 215 Hz right, and you get a 10 Hz beat at a 210 Hz carrier.
 
-The frequency reference is bilingual independently of the UI language: category names and
-effect descriptions come from `frequencies.json`, which carries both variants, and the other
-language stays available on hover.
+### Press play
+
+*Play* starts the tone, *Stop* ends it, and `Space` toggles between them. `↑`/`↓` nudge the
+active channel by 0.1 Hz, `←`/`→` switch between ears. Frequencies can be changed while playing
+without a click — the phase is continuous and the amplitude ramps.
+
+What you see in the window: the two frequency controls, the BEAT and CARRIER metrics with the
+*Lock difference* checkbox under the beat, the play button, volume, the playback timer and its
+countdown, and the two-level preset chips along the bottom.
+
+### Presets
+
+Seven categories — Sleep, Meditation, Relaxation, Awareness, Concentration, Work, Sport — hold
+20 presets in total. Every preset sits inside 1–30 Hz and in exactly one brainwave band, and one
+click sets **both** frequencies around the 200 Hz carrier so the difference is the beat:
+`fL = 200 − beat/2`, `fR = 200 + beat/2`. The category you picked is remembered between sessions.
+
+*Save preset* stores the pair you currently have for the next run.
+
+### The timer
+
+0 means off — play until you stop it. Otherwise pick from 5, 10, 15, 20, 30, 45, 60, 90 or 120
+minutes; the default is 15. The remaining time counts down on screen and playback stops by
+itself when it runs out.
+
+### Lock difference
+
+Tick it and editing one channel moves the other by the same amount, so the signed difference
+stays where you put it. At the edge of the 1–20000 Hz range the edited channel stops rather than
+the lock being broken. A preset sets its own difference and clears the lock.
+
+### The frequency reference
+
+Open it from *Help → Frequency reference* (`Ctrl+O` / `⌘O`). A category sidebar with counters on
+the left, a search field, and for each entry: name → frequency → *Apply* → the effect text → an
+evidence badge → the source. *Apply* sets both channels from the record. The dialog is bilingual
+in its own right, independently of the interface language.
+
+### Settings and the interface language
+
+*Settings* (`Ctrl+,` / `⌘,`) holds the interface language, the default timer, volume, and the
+button that re-runs the headphone check. Every control writes straight through to the running
+window.
+
+The interface is **English or Russian**, switchable from *View → Language* or from Settings. The
+switch applies immediately — including the open window and the open dialog — and the choice is
+remembered under `ui/language`. On the very first start there is nothing stored yet, so the app
+follows the system locale. Both implementations share the key and the Russian text: the Swift
+catalogue is **generated** from the Python one (`src/binaural/locales/ru.py`), and a test fails
+the build if the two ever disagree about which strings are translated.
+
+Elsewhere in the app: *Help → Check headphones…* (`Ctrl+Shift+H`) re-runs the device check and the
+perceptual L/R test, and *Help → About* (`Ctrl+Shift+I`) holds the description and the disclaimer.
+
+<a href="#usage">⬆ Back to top</a>
 
 ---
 
@@ -232,7 +300,17 @@ The app ships a static reference of **110 entries across 11 categories**, stored
 `src/binaural/data/frequencies.json` and shown in-app with search, per-category counters and an
 evidence badge. That file is the only copy in the repository — the Swift app reads it too.
 
-The complete tables are in **[docs/FREQUENCIES.md](docs/FREQUENCIES.md)**.
+| Category | Entries | Category | Entries |
+|---|---|---|---|
+| 🧠 Brainwave Entrainment | 12 | ⚡ Rife & Therapeutic | 40 |
+| 🪐 Planetary Frequencies | 10 | 🎵 Solfeggio | 9 |
+| 🌍 Schumann Resonance | 5 | 🚀 Space & Consciousness | 7 |
+| ✨ Healing & Energy | 7 | ☀️ Mood & Positive Affect | 7 |
+| 🎼 Tuning & Reference | 5 | 🔬 Research & Studies | 4 |
+| 🧪 Substances & Medication | 4 | **Total** | **110** |
+
+Evidence badges on every entry: 🟣 68 traditional, 🟢 12 well-studied, 🟡 14 reported, 🔵 16
+studied.
 
 The five EEG bands, which are the part with actual research behind it:
 
@@ -245,8 +323,12 @@ The five EEG bands, which are the part with actual research behind it:
 | Gamma | 30–100 Hz | Higher-order cognitive processing | 🟢 peer-reviewed EEG literature |
 
 Everything in the reference is listed without ranking or filtering. Entries that come from
-esoteric, energy or alternative practices are marked 🟣 and kept visible rather than hidden, so
-you can see what a claim is and where it comes from.
+esoteric, energy or alternative practices are marked 🟣 and kept visible rather than hidden, so you
+can see what a claim is and where it comes from.
+
+The complete tables are in **[`docs/FREQUENCIES.md`][frequencies]**.
+
+<a href="#frequency-reference">⬆ Back to top</a>
 
 ---
 
@@ -278,12 +360,14 @@ Short version: the auditory effect is real and measurable, the behavioural claim
 
 So: research suggests the phenomenon exists, some users report subjective effects, and the
 evidence on what those effects *do* is mixed. Nothing here is a promise, and the app makes no
-therapeutic claim. See **[docs/SCIENCE.md](docs/SCIENCE.md)** for the longer version.
+therapeutic claim. See **[`docs/SCIENCE.md`][science]** for the longer version.
 
-Sources: [systematic review 2023 (PMC10198548)](https://pmc.ncbi.nlm.nih.gov/articles/PMC10198548/) ·
-[Reznik & Allen 2020, *eNeuro*](https://www.eneuro.org/content/7/2/ENEURO.0232-19.2020) ·
-[Garcia-Argibay et al. 2025, *Scientific Reports*](https://www.nature.com/articles/s41598-025-88517-z) ·
+Sources: [systematic review 2023 (PMC10198548)][pmc-review] ·
+[Reznik & Allen 2020, *eNeuro*][ez] ·
+[Garcia-Argibay et al. 2025, *Scientific Reports*][sci-rep] ·
 plus Pratt et al. 2009 (ERP) and Schwarz & Taylor for the carrier-frequency findings.
+
+<a href="#what-the-research-says">⬆ Back to top</a>
 
 ---
 
@@ -301,118 +385,178 @@ Dependence is a medical condition with risks of its own: withdrawal from alcohol
 can be dangerous. If you are dependent on something, or want to use less of it, that is a question
 for a doctor or a specialist service, not for a tone generator.
 
-The same disclaimer is shown in the app under *Help → About*.
+This text is [§6.13 of the project specification][spec] and it is shown in the app under
+*Help → About*.
+
+<a href="#disclaimer">⬆ Back to top</a>
 
 ---
 
-## Requirements
+## Troubleshooting
 
-**The macOS app** — macOS 12 or newer. `apple/build_release.sh` needs nothing but the tools
-below; the finished `.app` runs on its own.
+Full details and the complete matrix are in **[`docs/INSTALL.md`][install]**. The cases that
+actually come up:
 
-**The Linux app** — Linux (x86_64 or arm64) with a running PulseAudio or PipeWire session. The
-release archive carries its own Python and Qt; a source install needs Python 3.10 or newer
-(developed against 3.12) plus `pip`, and pulls in PySide6 6.5+ (Essentials and Addons) itself —
-`numpy` comes with the `dev` extra.
+### `qt.qpa.plugin: Could not load the Qt platform plugin "xcb"`
 
-**Building the Swift implementation (`apple/`)** — Xcode 27 (Swift 6.4) and `xcodegen`
-(`brew install xcodegen`). No Apple Developer account is needed to build and test; deploying to
-a physical iPhone is what needs one.
-
----
-
-## Development
+Qt cannot open a window. On a desktop session this usually means missing system libraries for the
+platform theme plugin — the xcb plugin needs a handful of X11 packages:
 
 ```bash
-git clone https://github.com/zeroscrypt/binaural.git
-cd binaural
-python3 -m venv .venv
-.venv/bin/python -m pip install -e ".[dev]"
+# Debian/Ubuntu
+sudo apt-get install -y libxcb-cursor0 libxkbcommon-x11-0 libxcb-xinerama0 libxcb-icccm4 \
+  libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xkb1 \
+  libegl1 libgl1 libglib2.0-0
+
+# Fedora
+sudo dnf install -y xcb-util-cursor xcb-util-keysyms xcb-util-wm xcb-util-image \
+  libxkbcommon-x11 mesa-libEGL mesa-libGL
+
+# Arch
+sudo pacman -S --needed xcb-util-cursor xcb-util-keysyms xcb-util-wm xcb-util-image \
+  libxkbcommon-x11 mesa
 ```
 
-Run the tests:
+### Qt does not start on a headless machine
 
-```bash
-.venv/bin/python -m pytest
-```
-
-Run the app from the checkout:
-
-```bash
-.venv/bin/binaural
-```
-
-Layers are separated on purpose: `core/` is pure math with no Qt import (unit-tested without any
-audio hardware), `audio/` handles device enumeration and headphone detection, `ui/` only displays.
-They talk through Qt signals. See `docs/CONTRACT.md` for the API contract.
-
-On a headless Linux box the app needs an offscreen Qt platform:
+With no display there is no window to open. For tests, CI or anything non-interactive:
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest
 ```
 
-### The native Swift implementation (`apple/`)
+`offscreen` keeps Qt fully functional minus the actual window. It is not a workaround for running
+the UI over a real remote session — for that use X11 forwarding or a Wayland session.
 
-The macOS (and iOS) build. It reads the same `src/binaural/data/frequencies.json` — there is
-deliberately no second copy of the reference — and honours the same API contract.
+### No audio, or the error mentions `QAudioSink`
+
+`QAudioSink` comes from PySide6-Addons. If you installed only PySide6-Essentials, the audio
+engine cannot start.
 
 ```bash
-cd apple
-xcodegen generate
-xcodebuild -project Binaural.xcodeproj -scheme BinauralCore \
-  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test    # 208 core tests
-xcodebuild -project Binaural.xcodeproj -scheme Binaural \
-  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test    # + 135 window tests
-./build_release.sh                                              # apple/dist/Binaural.app
+.venv/bin/python -m pip install "PySide6-Addons>=6.5"
 ```
 
-`CODE_SIGNING_ALLOWED=NO` is required: no Apple Developer certificate is configured. What the
-milestones delivered, what is still open, and the signing constraints are written up in
-[apple/README.md](apple/README.md) and `apple/DESIGN.md`.
+Then check that the platform can open the device at all:
+
+```bash
+pactl list short sinks
+pactl get-default-sink
+```
+
+If the sink exists and PulseAudio is running but audio is still silent, note that a session running
+over SSH has no access to the local sound server.
+
+### `binaural: command not found` after install
+
+The symlink is in `~/.local/bin` and that directory is not on your `PATH`. Add it:
+
+```bash
+# bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+
+# zsh
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+```
+
+Confirm with `ls -l ~/.local/bin/binaural` — if the symlink is missing, rerun the installer with
+`--prefix=DIR` and put `binaural` on your `PATH` directly.
+
+### macOS: "cannot be opened because the developer cannot be verified"
+
+The Swift app in `apple/` is **unsigned**, so Gatekeeper blocks it for anyone but the person who
+built it. Right-click → *Open* in Finder and confirm in the dialog — this works once per binary —
+or clear the quarantine flag from a terminal:
+
+```bash
+xattr -d com.apple.quarantine /path/to/Binaural.app
+```
+
+On Apple Silicon, System Settings → Privacy & Security also offers "Open Anyway" after the first
+blocked attempt. This applies to `apple/dist/Binaural.app`, not to the Python app: a source
+install is built locally and never goes through Gatekeeper.
+
+### The beat is not audible on speakers
+
+Expected, not a bug. On speakers the two frequencies mix in the air before reaching your ears and
+the effect disappears. See [Why headphones are not
+optional](#why-headphones-are-not-optional).
+
+<a href="#troubleshooting">⬆ Back to top</a>
 
 ---
 
-## Project status
+## Contributing
 
-**v0.1.0 is tagged and published** (source only — no binaries are attached to the release). Alpha
-otherwise. Honest breakdown of what exists in the tree today:
+Working on this repository? Read **[`CONTEXT.md`][context]** first — it says where the project
+stands and what will bite you. The rules that bind both implementations are in
+**[`docs/CONTRACT.md`][contract]**; where an implementation and the specification disagree,
+**[`docs/SPEC.md`][spec]** wins.
 
-| Area | Status |
-|---|---|
-| `core/oscillator.py` — phase-continuous stereo oscillator, click-free ramps | implemented, tested |
-| `core/engine.py` — `QAudioSink` output, volume, start/stop | implemented, tested |
-| `core/session.py` — last frequencies, volume, swap flag, playback timer, preset category | implemented, tested |
-| `core/playback_timer.py` — the timer as a testable value, not a running clock | implemented, tested |
-| `audio/platform/` — device enumeration and classification (CoreAudio, `pactl`/`pw-cli`/`amixer`) | implemented, tested |
-| `audio/headphones.py` — heuristics plus the perceptual L/R test sequence | implemented, tested |
-| `data/frequencies.json` — 110 entries, 11 categories, bilingual | implemented, tested |
-| `ui/presets.py` — the preset registry, 7 categories / 20 presets | implemented, tested |
-| `ui/` — main window, reference dialog, headphone-check and L/R dialogs, Settings, tray | implemented, tested |
-| `app.py`, `install.sh`, Linux packaging | implemented; no release archive published yet |
-| Python suite | **481 passed**, 2 skipped |
-| `apple/` — the macOS app: live audio, full UI, presets, timer, *Lock difference*, EN/RU | implemented, **208 core + 135 macOS tests** |
-| `apple/` Release build | `apple/dist/Binaural.app`, **unsigned** |
-| `apple/` iOS | compiles against `generic/platform=iOS Simulator`; **never run** — no Simulator runtime on this machine |
-| Windows | not started |
+**Run the tests before you commit.**
+
+```bash
+QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest     # 488 passed, 2 skipped
+```
+
+The Swift side has its own suites, and **nothing in CI runs them** — every `xcodebuild` check is
+yours to run locally:
+
+```bash
+cd apple && xcodegen generate                               # 208 core tests
+xcodebuild -project Binaural.xcodeproj -scheme BinauralCore \
+  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test
+xcodebuild -project Binaural.xcodeproj -scheme Binaural \
+  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test # + 141 window tests
+```
+
+`CODE_SIGNING_ALLOWED=NO` is required: no Apple Developer certificate is configured.
+
+Three conventions worth knowing before your first commit:
+
+- **English identifiers and comments in code**; all user-facing text goes through `tr()` /
+  `L10n.tr`. The Swift Russian catalogue is *generated* from `src/binaural/locales/ru.py` — if you
+  change one, regenerate the other or the Swift suite fails.
+- **Never duplicate `frequencies.json`.** It is the only copy in the repository, and the Swift
+  suite pins its counts on purpose: adding entries means updating the JSON, the Swift literals and
+  `docs/FREQUENCIES.md` in one commit.
+- **Commit per item, and never finish with uncommitted work.** Check `git status` before and after.
+
+Layers are separated on purpose: `core/` is pure math with no Qt import (unit-tested without any
+audio hardware), `audio/` handles device enumeration and headphone detection, `ui/` only displays.
+They talk through Qt signals.
+
+<a href="#contributing">⬆ Back to top</a>
 
 ---
 
 ## Roadmap
 
-**Landed** — everything the plan below used to list as pending is now in the tree and tested in
-both implementations: the main window with live beat/carrier, the two-level preset registry, the
-playback timer, the headphone-check and L/R dialogs, the frequency reference with search and
-evidence badges, Settings, light/dark theme, keyboard shortcuts, and the accessibility rules from
-the specification.
+**v0.1.0 is tagged and published** — source only, no binaries are attached to the release,
+because an unsigned `.app` cannot be distributed. Alpha otherwise.
+
+**Done**
+
+| Area | State |
+|---|---|
+| Python core | phase-continuous stereo oscillator with click-free ramps, `QAudioSink` output, session state, playback timer, `difference_lock` — implemented, tested |
+| Python audio | device enumeration and classification (CoreAudio, `pactl`/`pw-cli`/`amixer`), headphone heuristics plus the perceptual L/R test — implemented, tested |
+| Python UI | main window with live beat/carrier, the 7-category / 20-preset registry, frequency reference dialog, headphone-check and L/R dialogs, Settings, tray — implemented, tested |
+| Python suite | **488 passed**, 2 skipped |
+| `apple/` core | `BinauralCore` — provably equal to Python by test, not merely compiling |
+| `apple/` macOS | live audio, main window, the full preset registry, the frequency reference, headphone check, Settings, About, playback timer, menu-bar item, session persistence, *Lock difference*, EN/RU — implemented, **208 core + 141 macOS tests** |
+| `apple/` Release | `apple/dist/Binaural.app`, **unsigned** |
+| Linux packaging | `install.sh`, PyInstaller spec and the release script in place; **no archive published yet** |
+| Windows | not started |
 
 **Next**
 
 - **Linux release archives** — the packaging is in place; nothing has been built and attached to a
-  release yet. `v0.1.0` is source only.
+  release yet, which is why `v0.1.0` is source only.
 - **Windows** — a WASAPI backend behind `audio/platform/`, a PyInstaller build, `install.ps1`
 - Optional `miniaudio` fallback output where `QAudioSink` is unavailable
-- WAV export of a session — deliberately absent from both implementations; SPEC calls it optional
+- **Screenshots** — none are published yet, which is why the ASCII diagram in
+  [About the Project](#about-the-project) is the only visual in this file
 - **iOS** — the scheme builds and links, but it has never been run: this machine has no Simulator
   runtime. Installing one (`xcodebuild -downloadPlatform iOS`) turns it into a real check
 
@@ -420,10 +564,58 @@ the specification.
 
 - The macOS app is **unsigned** — no Apple Developer identity on the build machine, no
   notarisation, no App Store. Gatekeeper blocks it for anyone but the builder.
+- **No WAV export.** Deliberately absent from both implementations; the specification calls it
+  optional.
 - Only a human with headphones on can judge the perceptual L/R test and its edge cases.
+
+<a href="#roadmap">⬆ Back to top</a>
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — © 2026 Dmitriy Solontsov. See [`LICENSE`][license].
+
+<a href="#license">⬆ Back to top</a>
+
+---
+
+## Contact
+
+- Author — **@zeroscrypt** (Dmitriy Solontsov)
+- Issues — [github.com/zeroscrypt/binaural/issues][issues]
+- Source — <https://github.com/zeroscrypt/binaural>
+
+<a href="#contact">⬆ Back to top</a>
+
+---
+
+## Acknowledgments
+
+- Special thanks to **@hakatao**.
+- The frequency reference draws on published EEG literature and on esoteric and alternative
+  traditions, marked as such entry by entry. The sources are listed in
+  [`docs/FREQUENCIES.md`][frequencies] and [`docs/SCIENCE.md`][science].
+
+<a href="#acknowledgments">⬆ Back to top</a>
+
+---
+
+<!-- Markdown link declarations -->
+
+[license]: LICENSE
+[releases]: https://github.com/zeroscrypt/binaural/releases
+[issues]: https://github.com/zeroscrypt/binaural/issues
+[context]: CONTEXT.md
+[spec]: docs/SPEC.md
+[contract]: docs/CONTRACT.md
+[install]: docs/INSTALL.md
+[frequencies]: docs/FREQUENCIES.md
+[science]: docs/SCIENCE.md
+[apple-dir]: apple/
+[apple-readme]: apple/README.md
+[src-dir]: src/
+[tests-dir]: tests/
+[pmc-review]: https://pmc.ncbi.nlm.nih.gov/articles/PMC10198548/
+[ez]: https://www.eneuro.org/content/7/2/ENEURO.0232-19.2020
+[sci-rep]: https://www.nature.com/articles/s41598-025-88517-z
