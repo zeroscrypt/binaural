@@ -34,7 +34,7 @@ the Python release packaging for it has been removed, see below.
 
 ## Status
 
-**Landed and green: 208 core tests + 135 macOS window tests, 420 Python tests.**
+**Landed and green: 208 core tests + 135 macOS window tests, 480 Python tests.**
 The Python release packaging for macOS is gone — this is the macOS product now (see
 "What happens to the Python macOS build" below). `v0.1.0` is tagged and published on GitHub
 as **source only**: no binaries are attached to the release, because this app cannot be
@@ -66,7 +66,7 @@ signed on the build machine.
   non-`Sendable` exactly as M1 left it.
 - **i18n, before the UI.** `L10n.tr` in `Core`, English as the source language (no table, so a
   missing key returns itself by construction), and `RussianCatalogue.swift` **generated** from
-  `src/binaural/locales/ru.py` by `Tools/generate_russian_catalogue.py` — 171 keys, ru.py's order
+  `src/binaural/locales/ru.py` by `Tools/generate_russian_catalogue.py` — 203 keys, ru.py's order
   and section comments. Regenerate whenever `ru.py` changes; the hand-written keys in
   `RussianWindowAdditions.swift` are only for strings `ru.py` has no call site for, and
   `L10nTests.testCatalogMatchesThePythonKeyCount` parses `ru.py` at test time and fails if the two

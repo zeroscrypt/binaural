@@ -22,6 +22,8 @@ Formally: `beat = |fL − fR|`, `carrier = (fL + fR) / 2`.
 
 > English | [Русский](README.ru.md)
 
+Working on this repository? Read [`CONTEXT.md`](CONTEXT.md) first.
+
 ---
 
 ## Table of contents
@@ -185,7 +187,6 @@ The scope from the project specification, in both implementations. See
 - **Lock difference** — tick it and editing one channel moves the other by the same amount, so the
   signed difference stays where you put it. A preset sets its own difference and clears the lock;
   at the edge of the 1–20000 Hz range the edited channel stops rather than the lock being broken.
-  *Swift implementation only — the Python app persists the flag but has no control for it.*
 - **Headphone check** — device heuristics first (Bluetooth/USB/HDMI/built-in, port names), then a
   fast perceptual left/right test. If the channels come back swapped, the app remembers it and
   swaps its output so you get the right difference on the right side. The heuristic runs on every
@@ -383,7 +384,7 @@ otherwise. Honest breakdown of what exists in the tree today:
 | `ui/presets.py` — the preset registry, 7 categories / 20 presets | implemented, tested |
 | `ui/` — main window, reference dialog, headphone-check and L/R dialogs, Settings, tray | implemented, tested |
 | `app.py`, `install.sh`, Linux packaging | implemented; no release archive published yet |
-| Python suite | **420 tests**, 2 skipped |
+| Python suite | **480 passed**, 2 skipped |
 | `apple/` — the macOS app: live audio, full UI, presets, timer, *Lock difference*, EN/RU | implemented, **208 core + 135 macOS tests** |
 | `apple/` Release build | `apple/dist/Binaural.app`, **unsigned** |
 | `apple/` iOS | compiles against `generic/platform=iOS Simulator`; **never run** — no Simulator runtime on this machine |
