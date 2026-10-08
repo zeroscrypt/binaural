@@ -130,20 +130,25 @@ class UpdateCoordinator(QObject):
 
         #: The last check's answer, for the dialogs and the tests to read.
         self.availability: UpdateAvailability | None = None
+        self._parent: QWidget | None = None
+        #: The job in flight, held so the worker thread's result has a live sender to
+        #: deliver through: a ``_Job`` that went out of scope could take its own queued
+        #: signal with it.
+        self._job: _Job | None = None
         self._busy = False
-        self._launched = False
 
     # ------------------------------------------------------------ entry points
 
     def run_at_launch(self) -> None:
         """The launch check: silent unless there is an update to offer."""
-        self._launched = True
+        # Nothing to sit a dialog on: the About dialog of a previous check, if there
+        # was one, is long gone by the time a launch check runs.
+        self._parent = None
         self._start_check(quiet=True)
 
     def check_from_about(self, parent: QWidget | None = None) -> None:
         """The About button: check and report whatever the answer is."""
         self._parent = parent
-        self._launched = False
         self._start_check(quiet=False)
 
     def _start_check(self, *, quiet: bool) -> None:
@@ -159,7 +164,9 @@ class UpdateCoordinator(QObject):
         self._busy = True
         current = self._current_version()
         if current is None:
-            self._finish(None, error="no version to compare")
+            # Nothing to compare against, which is a failure of the check rather
+            # than of the network: the same sentence, and silence at launch.
+            self._on_check_failed(RuntimeError("the running app has no version"), quiet)
             return
         skipped = AppVersion.parse(
             self._target.skipped_update_version() if self._target is not None else None
@@ -172,29 +179,29 @@ class UpdateCoordinator(QObject):
         def work() -> object:
             return self._checker.check(current_version=current, skipping=skipped)
 
+        self._job = job
         self._runner(work, job)
 
     # ----------------------------------------------------------- check results
 
     def _on_checked(self, availability: object, quiet: bool) -> None:
         if not isinstance(availability, UpdateAvailability):
-            self._finish(None)
+            self._on_check_failed(RuntimeError("the check produced no answer"), quiet)
             return
         self.availability = availability
         # Only an update worth telling about interrupts the launch.
-        if quiet and not availability.is_worth_telling:
-            self._finish(availability)
-            return
-        self._present(availability)
+        if not (quiet and not availability.is_worth_telling):
+            self._present(availability)
         self._finish(availability)
 
     def _on_check_failed(self, error: object, quiet: bool) -> None:
-        self._finish(None, error=error)
+        self.availability = None
+        self._finish(None)
         if quiet:
             return  # a failed check is silence at launch
         self._present_failure(_message_for(error))
 
-    def _finish(self, availability, error: object | None = None) -> None:
+    def _finish(self, availability: UpdateAvailability | None) -> None:
         """Release the busy state and tell the About button the check is over."""
         self._busy = False
         self.checked.emit(availability)
@@ -204,10 +211,11 @@ class UpdateCoordinator(QObject):
     def _present(self, availability: UpdateAvailability) -> None:
         """Show the result and act on the user's answer."""
         release = availability.release
+        parent = self._parent_widget()
         if release is None:
-            dialog = self._dialog_class(None, message=self._up_to_date_text())
+            dialog = self._dialog_class(parent, message=self._up_to_date_text())
         else:
-            dialog = self._dialog_class(None, release=release)
+            dialog = self._dialog_class(parent, release=release)
         dialog.exec()
         choice = getattr(dialog, "choice", Choice.LATER)
         dialog.deleteLater()
@@ -224,7 +232,7 @@ class UpdateCoordinator(QObject):
 
     def _present_failure(self, message: str) -> None:
         """A failure the user asked about, in words rather than an exception."""
-        dialog = self._dialog_class(None, message=message)
+        dialog = self._dialog_class(self._parent_widget(), message=message)
         dialog.exec()
         dialog.deleteLater()
 
@@ -255,12 +263,15 @@ class UpdateCoordinator(QObject):
         progress.show()
         job = _Job()
         job.progressed.connect(progress.set_progress)
-        job.finished.connect(lambda path: self._on_downloaded(progress, Path(str(path)), version))
+        job.finished.connect(
+            lambda path: self._on_downloaded(progress, Path(str(path)), version)
+        )
         job.failed.connect(lambda error: self._on_download_failed(progress, error))
 
         def work() -> object:
             return self._downloader.download(asset.url, job.progressed.emit)
 
+        self._job = job
         self._runner(work, job)
 
     def _on_downloaded(
@@ -281,8 +292,12 @@ class UpdateCoordinator(QObject):
         self._present_failure(_message_for(error))
 
     def _parent_widget(self) -> QWidget | None:
-        parent = getattr(self, "_parent", None)
-        return parent if isinstance(parent, QWidget) else None
+        """The widget a dialog should sit on, or ``None`` when there is none.
+
+        The About dialog when the check came from its button; nothing at launch, where
+        the main window is the one thing already on screen.
+        """
+        return self._parent if isinstance(self._parent, QWidget) else None
 
     def _ask_to_install(self) -> bool:
         """The "the app will restart" confirmation.
@@ -297,8 +312,12 @@ class UpdateCoordinator(QObject):
         box.setIcon(QMessageBox.Icon.Question)
         box.setWindowTitle(tr("Check for updates"))
         box.setText(tr("Binaural will restart to finish the update."))
-        install = box.addButton(tr("Install and restart"), QMessageBox.ButtonRole.AcceptRole)
+        install = box.addButton(
+            tr("Install and restart"), QMessageBox.ButtonRole.AcceptRole
+        )
         later = box.addButton(tr("Later"), QMessageBox.ButtonRole.RejectRole)
+        # Later is the default: an install restarts the app, so the safe answer is
+        # the one a stray Return lands on.
         box.setDefaultButton(later)
         box.exec()
         return box.clickedButton() is install
