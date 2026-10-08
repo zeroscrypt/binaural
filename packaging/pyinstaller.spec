@@ -32,9 +32,9 @@ SRC = ROOT / "src"
 PKG = SRC / "binaural"
 DATA_DIR = PKG / "data"
 
-# The spec itself is platform-agnostic: scripts/build_linux.sh and scripts/build_macos.sh
-# both build with it. macOS also ships the native Swift app (apple/); the Python archive
-# is what `curl | sh` downloads there. There is no Info.plist and no .icns: nothing in
+# The spec is platform-agnostic, and scripts/build_linux.sh builds with it. macOS ships the
+# native Swift app (apple/), built by scripts/build_macos.sh, not by this spec. There is
+# no Info.plist and no .icns: nothing in
 # this spec builds a branded .app.
 LINUX_DIR = SPEC_DIR / "linux"
 
@@ -258,33 +258,3 @@ coll = COLLECT(
     name=APP_NAME,
 )
 
-# --------------------------------------------------------------------------------------
-# macOS application bundle
-# --------------------------------------------------------------------------------------
-# COLLECT only makes a folder. On macOS the same folder is wrapped into Binaural.app so
-# that Finder can launch it. The identifier is not the Swift app's (app.binaural.mac), so
-# the two can be installed side by side. The version is read from pyproject.toml, the one
-# place it is written by hand.
-
-if sys.platform == "darwin":
-    import re
-
-    _version = re.search(
-        r'^version\s*=\s*"([^"]+)"',
-        (ROOT / "pyproject.toml").read_text(encoding="utf-8"),
-        re.MULTILINE,
-    ).group(1)
-    app = BUNDLE(
-        coll,
-        name=f"{APP_NAME}.app",
-        icon=None,
-        bundle_identifier="app.binaural.python",
-        info_plist={
-            "CFBundleName": APP_NAME,
-            "CFBundleDisplayName": APP_NAME,
-            "CFBundleShortVersionString": _version,
-            "CFBundleVersion": _version,
-            "NSHighResolutionCapable": True,
-            "LSApplicationCategoryType": "public.app-category.music",
-        },
-    )

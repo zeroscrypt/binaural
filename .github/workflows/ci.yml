@@ -291,8 +291,13 @@ jobs:
         run: |
           set -eu
           case "${{ matrix.target }}" in
-            macos-*) sh scripts/build_macos.sh ;;
-            *)       sh scripts/build_linux.sh ;;
+            macos-*)
+              # The macOS product is the native app, not the Python bundle. CI has no
+              # Developer identity, so it is built unsigned, exactly as on a Mac.
+              brew install xcodegen
+              sh scripts/build_macos.sh
+              ;;
+            *) sh scripts/build_linux.sh ;;
           esac
           ls -la dist/
 

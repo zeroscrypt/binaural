@@ -402,8 +402,8 @@ detect_platform() {
     case "$_os" in
         Linux)  OS_NAME="linux" ;;
         Darwin)
-            # macOS has a Python release archive (binaural-<ver>-macos-arm64.tar.gz,
-            # built by scripts/build_macos.sh) next to the native Swift app in apple/.
+            # macOS releases carry the native Swift app (binaural-<ver>-macos-arm64.tar.gz,
+            # built from apple/ by scripts/build_macos.sh).
             OS_NAME="macos"
             ;;
         *)
