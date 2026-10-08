@@ -257,3 +257,34 @@ coll = COLLECT(
     upx_exclude=[],
     name=APP_NAME,
 )
+
+# --------------------------------------------------------------------------------------
+# macOS application bundle
+# --------------------------------------------------------------------------------------
+# COLLECT only makes a folder. On macOS the same folder is wrapped into Binaural.app so
+# that Finder can launch it. The identifier is not the Swift app's (app.binaural.mac), so
+# the two can be installed side by side. The version is read from pyproject.toml, the one
+# place it is written by hand.
+
+if sys.platform == "darwin":
+    import re
+
+    _version = re.search(
+        r'^version\s*=\s*"([^"]+)"',
+        (ROOT / "pyproject.toml").read_text(encoding="utf-8"),
+        re.MULTILINE,
+    ).group(1)
+    app = BUNDLE(
+        coll,
+        name=f"{APP_NAME}.app",
+        icon=None,
+        bundle_identifier="app.binaural.python",
+        info_plist={
+            "CFBundleName": APP_NAME,
+            "CFBundleDisplayName": APP_NAME,
+            "CFBundleShortVersionString": _version,
+            "CFBundleVersion": _version,
+            "NSHighResolutionCapable": True,
+            "LSApplicationCategoryType": "public.app-category.music",
+        },
+    )

@@ -187,7 +187,7 @@ info "spec:   ${SPEC}"
     --workpath "$BUILD_DIR" \
     "$SPEC")
 
-# On macOS PyInstaller's COLLECT step produces a .app bundle, not a plain directory.
+# On macOS the spec's BUNDLE step wraps the COLLECT folder into Binaural.app.
 BUNDLE="${DIST_DIR}/${APP_NAME}.app"
 [ -d "$BUNDLE" ] || die "expected ${BUNDLE} after the build, but it does not exist."
 EXECUTABLE="${BUNDLE}/Contents/MacOS/${EXE_NAME}"
