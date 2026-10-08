@@ -17,9 +17,8 @@
 #
 # Strategy:
 #   1. primary  — download the prebuilt archive for this platform from GitHub Releases
-#                (self-contained PyInstaller bundle: its own Python and Qt). Linux is the
-#                only Python release platform: macOS ships the native app in apple/, so
-#                there a Mac installs from source (path 2) instead.
+#                (self-contained PyInstaller bundle: its own Python and Qt). Linux and
+#                macOS both ship one; macOS also has the native app in apple/.
 #   2. fallback — no release available (HTTP 404, which is the normal state before the
 #                first release is published): create a private virtualenv in
 #                $PREFIX/venv from the source tree and pip-install the project into it.
@@ -311,14 +310,15 @@ show_help() {
     out "  \$PREFIX/venv/           virtualenv, only in --source mode"
     out "  \$PREFIX/install-meta    what was installed, from where"
     out "  \$BIN_DIR/${APP_NAME}         symlink to the installed entry point"
+    out "  ~/.local/share/         the .desktop launcher and icon (Linux releases)"
     out ""
-    out "Supported platforms: linux-x64 linux-arm64"
+    out "Supported platforms: linux-x64 linux-arm64 macos-arm64"
 }
 
 print_version() {
     out "${APP_DISPLAY_NAME} installer ${INSTALLER_VERSION}"
     out "default app version: ${APP_VERSION}"
-    out "platforms: linux-x64 linux-arm64"
+    out "platforms: linux-x64 linux-arm64 macos-arm64"
     out "repository: ${REPO_URL}"
 }
 
@@ -401,10 +401,8 @@ detect_platform() {
     case "$_os" in
         Linux)  OS_NAME="linux" ;;
         Darwin)
-            # macOS ships as the native Swift app (`apple/`), so there is no Python
-            # release archive for it any more. The Python app still runs from source on a
-            # Mac — that is how it is developed — so the platform is recognised and the
-            # source path is used instead of looking for a macos-* archive.
+            # macOS has a Python release archive (binaural-<ver>-macos-arm64.tar.gz,
+            # built by scripts/build_macos.sh) next to the native Swift app in apple/.
             OS_NAME="macos"
             ;;
         *)
@@ -672,34 +670,54 @@ extract_archive() {
 # locate_executable ROOT — print the entry point of an unpacked release
 locate_executable() {
     _root="$1"
-    _level1="bin/${APP_NAME} ${APP_NAME}"
-    _level2="bin/${APP_NAME} ${APP_NAME}"
-    for _c in $_level1; do
-        if [ -x "$_root/$_c" ]; then
+    # The search list is written out at every level instead of held in a variable:
+    # `for _c in $_level` only word-splits under shells that do word splitting (dash,
+    # bash, ksh, busybox ash), and zsh — which this installer also runs under — would
+    # iterate once over the single literal word "bin/binaural binaural" and match
+    # nothing. Quoted explicit entries behave the same everywhere.
+    #
+    # `-x` alone is true for directories too (it means "searchable" for them), and the
+    # one-dir bundle is a directory named Binaural/ — without the `! -d` guard a
+    # case-insensitive filesystem (macOS default) would return the bundle itself as
+    # the "executable" and the verify step would fail with "is a directory".
+    for _c in "bin/${APP_NAME}" "${APP_NAME}"; do
+        if [ -x "$_root/$_c" ] && [ ! -d "$_root/$_c" ]; then
             printf '%s' "$_root/$_c"
             return 0
         fi
     done
+    # A macOS .app bundle keeps its executable at Contents/MacOS/<name>, a path the
+    # bin/<name> / <name> patterns below do not reach. Checked without a glob on
+    # purpose: an unmatched *.app glob aborts the whole script under zsh
+    # ("no matches found"), and this installer also runs under zsh.
+    if [ -x "${_root}/${APP_DISPLAY_NAME}.app/Contents/MacOS/${APP_NAME}" ]; then
+        printf '%s' "${_root}/${APP_DISPLAY_NAME}.app/Contents/MacOS/${APP_NAME}"
+        return 0
+    fi
     for _l1 in "$_root"/*; do
         [ -d "$_l1" ] || continue
-        for _c in $_level2; do
-            if [ -x "$_l1/$_c" ]; then
+        if [ -x "$_l1/${APP_DISPLAY_NAME}.app/Contents/MacOS/${APP_NAME}" ]; then
+            printf '%s' "$_l1/${APP_DISPLAY_NAME}.app/Contents/MacOS/${APP_NAME}"
+            return 0
+        fi
+        for _c in "bin/${APP_NAME}" "${APP_NAME}"; do
+            if [ -x "$_l1/$_c" ] && [ ! -d "$_l1/$_c" ]; then
                 printf '%s' "$_l1/$_c"
                 return 0
             fi
         done
         for _l2 in "$_l1"/*; do
             [ -d "$_l2" ] || continue
-            for _c in "bin/${APP_NAME} ${APP_NAME}"; do
-                if [ -x "$_l2/$_c" ]; then
+            for _c in "bin/${APP_NAME}" "${APP_NAME}"; do
+                if [ -x "$_l2/$_c" ] && [ ! -d "$_l2/$_c" ]; then
                     printf '%s' "$_l2/$_c"
                     return 0
                 fi
             done
             for _l3 in "$_l2"/*; do
                 [ -d "$_l3" ] || continue
-                for _c in "bin/${APP_NAME} ${APP_NAME}"; do
-                    if [ -x "$_l3/$_c" ]; then
+                for _c in "bin/${APP_NAME}" "${APP_NAME}"; do
+                    if [ -x "$_l3/$_c" ] && [ ! -d "$_l3/$_c" ]; then
                         printf '%s' "$_l3/$_c"
                         return 0
                     fi
@@ -933,6 +951,53 @@ link_binary() {
 # Install strategies
 # --------------------------------------------------------------------------- #
 
+# install_desktop_files EXE — copy the .desktop launcher and its icon out of an unpacked
+# Linux release into ~/.local/share, so the app appears in the desktop menu. The archive
+# carries them beside the executable, under Binaural/share/{applications,icons/...}; the
+# bundle directory is derived from EXE, so there are no globs to mismatch — an unmatched
+# glob aborts the whole script under zsh ("no matches found"), and this installer also
+# runs under zsh. A macOS release has no .desktop file and a source install has no
+# share/ tree at all; for both this is a quiet no-op.
+install_desktop_files() {
+    _exe="$1"
+    [ "$OS_NAME" = "linux" ] || return 0
+    _bundle="${_exe%/*}"
+    _desktop="${_bundle}/share/applications/binaural.desktop"
+    [ -f "$_desktop" ] || return 0
+
+    _icon=""
+    for _icon_path in "${_bundle}/share/icons/hicolor/scalable/apps/binaural.svg" \
+                       "${_bundle}/share/icons/hicolor/scalable/apps/binaural.png"; do
+        if [ -f "$_icon_path" ]; then
+            _icon="$_icon_path"
+            break
+        fi
+    done
+
+    step "installing the desktop launcher"
+    must "${LINENO:-?}" "create ${HOME}/.local/share/applications" \
+        mkdir -p "${HOME}/.local/share/applications"
+    _desktop_name="$(basename "$_desktop")"
+    run cp "$_desktop" "${HOME}/.local/share/applications/${_desktop_name}"
+    ok "${HOME}/.local/share/applications/${_desktop_name}"
+
+    if [ -n "$_icon" ]; then
+        must "${LINENO:-?}" "create the local icon directory" \
+            mkdir -p "${HOME}/.local/share/icons/hicolor/scalable/apps"
+        _icon_name="$(basename "$_icon")"
+        run cp "$_icon" "${HOME}/.local/share/icons/hicolor/scalable/apps/${_icon_name}"
+        ok "${HOME}/.local/share/icons/hicolor/scalable/apps/${_icon_name}"
+    fi
+
+    # Refresh the desktop database when the tool is there. A missing or failing
+    # update-desktop-database is not an install failure: the files are already in place.
+    if command -v update-desktop-database >/dev/null 2>&1 </dev/null; then
+        run update-desktop-database "${HOME}/.local/share/applications" >/dev/null 2>&1 \
+            || info "update-desktop-database reported a problem; the launcher is still installed"
+    fi
+    return 0
+}
+
 # install_from_release — prints the installed entry point on stdout, non-zero if the
 # platform has no published release.
 install_from_release() {
@@ -969,6 +1034,7 @@ install_from_release() {
         die "the archive from ${_hit} contains no '${APP_NAME}' executable."
     fi
     write_meta "release-url=${_hit}" "version=${APP_VERSION}" "platform=${PLATFORM}" "executable=${_exe}"
+    install_desktop_files "$_exe"
     printf '%s' "$_exe"
     return 0
 }
@@ -1182,6 +1248,9 @@ plan_install() {
     say "  3. ln -s <entry point> ${BIN_DIR}/${APP_NAME}"
     say "  4. add ${BIN_DIR} to PATH in the shell startup file"
     say "  5. ${APP_NAME} --version"
+    if [ "$OS_NAME" = "linux" ]; then
+        say "  (linux) the .desktop launcher and icon are copied to ~/.local/share"
+    fi
     return 0
 }
 
@@ -1198,16 +1267,6 @@ do_install() {
 
     say "${C_BOLD}${APP_DISPLAY_NAME} installer${C_OFF} — ${PLATFORM}"
     say ""
-
-    if [ "$OS_NAME" = "macos" ] && [ "$WANT_SOURCE" -eq 0 ]; then
-        # No macOS Python archive exists any more: the native app (apple/) is the macOS
-        # product. Say so once, then install the Python app from source rather than
-        # probing for a macos-* release that will never be there.
-        warn "macOS is not a Python release platform: the native app in apple/ is."
-        warn "  (unsigned, so Gatekeeper asks on first launch — see apple/README.md)"
-        warn "installing the Python app from source instead"
-        WANT_SOURCE=1
-    fi
 
     if INSTALLED_TARGET="$(find_installed)"; then
         _have="$(installed_version "$INSTALLED_TARGET")"
