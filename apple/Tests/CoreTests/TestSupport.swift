@@ -86,6 +86,25 @@ enum SignalAnalysis {
     }
 }
 
+/// A lock-protected recorder for values a `@Sendable` closure captures.
+///
+/// The injected closures in the update tests are `@Sendable`, so they cannot capture a
+/// mutable local; they capture this instead and the test reads the snapshot afterwards.
+final class Recorder<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [Value] = []
+
+    func append(_ value: Value) {
+        lock.lock(); defer { lock.unlock() }
+        values.append(value)
+    }
+
+    var snapshot: [Value] {
+        lock.lock(); defer { lock.unlock() }
+        return values
+    }
+}
+
 extension XCTestCase {
 
     /// Assert `value` equals `expected` within `tolerance`, reporting the difference.
