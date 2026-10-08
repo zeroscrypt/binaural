@@ -23,18 +23,22 @@ curl -fsSL https://raw.githubusercontent.com/zeroscrypt/binaural/main/install.sh
 Nothing has to be installed on your machine: the archive ships its own Python and Qt runtime
 (bundled with PyInstaller), so this path works on a clean machine.
 
-> **Release availability.** The archives come from the packaging stage, which has not shipped yet.
-> If the script reports that no release exists for your platform, use
-> [install from source](#install-from-source) — it is a first-class path, not a workaround.
+> **Release availability.** The archives come from the packaging stage: CI builds and publishes
+> `binaural-<ver>-linux-x64.tar.gz` and `binaural-<ver>-macos-arm64.tar.gz` on every `v*` tag.
+> If the script reports that no release exists for your platform (for example before the first
+> tagged release), use [install from source](#install-from-source) — it is a first-class path,
+> not a workaround.
 
-> **macOS.** Linux is the only platform this script installs a Python build for. On a Mac the
-> product is the native app under [`apple/`](../apple/README.md); the script says so and then
-> installs the Python app from source, which still works on macOS.
+> **macOS.** The script installs a prebuilt Python archive on a Mac too
+> (`binaural-<ver>-macos-arm64.tar.gz`, published by CI on every `v*` tag); the native app under
+> [`apple/`](../apple/README.md) is the primary macOS product. When no such archive is published
+> yet, the script falls back to installing the Python app from source, which still works on
+> macOS.
 
 ### What the script does
 
 1. Detects the operating system and architecture and maps them to an archive name:
-   `linux-x64`, `linux-arm64`.
+   `linux-x64`, `linux-arm64`, `macos-arm64`.
 2. Downloads the matching archive from GitHub Releases into a temporary directory.
 3. Extracts it into `~/.binaural/`. An existing installation there is replaced.
 4. Creates a symlink named `binaural` in `~/.local/bin` pointing at the executable. If

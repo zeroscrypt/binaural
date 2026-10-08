@@ -28,7 +28,7 @@ recommendation — on speakers the tones mix in the air before either ear.
 | | Path | Platforms | Stack |
 |---|---|---|---|
 | Swift | `apple/` | macOS (shipped), iOS (builds, untested) | `BinauralCore` framework + AppKit app + SwiftUI shell |
-| Python | `src/` + `tests/` | Linux (shipped), Windows (planned, **not started**) | PySide6 / Qt |
+| Python | `src/` + `tests/` | Linux + macOS (shipped as archives on `v*` tags), Windows (planned, **not started**) | PySide6 / Qt |
 
 - **macOS → Swift**, `apple/`. Complete for M2. Ships as a Release `.app` (`apple/dist/Binaural.app`).
 - **iOS** builds from the same `apple/` tree but has **never been run**: this machine has no iOS
@@ -90,6 +90,10 @@ xcodebuild -project Binaural.xcodeproj -scheme Binaural-iOS \
 sh apple/build_release.sh          # add --smoke to launch and kill it
 open apple/dist/Binaural.app
 pgrep -f 'Binaural.app/Contents/MacOS/Binaural'   # launch check; pkill to stop
+
+# Release archives (CI builds and publishes both on every v* tag push)
+sh scripts/build_linux.sh   # dist/binaural-<ver>-linux-x64.tar.gz   (Binaural/ one-dir)
+sh scripts/build_macos.sh   # dist/binaural-<ver>-macos-arm64.tar.gz (Binaural.app/ one-dir)
 ```
 
 A build that crashes on launch is not a passing build. That check has caught two real crashes; see
@@ -119,8 +123,12 @@ Consequences, all of them permanent on this machine:
 
 CI (`.github/workflows/ci.yml`) runs the Python suite on a matrix of `ubuntu-latest` and
 `macos-latest` × Python 3.10 / 3.12 (jobs `installer`, `test`, `strict-posix`, plus a
-`workflow_dispatch`-only Linux `build-release`). **Nothing in CI runs the Swift suite** — every
-`xcodebuild` check is yours to run locally.
+`workflow_dispatch`-only Linux `build-release`). On a `v*` tag push the `release` matrix
+(ubuntu-latest → `linux-x64`, macos-latest → `macos-arm64`) builds both archives after the
+test job and `publish-release` attaches them to the GitHub Release via
+`softprops/action-gh-release` — that is what makes `curl | sh` download a binary on both
+platforms. **Nothing in CI runs the Swift suite** — every `xcodebuild` check is yours to run
+locally.
 
 ## 6. Traps
 
@@ -205,6 +213,7 @@ assets attached, because the unsigned `.app` cannot be distributed.
 
 | Area | State |
 |---|---|
+| Release archives | CI `release` + `publish-release` jobs: `binaural-<ver>-linux-x64.tar.gz` and `binaural-<ver>-macos-arm64.tar.gz` attached to the GitHub Release on every `v*` tag |
 | Python core | oscillator, engine, session, playback timer, `difference_lock` — implemented, tested |
 | Python core (updates) | `core/update_checker.py` (version order + release lookup), `core/update_downloader.py`, `core/update_installer.py`, `session.skipped_update_version` — implemented, tested |
 | Python audio | device enumeration and classification (CoreAudio, `pactl`/`pw-cli`/`amixer`), headphone heuristics + perceptual L/R test — implemented, tested |
@@ -268,11 +277,11 @@ No other proposal is pending.
 - Signing, notarisation, the App Store — no Apple Developer identity.
 - WAV export — not implemented in either implementation; SPEC calls it optional (P2). It is
   deliberately absent, not forgotten.
-- **The update check has nothing to install.** `v0.1.0` is source only, so the release has no
-  assets and both implementations answer *"no archive"* — the macOS side finds no `.app`, the Linux
-  side no `binaural-<ver>-linux-<arch>.tar.gz`. Attaching assets needs `scripts/build_linux.sh` on a
-  Linux x64 and arm64 host (or the CI `workflow_dispatch` build-release job); the macOS `.app` needs a
-  machine that can run it. Until then the feature is exercised only by tests with canned documents.
+- **The update check has nothing to install — yet.** `v0.1.0` is source only, so that release has no
+  assets and both implementations answer *"no archive"*. From the next `v*` tag onward the CI
+  `release` + `publish-release` jobs attach `binaural-<ver>-linux-x64.tar.gz` and
+  `binaural-<ver>-macos-arm64.tar.gz`, which is what the update check downloads and installs
+  (trap 11). The macOS `.app` is still not distributed — it is unsigned.
 
 ## 10. Keeping this file honest
 
