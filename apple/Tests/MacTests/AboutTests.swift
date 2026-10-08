@@ -284,7 +284,7 @@ final class AboutTests: XCTestCase {
         let line = AboutContent.versionText(bundle: .main)
         XCTAssertFalse(line.contains("{version}"))
         XCTAssertFalse(line.contains("{system}"))
-        XCTAssertTrue(line.contains("0.1"), "the marketing version from project.yml: \(line)")
+        XCTAssertTrue(line.contains("0.2"), "the marketing version from project.yml: \(line)")
     }
 
     func testTheVersionLineSurvivesTranslation() {
