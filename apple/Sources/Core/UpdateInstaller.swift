@@ -1,5 +1,9 @@
 import Foundation
 
+// Self-update is a macOS-only feature: iOS builds reach users through the App Store, which
+// updates them, and iOS has no `Process` to run `tar` or `open` with.
+#if os(macOS)
+
 /// Extracts a release archive, verifies it, and replaces the running `.app` with it.
 ///
 /// The dangerous half of the update flow, written so that a failure at any step leaves the
@@ -186,3 +190,5 @@ public struct UpdateInstaller: Sendable {
         }
     }
 }
+
+#endif
