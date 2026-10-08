@@ -17,7 +17,8 @@ final class UpdateInstallerTests: XCTestCase {
     /// A fake `.app` bundle: `Contents/MacOS/<name>` plus an Info.plist with a version.
     private func makeAppBundle(
         name: String = "Binaural.app",
-        version: String = "0.2.0"
+        version: String = "0.2.0",
+        identifier: String = "app.binaural.mac"
     ) throws -> URL {
         let directory = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("binaural-installer-test-\(UUID().uuidString)")
@@ -33,12 +34,33 @@ final class UpdateInstallerTests: XCTestCase {
         <dict>
             <key>CFBundleShortVersionString</key>
             <string>\(version)</string>
+            <key>CFBundleIdentifier</key>
+            <string>\(identifier)</string>
         </dict>
         </plist>
         """
         try Data(plist.utf8).write(to: bundle.appendingPathComponent("Contents/Info.plist"))
         addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
         return bundle
+    }
+
+    /// An archive carrying another product's bundle is refused before anything is replaced.
+    /// The Python app's macOS build has the same executable name and can have a matching
+    /// version: only the identifier tells the two apart.
+    func testAnotherProductsBundleIsRefusedBeforeAnythingIsReplaced() throws {
+        let bundle = try makeAppBundle(identifier: "app.binaural.python")
+        let installer = UpdateInstaller(
+            replace: { _, _ in XCTFail("nothing may be replaced for another product") },
+            relauncher: { _ in XCTFail("nothing may relaunch for another product") }
+        )
+        XCTAssertThrowsError(
+            try installer.install(newBundle: bundle, expectedVersion: AppVersion("0.2.0"))
+        ) { error in
+            XCTAssertEqual(
+                error as? UpdateInstaller.UpdateInstallError,
+                .notThisApp(found: "app.binaural.python")
+            )
+        }
     }
 
     /// Tar a directory into a `.tar.gz` beside it, the way the release archive is built.

@@ -125,7 +125,7 @@ final class UpdateCheckTests: XCTestCase {
                 <key>CFBundleExecutable</key>
                 <string>Binaural</string>
                 <key>CFBundleIdentifier</key>
-                <string>test.binaural</string>
+                <string>app.binaural.mac</string>
             </dict>
             </plist>
             """

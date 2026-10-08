@@ -199,7 +199,8 @@ final class UpdateCheckCoordinator {
         case is UpdateError:
             return L10n.tr(AboutContent.checkFailedMessage)
         case UpdateInstaller.UpdateInstallError.versionMismatch,
-             UpdateInstaller.UpdateInstallError.replaceFailed:
+             UpdateInstaller.UpdateInstallError.replaceFailed,
+             UpdateInstaller.UpdateInstallError.notThisApp:
             return L10n.tr(AboutContent.installFailedMessage)
         default:
             return L10n.tr(AboutContent.downloadFailedMessage)

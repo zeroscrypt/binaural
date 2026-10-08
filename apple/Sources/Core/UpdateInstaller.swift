@@ -21,6 +21,9 @@ import Foundation
 /// filesystem and a running process, which is exactly what the tests must not have.
 public struct UpdateInstaller: Sendable {
 
+    /// The bundle identifier of the native app. A release archive's bundle must carry it.
+    public static let expectedBundleIdentifier = "app.binaural.mac"
+
     /// Why an install could not be completed. Every case leaves the app as it was.
     public enum UpdateInstallError: Error, Equatable, Sendable {
         /// The archive is not a readable `.tar.gz`.
@@ -31,6 +34,8 @@ public struct UpdateInstaller: Sendable {
         case incompleteBundle(String)
         /// The bundle's version is not the one that was downloaded.
         case versionMismatch(expected: AppVersion, found: String?)
+        /// The bundle is another product's build, not this app: its identifier is wrong.
+        case notThisApp(found: String?)
         /// The bundle could not be put in place; the previous one was restored.
         case replaceFailed(String)
     }
@@ -181,6 +186,13 @@ public struct UpdateInstaller: Sendable {
         let executable = bundle.appendingPathComponent("Contents/MacOS/\(name)")
         guard FileManager.default.fileExists(atPath: executable.path) else {
             throw UpdateInstallError.incompleteBundle(bundle.path)
+        }
+        // The identifier says whose bundle this is. The executable name and the version can
+        // both match another product's build, so without this check a release archive could
+        // replace the native app with a different one.
+        let identifier = Bundle(url: bundle)?.bundleIdentifier
+        guard identifier == Self.expectedBundleIdentifier else {
+            throw UpdateInstallError.notThisApp(found: identifier)
         }
         guard let expectedVersion else { return }
         let info = Bundle(url: bundle)?
