@@ -141,7 +141,14 @@ final class L10nKeysTests: XCTestCase {
         "Set left = {left} Hz and right = {right} Hz (difference {beat})",
         "Tone — applied as the carrier with a {beat} Hz beat",
         "Carries {carrier} Hz",
-        "Medical disclaimer — read it before using the application."
+        "Medical disclaimer — read it before using the application.",
+        // update check
+        "Check for updates", "Checking for updates…", "You are up to date",
+        "Version {version} is available", "Download and install", "Later",
+        "Skip this version", "Downloading update…", "Could not check for updates",
+        "Could not download the update.", "Could not install the update.",
+        "Binaural will restart to finish the update.", "Install and restart",
+        "Open the release page"
     ]
 
     /// `<repo>/apple/Sources` — the same `#filePath` trick as `ReferenceFile`, three

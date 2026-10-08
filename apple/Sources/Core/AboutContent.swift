@@ -222,6 +222,27 @@ public enum AboutContent {
         ])
     }
 
+    // MARK: - Update check
+
+    // The update flow's wording, here for the same reason the About wording is: one
+    // constant per sentence, translated through `L10n.tr` when shown, so the English
+    // source and the Russian catalogue cannot drift apart (CONTRACT rule 9).
+
+    public static let checkForUpdatesButton = "Check for updates"
+    public static let checkingMessage = "Checking for updates…"
+    public static let upToDateMessage = "You are up to date"
+    public static let updateAvailableTemplate = "Version {version} is available"
+    public static let downloadAndInstallButton = "Download and install"
+    public static let laterButton = "Later"
+    public static let skipThisVersionButton = "Skip this version"
+    public static let downloadingMessage = "Downloading update…"
+    public static let checkFailedMessage = "Could not check for updates"
+    public static let downloadFailedMessage = "Could not download the update."
+    public static let installFailedMessage = "Could not install the update."
+    public static let installConfirmMessage = "Binaural will restart to finish the update."
+    public static let installAndRestartButton = "Install and restart"
+    public static let releasePageButton = "Open the release page"
+
     // MARK: - Translation
 
     /// Every string in this file, for callers that build a whole dialog out of them.
@@ -240,6 +261,11 @@ public enum AboutContent {
         mechanismLine, termsLine, headphonesWhyLine, appDoesLine,
         scopeLine, notMedicalLine,
         platformLicenceLine, stackLine, unsignedLine,
+        // The update check.
+        checkForUpdatesButton, checkingMessage, upToDateMessage, updateAvailableTemplate,
+        downloadAndInstallButton, laterButton, skipThisVersionButton, downloadingMessage,
+        checkFailedMessage, downloadFailedMessage, installFailedMessage,
+        installConfirmMessage, installAndRestartButton, releasePageButton,
     ]
 
 }
@@ -277,4 +303,21 @@ public enum AboutContentText {
     public static var licenseName: String { L10n.tr(AboutContent.licenseName) }
     public static var licenseSummary: String { L10n.tr(AboutContent.licenseSummary) }
     public static var disclaimer: String { AboutContent.disclaimerText() }
+
+    // MARK: - Update check
+
+    public static var checkForUpdatesButton: String { L10n.tr(AboutContent.checkForUpdatesButton) }
+    public static var checkingMessage: String { L10n.tr(AboutContent.checkingMessage) }
+    public static var upToDateMessage: String { L10n.tr(AboutContent.upToDateMessage) }
+    public static var updateAvailableTemplate: String { L10n.tr(AboutContent.updateAvailableTemplate) }
+    public static var downloadAndInstallButton: String { L10n.tr(AboutContent.downloadAndInstallButton) }
+    public static var laterButton: String { L10n.tr(AboutContent.laterButton) }
+    public static var skipThisVersionButton: String { L10n.tr(AboutContent.skipThisVersionButton) }
+    public static var downloadingMessage: String { L10n.tr(AboutContent.downloadingMessage) }
+    public static var checkFailedMessage: String { L10n.tr(AboutContent.checkFailedMessage) }
+    public static var downloadFailedMessage: String { L10n.tr(AboutContent.downloadFailedMessage) }
+    public static var installFailedMessage: String { L10n.tr(AboutContent.installFailedMessage) }
+    public static var installConfirmMessage: String { L10n.tr(AboutContent.installConfirmMessage) }
+    public static var installAndRestartButton: String { L10n.tr(AboutContent.installAndRestartButton) }
+    public static var releasePageButton: String { L10n.tr(AboutContent.releasePageButton) }
 }

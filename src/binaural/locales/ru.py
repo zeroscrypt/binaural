@@ -533,4 +533,21 @@ MESSAGES: dict[str, str] = {
         "Слева = {left} Гц, справа = {right} Гц (разность {beat})"
     ),
     "Close the frequency reference": "Закрыть справочник частот",
+    # --- update check -------------------------------------------------------
+    "Check for updates": "Проверить обновления",
+    "Checking for updates…": "Проверяем обновления…",
+    "You are up to date": "Установлена последняя версия",
+    "Version {version} is available": "Доступна версия {version}",
+    "Download and install": "Скачать и установить",
+    "Later": "Позже",
+    "Skip this version": "Пропустить эту версию",
+    "Downloading update…": "Загружаем обновление…",
+    "Could not check for updates": "Не удалось проверить обновления",
+    "Could not download the update.": "Не удалось скачать обновление.",
+    "Could not install the update.": "Не удалось установить обновление.",
+    "Binaural will restart to finish the update.": (
+        "Binaural перезапустится, чтобы завершить обновление."
+    ),
+    "Install and restart": "Установить и перезапустить",
+    "Open the release page": "Открыть страницу релиза",
 }
