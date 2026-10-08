@@ -68,7 +68,7 @@ Every command below was run on `main` before this file was committed. If a numbe
 match your run, something changed — find out what before you trust either.
 
 ```bash
-# Python — 515 passed, 2 skipped (and the one known failure below, until the update UI lands)
+# Python — 544 passed, 2 skipped (and the one known failure below, until the update UI lands)
 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest
 
 # Swift — regenerate the project first; Binaural.xcodeproj is generated and gitignored
@@ -199,10 +199,10 @@ assets attached, because the unsigned `.app` cannot be distributed.
 | Area | State |
 |---|---|
 | Python core | oscillator, engine, session, playback timer, `difference_lock` — implemented, tested |
-| Python core (updates) | `core/update_checker.py` — `AppVersion` order + the GitHub release lookup — implemented, tested. The downloader, the installer and the UI are **not in the tree yet** |
+| Python core (updates) | `core/update_checker.py` (version order + release lookup), `core/update_downloader.py`, `core/update_installer.py` — implemented, tested. The UI is **not in the tree yet** |
 | Python audio | device enumeration and classification (CoreAudio, `pactl`/`pw-cli`/`amixer`), headphone heuristics + perceptual L/R test — implemented, tested |
 | Python UI | main window, F3 preset registry, reference dialog, headphone dialogs, Settings, tray — implemented, tested |
-| Python suite | **515 passed, 2 skipped, 1 failed** — `test_no_orphan_catalogue_entries` fails until the update UI references the 14 update strings `ru.py` already carries |
+| Python suite | **544 passed, 2 skipped, 1 failed** — `test_no_orphan_catalogue_entries` fails until the update UI references the 14 update strings `ru.py` already carries |
 | `apple/` core | `BinauralCore` — provably equal to Python by test, not merely compiling |
 | `apple/` macOS | **All of M2**: live audio, main window, F3 preset registry (7 categories, 20 presets), the full frequency reference, headphone check, Settings, About, playback timer, menu-bar item, session persistence, the **"Lock difference"** checkbox |
 | Swift suites | **245 core + 155 macOS window** |
