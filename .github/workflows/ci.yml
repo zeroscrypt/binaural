@@ -3,8 +3,14 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
+
+# The release job creates the GitHub Release and attaches the archives to it, which
+# needs more than the read-only token some repositories grant by default.
+permissions:
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -222,6 +228,104 @@ jobs:
             dist/SHA256SUMS
           if-no-files-found: error
           retention-days: 14
+
+  # -----------------------------------------------------------------------------
+  # Release builds. Tag pushes only: a PyInstaller build on every push would burn
+  # runner minutes for an artifact nobody consumes, and a release is a deliberate act.
+  # The two platforms build in parallel — PyInstaller cannot cross-compile, so each
+  # target runs on a runner of its own — and publish-release attaches both archives
+  # to the GitHub Release for that tag.
+  # -----------------------------------------------------------------------------
+  release:
+    name: release (${{ matrix.target }})
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            os: ubuntu-latest
+          - target: macos-arm64
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # libpulse0 for the same reason as in the test job: libQt6Multimedia.so.6 links
+      # libpulse.so.0, and scripts/build_linux.sh refuses to build when
+      # `import PySide6.QtMultimedia` fails.
+      - name: Qt runtime libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 \
+            libgl1 \
+            libxkbcommon-x11-0 \
+            libdbus-1-3 \
+            libxcb-cursor0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-shape0 \
+            libxcb-xinerama0 \
+            libxcb-xkb1 \
+            libxkbcommon0 \
+            libfontconfig1 \
+            libfreetype6 \
+            libpulse0
+
+      - name: Install the project and PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]" pyinstaller
+
+      - name: Build the ${{ matrix.target }} archive
+        run: |
+          set -eu
+          case "${{ matrix.target }}" in
+            macos-*) sh scripts/build_macos.sh ;;
+            *)       sh scripts/build_linux.sh ;;
+          esac
+          ls -la dist/
+
+      - name: Upload the archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaural-${{ matrix.target }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  # -----------------------------------------------------------------------------
+  # One release, two archives: the matrix above builds them, this job attaches them
+  # to the GitHub Release for the tag. softprops/action-gh-release creates the
+  # release when it does not exist yet and adds the files as assets when it does.
+  # -----------------------------------------------------------------------------
+  publish-release:
+    name: publish the GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the built archives
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish to the GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.tar.gz
+          generate_release_notes: true
 
   # -----------------------------------------------------------------------------
   # The installer is POSIX sh, so it must keep parsing on a strict shell too.
