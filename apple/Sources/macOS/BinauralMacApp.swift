@@ -13,11 +13,29 @@ import BinauralCore
 enum BinauralMacApp {
 
     static func main() {
+        // The installer runs `binaural --version` to verify an install. It must answer on
+        // stdout and exit: a window here would block that check until its timeout.
+        if CommandLine.arguments.dropFirst().contains(where: { $0 == "--version" || $0 == "-V" }) {
+            print("binaural \(bundleVersion() ?? "unknown")")
+            return
+        }
         let application = NSApplication.shared
         let delegate = AppDelegate()
         application.setActivationPolicy(.regular)
         application.delegate = delegate
         application.run()
+    }
+
+    /// The version of the bundle this executable belongs to. Read through the resolved path:
+    /// the `binaural` on the PATH is a symlink, and `Bundle.main` does not follow it.
+    static func bundleVersion() -> String? {
+        guard let executable = Bundle.main.executableURL?.resolvingSymlinksInPath() else {
+            return nil
+        }
+        let bundle = executable.deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return Bundle(url: bundle)?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
     }
 }
 
