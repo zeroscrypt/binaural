@@ -978,7 +978,13 @@ install_desktop_files() {
     must "${LINENO:-?}" "create ${HOME}/.local/share/applications" \
         mkdir -p "${HOME}/.local/share/applications"
     _desktop_name="$(basename "$_desktop")"
-    run cp "$_desktop" "${HOME}/.local/share/applications/${_desktop_name}"
+    # The launcher names the installed binary by absolute path. A bare `Exec=binaural`
+    # depends on the session's PATH, and ~/.local/bin is not on it everywhere: the menu
+    # entry would then do nothing when clicked. The symlink is the stable path, because
+    # every install and update repoints it at the new release.
+    _staged="$(tmpfile desktop-entry)"
+    sed "s|^Exec=.*|Exec=\"${BIN_DIR}/${APP_NAME}\"|" "$_desktop" >"$_staged"
+    run cp "$_staged" "${HOME}/.local/share/applications/${_desktop_name}"
     ok "${HOME}/.local/share/applications/${_desktop_name}"
 
     if [ -n "$_icon" ]; then
