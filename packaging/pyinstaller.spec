@@ -32,8 +32,10 @@ SRC = ROOT / "src"
 PKG = SRC / "binaural"
 DATA_DIR = PKG / "data"
 
-# Only Linux is packaged here. macOS ships the native Swift app (apple/), so there is no
-# PyInstaller bundle, no Info.plist and no .icns: nothing in this spec builds a .app.
+# The spec itself is platform-agnostic: scripts/build_linux.sh and scripts/build_macos.sh
+# both build with it. macOS also ships the native Swift app (apple/); the Python archive
+# is what `curl | sh` downloads there. There is no Info.plist and no .icns: nothing in
+# this spec builds a branded .app.
 LINUX_DIR = SPEC_DIR / "linux"
 
 # PyInstaller cannot use src/binaural/app.py as the entry script directly: it runs the

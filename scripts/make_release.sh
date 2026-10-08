@@ -11,10 +11,10 @@
 #
 #   binaural-<version>-linux-x64.tar.gz     -> Binaural/ one-dir
 #   binaural-<version>-linux-arm64.tar.gz
+#   binaural-<version>-macos-arm64.tar.gz   -> Binaural.app/ one-dir
 #
-# macOS is not in this list: the macOS product is the native Swift app (apple/, built by
-# apple/build_release.sh), so there is no Python bundle to build for it. The Python code
-# still runs on a Mac from source.
+# macOS also ships the native Swift app (apple/, built by apple/build_release.sh); the
+# Python archive exists so that `curl | sh` downloads a binary on a Mac too.
 #
 # PyInstaller bundles are platform-specific in both architecture *and* OS, so an artifact
 # can only be produced on a matching host. --all reports the ones it cannot build instead
@@ -54,7 +54,7 @@ usage() {
 Build release artifacts for Binaural.
 
   --target PLATFORM   Build only PLATFORM. One of:
-                        linux-x64 linux-arm64
+                        linux-x64 linux-arm64 macos-arm64
   --all               Attempt every platform, skip the ones this host cannot build
   --clean             remove build/ and dist/ before building
   --checksums-only    Regenerate dist/SHA256SUMS from whatever is already in dist/
@@ -109,7 +109,7 @@ checksum() {
     fi
 }
 
-ALL_PLATFORMS="linux-x64 linux-arm64"
+ALL_PLATFORMS="linux-x64 linux-arm64 macos-arm64"
 
 # The lists are space-separated words, so pad both sides before matching: without the
 # leading space, "linux-x64" fails to match itself in a `*" $x "*` test.
@@ -130,6 +130,7 @@ host_platform() {
     esac
     case "$_os" in
         Linux)  printf 'linux-%s' "$_arch" ;;
+        Darwin) printf 'macos-%s' "$_arch" ;;
         *)      printf 'unknown-%s' "$_arch" ;;
     esac
 }
@@ -238,9 +239,18 @@ One of: ${ALL_PLATFORMS}"
 
     _arch="${_target#*-}"
     step "building ${_target}"
-    # shellcheck disable=SC2086
-    sh "${SCRIPT_DIR}/build_linux.sh" $CLEAN_FLAG --arch "$_arch" --python "$PYTHON" \
-        || die "the Linux build failed"
+    case "$_target" in
+        macos-*)
+            # shellcheck disable=SC2086
+            sh "${SCRIPT_DIR}/build_macos.sh" $CLEAN_FLAG --arch "$_arch" --python "$PYTHON" \
+                || die "the macOS build failed"
+            ;;
+        *)
+            # shellcheck disable=SC2086
+            sh "${SCRIPT_DIR}/build_linux.sh" $CLEAN_FLAG --arch "$_arch" --python "$PYTHON" \
+                || die "the Linux build failed"
+            ;;
+    esac
     BUILT="${BUILT} ${EXE_NAME}-${VERSION}-${_target}.tar.gz"
 done
 
