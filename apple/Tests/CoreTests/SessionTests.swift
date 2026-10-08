@@ -90,14 +90,17 @@ final class SessionTests: XCTestCase {
     }
 
     func testJSONKeysAreThePythonFieldNames() throws {
-        try Session().save(to: url)
+        // The skipped version is set because a `nil` one is omitted, like `last_preset`:
+        // the key set of a default session is the one `testMissingKeysFallBackToDefaults`
+        // reads.
+        try Session(skippedUpdateVersion: "0.2.0").save(to: url)
         let object = try JSONSerialization.jsonObject(with: Data(contentsOf: url))
         let keys = Set((object as? [String: Any])?.keys.map(\.self) ?? [])
         XCTAssertEqual(
             keys,
             ["left_hz", "right_hz", "volume", "channels_swapped",
              "headphone_check_acknowledged", "timer_minutes", "preset_category",
-             "difference_locked"]
+             "difference_locked", "skipped_update_version"]
         )
     }
 
@@ -170,6 +173,16 @@ final class SessionTests: XCTestCase {
     func testTheLockSurvivesARoundTrip() throws {
         try Session(leftHz: 200, rightHz: 260, differenceLocked: true).save(to: url)
         XCTAssertTrue(try Session.load(from: url).differenceLocked)
+    }
+
+    /// The skipped update is remembered, and a session written before the field existed
+    /// loads with it unset rather than being refused.
+    func testTheSkippedUpdateVersionSurvivesARoundTrip() throws {
+        try Session(skippedUpdateVersion: "0.2.0").save(to: url)
+        XCTAssertEqual(try Session.load(from: url).skippedUpdateVersion, "0.2.0")
+
+        try Data(#"{"left_hz": 300.0}"#.utf8).write(to: url)
+        XCTAssertNil(try Session.load(from: url).skippedUpdateVersion)
     }
 
     /// A hand-edited document can hold anything; Python coerces booleans, so `"on"` is a

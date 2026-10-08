@@ -57,6 +57,14 @@ public struct Session: Sendable, Equatable {
     /// stored — it is re-derived from the two frequencies on load, so a document can never
     /// hold a lock that disagrees with the pair it sits next to.
     public var differenceLocked: Bool
+    /// The release the user chose not to be asked about, as written (`"0.2.0"`).
+    ///
+    /// The update check compares the newest release against this and stays silent when
+    /// they are equal; any newer release is offered as usual. `nil` means "ask about
+    /// everything". A free string rather than a parsed version, like every other field
+    /// here: the document stays readable by both implementations and the parse happens
+    /// where the comparison does.
+    public var skippedUpdateVersion: String?
 
     public init(
         leftHz: Double = Session.defaultLeftHz,
@@ -67,7 +75,8 @@ public struct Session: Sendable, Equatable {
         lastPreset: String? = nil,
         timerMinutes: Int = Session.defaultTimerMinutes,
         presetCategory: String = Session.defaultPresetCategory,
-        differenceLocked: Bool = false
+        differenceLocked: Bool = false,
+        skippedUpdateVersion: String? = nil
     ) {
         self.leftHz = leftHz
         self.rightHz = rightHz
@@ -78,6 +87,7 @@ public struct Session: Sendable, Equatable {
         self.timerMinutes = timerMinutes
         self.presetCategory = presetCategory
         self.differenceLocked = differenceLocked
+        self.skippedUpdateVersion = skippedUpdateVersion
     }
 
     // MARK: - Derived values
@@ -104,6 +114,7 @@ public struct Session: Sendable, Equatable {
         case timerMinutes = "timer_minutes"
         case presetCategory = "preset_category"
         case differenceLocked = "difference_locked"
+        case skippedUpdateVersion = "skipped_update_version"
     }
 
     /// The session as JSON. A `nil` preset is omitted rather than written as `null`,
@@ -159,7 +170,8 @@ extension Session: Codable {
             // Additive: a document written before this field existed simply has no key, and
             // "no key" means the default, never an error — the lenient rule above.
             differenceLocked: container.clampedBool(forKey: .differenceLocked)
-                ?? defaults.differenceLocked
+                ?? defaults.differenceLocked,
+            skippedUpdateVersion: container.clampedString(forKey: .skippedUpdateVersion)
         )
     }
 
@@ -174,6 +186,7 @@ extension Session: Codable {
         try container.encode(timerMinutes, forKey: .timerMinutes)
         try container.encode(presetCategory, forKey: .presetCategory)
         try container.encode(differenceLocked, forKey: .differenceLocked)
+        try container.encodeIfPresent(skippedUpdateVersion, forKey: .skippedUpdateVersion)
     }
 }
 
