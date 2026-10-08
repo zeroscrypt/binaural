@@ -66,7 +66,9 @@ public struct PlaybackTimer: Sendable, Equatable {
     /// identical on every OS version and testable to the character.
     public static func countdownText(_ remaining: TimeInterval) -> String {
         guard remaining.isFinite else { return "" }
-        let total = max(0, Int(remaining.rounded(.up)))
+        // Round to microseconds before ceiling: `(started + duration) - started` can be a
+        // hair above the integer, and `ceil` would read a fresh 5:00 timer as 5:01.
+        let total = max(0, Int(((remaining * 1_000_000).rounded() / 1_000_000).rounded(.up)))
         let hours = total / 3600
         let minutes = (total % 3600) / 60
         let seconds = total % 60

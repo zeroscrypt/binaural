@@ -41,7 +41,12 @@ def countdown_text(remaining: float) -> str:
     """
     if not math.isfinite(remaining):
         return ""
-    total = max(0, math.ceil(remaining))
+    # `remaining` is `deadline - now`; when the two are taken at the same instant that is
+    # `(started_at + duration) - started_at`, which floating point can return as a hair
+    # **above** the integer — 300.00000000000006. `ceil` then reads 301 and a fresh
+    # five-minute timer opens on "05:01". Rounding to microseconds first is finer than the
+    # clock's own precision and well below any real second boundary.
+    total = max(0, math.ceil(round(remaining, 6)))
     hours, rest = divmod(total, 3600)
     minutes, seconds = divmod(rest, 60)
     if hours > 0:
