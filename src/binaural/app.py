@@ -11,7 +11,7 @@ import sys
 from PySide6.QtCore import QCoreApplication, QSettings, QTimer
 from PySide6.QtWidgets import QApplication
 
-from . import i18n
+from . import __version__, i18n
 from .audio.headphones import HeadphoneReport, detect
 from .core.engine import AudioEngine
 from .core.oscillator import StereoOscillator
@@ -79,6 +79,12 @@ def main(argv: list[str] | None = None) -> int:
     """Run the application. Returns the process exit code."""
     args = list(sys.argv if argv is None else argv)
 
+    # The installer runs `binaural --version` to verify an install. It must answer on
+    # stdout and exit; a window here would block that check until its timeout.
+    if any(arg in ("--version", "-V") for arg in args[1:]):
+        print(f"binaural {__version__}")
+        return 0
+
     app = QApplication.instance()
     owns_app = app is None
     if app is None:
@@ -86,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
 
     QCoreApplication.setOrganizationName("binaural")
     QCoreApplication.setApplicationName("binaural")
-    QCoreApplication.setApplicationVersion("0.1.0")
+    QCoreApplication.setApplicationVersion(__version__)
     # Keep QSettings on the organisation/app pair used by core.session.
     QSettings.setDefaultFormat(QSettings.Format.IniFormat)
 
