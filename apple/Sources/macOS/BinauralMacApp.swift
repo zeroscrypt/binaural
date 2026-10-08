@@ -258,7 +258,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         languageItem.submenu = languageMenu
 
-        let viewMenu = NSMenu(title: L10n.tr("&View"))
+        let viewMenu = NSMenu(title: Self.menuTitle(L10n.tr("&View")))
         viewMenu.addItem(languageItem)
         viewItem.submenu = viewMenu
         main.addItem(viewItem)
@@ -278,7 +278,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         aboutItem.keyEquivalent = "i"
         aboutItem.keyEquivalentModifierMask = [.control, .shift]
 
-        let helpMenu = NSMenu(title: L10n.tr("&Help"))
+        let helpMenu = NSMenu(title: Self.menuTitle(L10n.tr("&Help")))
         helpMenu.addItem(referenceItem)
         helpMenu.addItem(checkHeadphonesItem)
         helpMenu.addItem(aboutItem)
@@ -288,6 +288,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return main
     }
 
+    /// A translated menu title with its mnemonic marker in **AppKit's** spelling.
+    ///
+    /// The catalogues are shared with the Qt implementation, where `&` introduces the
+    /// mnemonic (`&View`); AppKit has no meaning for `&` at all and draws it literally, so
+    /// every title in this menu used to read `&View`, `&About`, `&Help` with a visible
+    /// ampersand. Rewriting the marker here, at the one boundary where a translated string
+    /// becomes a menu title, fixes it without touching the generated catalogue, which must
+    /// stay byte-identical to a run of `Tools/generate_russian_catalogue.py` (CONTRACT rule
+    /// 10's spirit: one catalogue, two products, no per-platform copy).
+    ///
+    /// Every occurrence is rewritten, not just a leading one, so `Frequency &reference…`
+    /// becomes `Frequency _reference…`.
+    ///
+    /// Internal rather than private so `MenuTests` can pin the rule directly; the app's own
+    /// titles are asserted through the real `NSApp.mainMenu`.
+    static func menuTitle(_ translated: String) -> String {
+        translated.replacingOccurrences(of: "&", with: "_")
+    }
+
     private func languageDidChange() {
         retranslateMenus()
         // The status item's captions follow the language too (SPEC §7.4).
@@ -295,16 +314,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func retranslateMenus() {
-        quitItem.title = L10n.tr("Quit")
-        settingsItem.title = L10n.tr("Settings…")
-        viewItem.title = L10n.tr("&View")
-        languageItem.title = L10n.tr("Language")
-        languageMenu.title = L10n.tr("Language")
+        quitItem.title = Self.menuTitle(L10n.tr("Quit"))
+        settingsItem.title = Self.menuTitle(L10n.tr("Settings…"))
+        viewItem.title = Self.menuTitle(L10n.tr("&View"))
+        languageItem.title = Self.menuTitle(L10n.tr("Language"))
+        languageMenu.title = Self.menuTitle(L10n.tr("Language"))
         statusItem.retranslate()
-        helpItem.title = L10n.tr("&Help")
-        referenceItem.title = L10n.tr("Frequency &reference…")
-        checkHeadphonesItem.title = L10n.tr("&Check headphones…")
-        aboutItem.title = L10n.tr("&About")
+        helpItem.title = Self.menuTitle(L10n.tr("&Help"))
+        referenceItem.title = Self.menuTitle(L10n.tr("Frequency &reference…"))
+        checkHeadphonesItem.title = Self.menuTitle(L10n.tr("&Check headphones…"))
+        aboutItem.title = Self.menuTitle(L10n.tr("&About"))
         for item in languageMenu.items {
             guard let raw = item.representedObject as? String,
                   let code = LanguageCode.parse(raw) else { continue }

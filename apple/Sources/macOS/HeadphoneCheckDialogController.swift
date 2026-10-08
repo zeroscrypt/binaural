@@ -14,7 +14,7 @@ import BinauralCore
 /// except through ``HeadphoneDetector`` when the user presses *Retry check*, and it never
 /// plays a tone itself — ``LRTestDialogController`` does, over the same engine.
 @MainActor
-final class HeadphoneCheckDialogController: NSWindowController {
+final class HeadphoneCheckDialogController: NSWindowController, NSWindowDelegate {
 
     /// True once the user chose to continue (SPEC §4.3). The caller stores this as
     /// `Session.headphoneCheckAcknowledged` so the check is not repeated every start.
@@ -57,6 +57,10 @@ final class HeadphoneCheckDialogController: NSWindowController {
             defer: false
         )
         super.init(window: window)
+        // A modal session ends only through `endModalSessionAndClose`, so the red close
+        // button and Cmd+W need a route to `continueAnyway()`. Plain `close()` would hide
+        // the dialog while `NSApp.runModal(for:)` kept spinning, leaving the app blocked.
+        window.delegate = self
         buildContent()
         retranslate()
     }
@@ -230,6 +234,15 @@ final class HeadphoneCheckDialogController: NSWindowController {
     func continueAnyway() {
         acknowledged = true
         endModalSessionAndClose()
+    }
+
+    /// The red close button and Cmd+W *are* the §4.3 way out — this dialog has no Cancel
+    /// button, so a dismissal must count as "continue anyway" rather than leave the
+    /// modal session spinning and the app blocked. See
+    /// ``SettingsDialogController/windowShouldClose(_:)`` for the mechanism.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        continueAnyway()
+        return true
     }
 
     @objc private func onContinue() {

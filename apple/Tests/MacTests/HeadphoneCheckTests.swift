@@ -320,6 +320,26 @@ final class HeadphoneCheckTests: XCTestCase {
         XCTAssertTrue(dialog.detailTexts.contains { $0.hasPrefix("Confidence:") })
     }
 
+    /// Closing the §4.3 window with the red button or Cmd+W has to count as *continue
+    /// anyway* — and, more importantly, has to end the modal session.
+    ///
+    /// Without the delegate wiring, the dialog vanished while `NSApp.runModal(for:)`
+    /// kept spinning, which is the state that leaves the whole app unresponsive with
+    /// nothing on screen to explain it.
+    func testClosingTheDialogWindowEndsTheModalSession() throws {
+        let dialog = HeadphoneCheckDialogController(
+            player: LRTonePlayer(engine: AudioEngine()),
+            report: report(verdict: .speakers, confidence: .medium, name: "Динамики Mac mini")
+        )
+        let window = try XCTUnwrap(dialog.window)
+        XCTAssertTrue(window.delegate === dialog, "the dialog must be its own window's delegate")
+
+        XCTAssertTrue(dialog.windowShouldClose(window))
+
+        XCTAssertTrue(dialog.acknowledged, "a dismissal is SPEC §4.3's way out")
+        XCTAssertFalse(window.isVisible)
+    }
+
     func testTheDialogReportsHeadphonesWithItsOwnHeadline() {
         let dialog = HeadphoneCheckDialogController(
             player: LRTonePlayer(engine: AudioEngine()),

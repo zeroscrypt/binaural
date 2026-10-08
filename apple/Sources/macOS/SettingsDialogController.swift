@@ -14,7 +14,7 @@ import BinauralCore
 /// `selectTimerMinutes`, `setHeadphoneCheckHandler` — so a value changed here and a value
 /// changed in the window go through identical code and identical saving.
 @MainActor
-final class SettingsDialogController: NSWindowController {
+final class SettingsDialogController: NSWindowController, NSWindowDelegate {
 
     /// The language as it was when the dialog opened, restored if the user cancels out of
     /// a switch. `nil` means "leave it alone".
@@ -56,6 +56,12 @@ final class SettingsDialogController: NSWindowController {
             defer: false
         )
         super.init(window: window)
+        // The dialog runs a modal session, and a modal session only ends through
+        // `endModalSessionAndClose`. Without the delegate, the red close button and
+        // Cmd+W would close the window while `NSApp.runModal(for:)` kept spinning:
+        // the dialog would vanish and the whole app — window, menus and all — would
+        // stay blocked with nothing on screen to explain why.
+        window.delegate = self
         buildContent()
         apply(values)
         retranslate()
@@ -285,6 +291,20 @@ final class SettingsDialogController: NSWindowController {
             + "\(L10n.tr("Verdict")): \(L10n.tr(HeadphoneCheckDialogController.verdictLabel(for: report.verdict)))"
             + "   ·   \(L10n.tr("Confidence")): "
             + L10n.tr(HeadphoneCheckDialogController.confidenceLabel(for: report.confidence))
+    }
+
+    /// The red close button and Cmd+W mean the same as the *Close* button: end the modal
+    /// session, close, nothing else.
+    ///
+    /// The subtle half is ending the **modal session** rather than the window. A dialog
+    /// closed by plain `close()` disappears but leaves `NSApp.runModal(for:)` spinning,
+    /// and the app behind it stays disabled — the window cannot be touched and no menu
+    /// item responds, with no dialog left to close. That is what the red button did here
+    /// until it was wired to this method. (`NSWindowDelegate` has it as an optional
+    /// method, so it is not an `override`.)
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        endModalSessionAndClose(code: .cancel)
+        return true
     }
 
     // MARK: - Actions

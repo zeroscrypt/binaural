@@ -117,6 +117,37 @@ final class SettingsDialogTests: XCTestCase {
         XCTAssertFalse(dialog.headphoneStatusText.isEmpty)
     }
 
+    // MARK: - Dismissal
+
+    /// The red close button and Cmd+W must end the **modal session**, not merely close the
+    /// window.
+    ///
+    /// This is the bug the window tests could not see: without a `windowShouldClose` that
+    /// ends the session, the dialog disappears and `NSApp.runModal(for:)` keeps spinning,
+    /// so the app behind it stays disabled — every menu item dead, nothing to click. The
+    /// assertion is that the delegate answers at all and releases the window, which is the
+    /// whole difference between "closed" and "closed properly".
+    func testClosingTheWindowEndsTheModalSession() throws {
+        let window = try XCTUnwrap(dialog.window)
+        XCTAssertTrue(window.delegate === dialog, "the dialog must be its own window's delegate")
+
+        _ = dialog.windowShouldClose(window)
+
+        XCTAssertFalse(window.isVisible, "the dialog must be gone, not merely unanswered")
+        // The teardown calls `cancel()` again; doing it twice has to stay safe.
+        dialog.tearDown()
+    }
+
+    /// Closing without an explicit choice must not silently rewrite the language: the
+    /// window path shares `endModalSessionAndClose`, so it leaves the choice alone, and the
+    /// only way back is a fresh switch.
+    func testClosingTheWindowKeepsTheLanguageSwitchItMade() throws {
+        dialog.selectLanguage(.ru)
+        let window = try XCTUnwrap(dialog.window)
+        _ = dialog.windowShouldClose(window)
+        XCTAssertEqual(L10n.language, .ru, "a switch made through the window path is not undone")
+    }
+
     // MARK: - The verdict is stated
 
     /// Settings states the truth about the output rather than implying nothing has run.

@@ -17,7 +17,7 @@ import BinauralCore
 /// reduced-motion rule satisfied by there being no motion to reduce. A broken engine
 /// produces a written message and a still-usable answer — never a crash (Python's rule).
 @MainActor
-final class LRTestDialogController: NSWindowController {
+final class LRTestDialogController: NSWindowController, NSWindowDelegate {
 
     /// The user's answer. Called once, whatever closes the dialog.
     var onAnswer: ((LRTestResult) -> Void)?
@@ -67,6 +67,11 @@ final class LRTestDialogController: NSWindowController {
             defer: false
         )
         super.init(window: window)
+        // A modal session ends only through `endModalSessionAndClose`, so the red close
+        // button and Cmd+W need a route to `cancel()`: plain `close()` would hide the
+        // dialog while `NSApp.runModal(for:)` kept spinning, leaving the app blocked —
+        // and the tone sequence would outlive the dialog that owns it.
+        window.delegate = self
 
         sequence.onStepChanged = { [weak self] step in self?.apply(step: step) }
         sequence.onFinished = { [weak self] result in self?.finish(result) }
@@ -211,6 +216,14 @@ final class LRTestDialogController: NSWindowController {
     @objc func cancel() {
         sequence.stop()
         endModalSessionAndClose(code: .cancel)
+    }
+
+    /// The red close button and Cmd+W dismiss the test exactly as *Close* does — stop the
+    /// tones, end the modal session, close. See ``SettingsDialogController/windowShouldClose(_:)``
+    /// for why ending the session rather than the window is the part that matters.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        cancel()
+        return true
     }
 
     private func finish(_ result: LRTestResult) {
