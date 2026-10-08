@@ -10,6 +10,7 @@ the engine and reacts to the engine's signals.
 from __future__ import annotations
 
 import time
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QActionGroup, QCloseEvent, QKeyEvent
@@ -56,6 +57,9 @@ from .presets import (
 from .widgets.beat_display import BeatDisplay
 from .widgets.freq_control import FreqControl
 from .widgets.status_indicator import StatusIndicator
+
+if TYPE_CHECKING:  # pragma: no cover - the annotation only, the import is lazy
+    from .update_coordinator import UpdateCoordinator
 
 __all__ = ["MainWindow", "PRESETS", "PRESET_CATEGORIES"]
 
@@ -127,9 +131,14 @@ class MainWindow(QMainWindow):
         oscillator=None,
         parent: QWidget | None = None,
         session: Session | None = None,
+        updates: "UpdateCoordinator | None" = None,
     ) -> None:
         super().__init__(parent)
         self._engine = engine
+        # The update check. Injected by ``app.py`` so the launch check and the About
+        # button are one object; built here on first use when it was not, because the
+        # About dialog must still offer the button on its own.
+        self._updates = updates
         self._oscillator = oscillator if oscillator is not None else getattr(engine, "oscillator", None)
         self._session = session or load_session()
         self._channels_swapped = bool(self._session.channels_swapped)
@@ -751,7 +760,61 @@ class MainWindow(QMainWindow):
             # value the registry does not know must not survive as an unselectable row.
             preset_category=self._selected_category,
             difference_locked=self._lock.is_locked,
+            # Carried through rather than dropped: the update check writes it, and a
+            # snapshot that left it out would silently forget a skipped release on
+            # the next save.
+            skipped_update_version=self._session.skipped_update_version,
         )
+
+    # ------------------------------------------------------- update check target
+
+    @property
+    def updates(self) -> "UpdateCoordinator":
+        """The app's one update coordinator, built on first use.
+
+        This window is its target: it owns the session, so it owns the skipped
+        release. Building it here rather than in ``app.py`` means the About button
+        works even in a build where nothing wired the launch check.
+        """
+        if self._updates is None:
+            from .update_coordinator import UpdateCoordinator
+
+            self._updates = UpdateCoordinator(parent=self, target=self)
+        return self._updates
+
+    def run_launch_update_check(self) -> None:
+        """The silent background check of the launch sequence.
+
+        A failure is silence and an up-to-date answer is silence; only a newer
+        release may interrupt. Nothing here can raise into the event loop: the
+        coordinator decides what a failure looks like.
+        """
+        try:
+            self.updates.run_at_launch()
+        except Exception:
+            pass  # an update check is never a reason to fail a launch
+
+    def skipped_update_version(self) -> str | None:
+        """The release to stay silent about, or ``None`` for "ask about everything".
+
+        One of the two halves of the update check's ``Target``: the window owns the
+        session, so it owns this too, and the check never writes settings itself.
+        """
+        return self._session.skipped_update_version
+
+    def persist_skipped_update_version(self, version: str | None) -> None:
+        """Remember ``version`` as the release to skip; ``None`` forgets it.
+
+        Written into the live session and saved immediately rather than at the next
+        save: the user's answer to *Skip this version* has to survive the app closing
+        seconds later, and nothing else would prompt another save.
+        """
+        self._session = self.current_session()
+        self._session.skipped_update_version = version
+        try:
+            save_session(self._session)
+        except Exception:
+            pass  # persistence is a convenience, never a blocker
 
     def save_session(self) -> None:
         """Store the current state so the next start restores it."""
@@ -1245,10 +1308,21 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def show_about(self) -> None:
-        """About + the mandatory disclaimer (SPEC §6.13)."""
+        """About + the mandatory disclaimer (SPEC §6.13).
+
+        The dialog carries the update check, and this window is that check's target
+        — the same object the launch check used, so *Skip this version* is
+        remembered once and stays silent afterwards.
+        """
         dialog_class = self._dialog_class("AboutDialog")
         if dialog_class is not None:
-            dialog_class(self).exec()
+            try:
+                dialog_class(self, updates=self.updates)
+            except TypeError:
+                # A dialog built without the update wiring is still usable: the
+                # button builds its own coordinator on the first press.
+                dialog_class(self)
+            dialog.exec()
             return
         from .. import __version__
 

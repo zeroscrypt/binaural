@@ -68,7 +68,7 @@ Every command below was run on `main` before this file was committed. If a numbe
 match your run, something changed — find out what before you trust either.
 
 ```bash
-# Python — 548 passed, 2 skipped (and the one known failure below, until the update UI lands)
+# Python — 581 passed, 2 skipped
 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest
 
 # Swift — regenerate the project first; Binaural.xcodeproj is generated and gitignored
@@ -166,13 +166,20 @@ Each of these cost real time. They are not stylistic preferences.
     The `affect` category also carries two **null results** (`affect-null-7`, `affect-null-40`) on
     purpose — the badge is a hint and the reference must not imply a mood effect the study did not
     find. The §6.13 disclaimer says beats are sound, not a substance.
-11. **The update strings already exist and nothing in `src/` references them yet.** `ru.py`
-    carries 14 update sentences (added alongside the Swift implementation in `0698dd7`), so
-    `test_i18n.py::test_no_orphan_catalogue_entries` **fails on `main` until the Python update UI
-    lands** — the baseline is `487 passed, 2 skipped, 1 failed`, not a green suite. That test
-    walks the AST of `src/` for `tr(NAME)` calls, so a sentence counts as referenced only when a
-    `tr()` call reaches it; a message table or a `QCoreApplication.translate` call elsewhere does
-    not satisfy it. 14 strings, 14 call sites, or the guard fires.
+11. **The update flow is Linux-only, and self-update needs `install.sh`'s prefix.** The Python app
+    ships `binaural-<ver>-linux-<arch>.tar.gz` bundles, so `linux_archive()` refuses an archive that
+    names another platform rather than offering one that cannot run — the macOS checker can end its
+    search in "any archive at all" because it is the only platform Swift ships. `UpdateInstaller`
+    replaces the release directory **under `~/.binaural/app`** (where `install.sh` unpacks it), not
+    `~/.binaural` itself, and refuses outright when no release is installed there: an app running
+    from source has nothing to update. After the replace, `install-meta` and `~/.local/bin/binaural`
+    are re-pointed — both name the release *directory*, which carries the version in its name, so
+    leaving them would be a soft brick.
+12. **`test_no_orphan_catalogue_entries` walks the AST of `src/` for `tr(NAME)` calls.** A catalogue
+    sentence counts as referenced only when a `tr()` call reaches it; a message table or a
+    `QCoreApplication.translate` call elsewhere does not satisfy it. That guard is what caught the 14
+    update strings `ru.py` carried with no call site while the Swift side had already used them — the
+    baseline before this feature was `487 passed, 2 skipped, 1 failed`, not a green suite.
 
 ## 7. Conventions
 
@@ -201,8 +208,8 @@ assets attached, because the unsigned `.app` cannot be distributed.
 | Python core | oscillator, engine, session, playback timer, `difference_lock` — implemented, tested |
 | Python core (updates) | `core/update_checker.py` (version order + release lookup), `core/update_downloader.py`, `core/update_installer.py`, `session.skipped_update_version` — implemented, tested. The UI is **not in the tree yet** |
 | Python audio | device enumeration and classification (CoreAudio, `pactl`/`pw-cli`/`amixer`), headphone heuristics + perceptual L/R test — implemented, tested |
-| Python UI | main window, F3 preset registry, reference dialog, headphone dialogs, Settings, tray — implemented, tested |
-| Python suite | **548 passed, 2 skipped, 1 failed** — `test_no_orphan_catalogue_entries` fails until the update UI references the 14 update strings `ru.py` already carries |
+| Python UI | main window, F3 preset registry, reference dialog, headphone dialogs, Settings, tray, the **update check** (result dialog, progress window, *Check for updates* in About) — implemented, tested |
+| Python suite | **581 passed, 2 skipped** |
 | `apple/` core | `BinauralCore` — provably equal to Python by test, not merely compiling |
 | `apple/` macOS | **All of M2**: live audio, main window, F3 preset registry (7 categories, 20 presets), the full frequency reference, headphone check, Settings, About, playback timer, menu-bar item, session persistence, the **"Lock difference"** checkbox |
 | Swift suites | **245 core + 155 macOS window** |

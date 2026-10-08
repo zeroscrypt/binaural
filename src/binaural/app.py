@@ -19,7 +19,15 @@ from .ui import theme
 from .ui.main_window import MainWindow
 from .ui.tray import TrayController
 
-__all__ = ["main"]
+__all__ = ["UPDATE_CHECK_DELAY_MS", "main"]
+
+#: How long after the window is up the update check starts.
+#:
+#: Long enough that the window has painted and the headphone dialog — which is the
+#: first thing to interrupt a launch — has had its moment, so the two never open at
+#: once: short enough that the check has finished before the user is deep in a
+#: session.
+UPDATE_CHECK_DELAY_MS = 1500
 
 
 def _run_headphone_check(window: MainWindow) -> None:
@@ -105,6 +113,12 @@ def main(argv: list[str] | None = None) -> int:
     # §4: check the headphones, but only after the window is on screen.
     window.show()
     QTimer.singleShot(0, lambda: _run_headphone_check(window))
+
+    # The update check: the same silent background check, deferred the same way. It
+    # runs on its own thread and shows a dialog only when a newer release exists; a
+    # failure is silence. Deferred rather than immediate because a windowless process
+    # would otherwise pop a dialog over nothing.
+    QTimer.singleShot(UPDATE_CHECK_DELAY_MS, window.run_launch_update_check)
 
     if not owns_app:
         return 0

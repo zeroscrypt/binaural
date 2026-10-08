@@ -7,12 +7,16 @@ and the frequency reference always show exactly the same wording.
 from __future__ import annotations
 
 import platform
+from typing import TYPE_CHECKING
 
 from PySide6 import __version__ as _pyside_version
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QFrame, QScrollArea, QVBoxLayout, QWidget
 
 from binaural import __version__
+
+if TYPE_CHECKING:  # pragma: no cover - the annotation only, the import is lazy
+    from ..update_coordinator import UpdateCoordinator
 
 from . import (
     SPACE_LG,
@@ -208,10 +212,23 @@ def version_line() -> str:
 
 
 class AboutDialog(QDialog):
-    """Application information: version, project page, disclaimer, licence."""
+    """Application information: version, project page, disclaimer, licence.
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    ``updates`` is the app's :class:`~binaural.ui.update_coordinator.UpdateCoordinator`,
+    injected rather than built here so the About button and the launch check are
+    the same check. Left out, the button builds its own coordinator on the first
+    press — the dialog must still be usable on its own, which is how every dialog
+    test constructs it.
+    """
+
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        updates: "UpdateCoordinator | None" = None,
+    ) -> None:
         super().__init__(parent)
+        self._updates = updates
         self.setWindowTitle(tr("About Binaural"))
         self.setAccessibleName(tr("About Binaural"))
         self.setModal(True)
@@ -266,12 +283,70 @@ class AboutDialog(QDialog):
         close.setDefault(True)
         close.setAutoDefault(True)
         self._close_button = close
+        # The update check, in the dialog it belongs to: the same check the app runs
+        # at launch, on request. It is a secondary action, so it sits left of Close
+        # and Close keeps the primary variant and the focus.
+        self._check_updates_button = make_button(
+            tr("Check for updates"),
+            on_click=self._check_for_updates,
+            min_width=180,
+            accessible_name=tr("Check for updates"),
+        )
         row = button_row()
+        row.addWidget(self._check_updates_button)
         row.addStretch(1)
         row.addWidget(close)
         root.addLayout(row)
 
         style_dialog(self)
+
+    def _check_for_updates(self) -> None:
+        """*Check for updates* — the same check the app runs at launch, on request.
+
+        Built lazily when the dialog was constructed without one: the import is
+        inside the handler so ``dialogs`` does not import ``ui.update_coordinator``
+        at module load, which would be a cycle.
+        """
+        coordinator = self._updates
+        if coordinator is None:
+            from ..update_coordinator import UpdateCoordinator
+
+            coordinator = UpdateCoordinator()
+            self._updates = coordinator
+        self.set_checking(True)
+        # Connected before the check starts, because a check that finishes instantly
+        # emits before this method returns; the button's busy state is the
+        # coordinator's signal rather than this call's own end.
+        coordinator.checked.connect(self._on_update_checked)
+        try:
+            coordinator.check_from_about(self)
+        except Exception:
+            # The coordinator reports its own failures; an exception here would be a
+            # bug in the wiring, and the button must not stay stuck on "Checking".
+            coordinator.checked.disconnect(self._on_update_checked)
+            self.set_checking(False)
+
+    def _on_update_checked(self, _availability) -> None:
+        """The check is over: put the button back whatever the answer was."""
+        coordinator = self._updates
+        if coordinator is not None:
+            try:
+                coordinator.checked.disconnect(self._on_update_checked)
+            except (RuntimeError, TypeError):  # pragma: no cover - already gone
+                pass
+        self.set_checking(False)
+
+    def set_checking(self, checking: bool) -> None:
+        """Show that a check is running, and take the button out of the way.
+
+        The button says what is happening instead of going blank, and is disabled
+        while the check is in flight: a second check would be a second modal dialog
+        over the first.
+        """
+        self._check_updates_button.setEnabled(not checking)
+        self._check_updates_button.setText(
+            tr("Checking for updates…") if checking else tr("Check for updates")
+        )
 
     def showEvent(self, event) -> None:  # noqa: N802 - Qt virtual
         super().showEvent(event)
@@ -354,3 +429,12 @@ class AboutDialog(QDialog):
     @property
     def license_text(self) -> str:
         return self._license_label.text()
+
+    @property
+    def check_for_updates_text(self) -> str:
+        """The caption of the update-check button, in the current language."""
+        return self._check_updates_button.text()
+
+    def click_check_for_updates(self) -> None:
+        """Press *Check for updates* — the tests drive the button through this."""
+        self._check_updates_button.click()
