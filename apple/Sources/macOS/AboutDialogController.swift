@@ -40,7 +40,15 @@ final class AboutDialogController: NSWindowController {
     private let body = NSStackView()
     private var languageObserver: (any NSObjectProtocol)?
 
-    init() {
+    /// The update check this dialog's button runs. Injected by the app delegate, which
+    /// owns the one coordinator that also runs at launch; a dialog built without one (a
+    /// test) gets its own.
+    private let coordinator: UpdateCheckCoordinator
+
+    private let checkUpdatesButton = NSButton()
+
+    init(coordinator: UpdateCheckCoordinator? = nil) {
+        self.coordinator = coordinator ?? UpdateCheckCoordinator()
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 560, height: 620),
             styleMask: [.titled, .closable, .resizable],
@@ -117,7 +125,16 @@ final class AboutDialogController: NSWindowController {
         close.setAccessibilityLabel(L10n.tr("Close the About dialog"))
         close.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
 
-        let row = NSStackView(views: [NSView(), close])
+        // The update check, in the dialog it belongs to: the same check the app runs at
+        // launch, offered here so the user does not have to wait to be told.
+        checkUpdatesButton.target = self
+        checkUpdatesButton.action = #selector(checkForUpdatesTapped)
+        checkUpdatesButton.bezelStyle = .rounded
+        checkUpdatesButton.title = AboutContentText.checkForUpdatesButton
+        checkUpdatesButton.setAccessibilityLabel(AboutContentText.checkForUpdatesButton)
+        checkUpdatesButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+
+        let row = NSStackView(views: [checkUpdatesButton, NSView(), close])
         row.orientation = .horizontal
 
         let root = NSStackView(views: [scrollView, row])
@@ -262,6 +279,11 @@ final class AboutDialogController: NSWindowController {
         close()
     }
 
+    /// *Check for updates* — the same check the app runs at launch, on request.
+    @objc private func checkForUpdatesTapped() {
+        Task { await coordinator.checkFromAbout() }
+    }
+
     // MARK: - Label factories
 
     private func heading(_ text: String) -> NSTextField {
@@ -305,6 +327,10 @@ final class AboutDialogController: NSWindowController {
     func retranslate() {
         window?.title = AboutContentText.aboutTitle
         window?.setAccessibilityLabel(AboutContentText.aboutTitle)
+        // The button row is built once, not part of the rebuilt body, so its caption is
+        // re-read here with everything else.
+        checkUpdatesButton.title = AboutContentText.checkForUpdatesButton
+        checkUpdatesButton.setAccessibilityLabel(AboutContentText.checkForUpdatesButton)
         rebuildBody()
     }
 
@@ -367,4 +393,7 @@ final class AboutDialogController: NSWindowController {
     /// The disclaimer text as shown — SPEC §6.13, verbatim, in the current language.
     var disclaimerText: String { AboutContentText.disclaimer }
     var versionText: String { body.arrangedSubviews.compactMap { ($0 as? NSTextField)?.stringValue }.first ?? "" }
+
+    /// The update-check button, so a test can confirm it is there and reads the language.
+    var checkForUpdatesButton: NSButton { checkUpdatesButton }
 }

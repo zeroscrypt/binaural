@@ -30,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let engine = AudioEngine()
     private var controller: MainWindowController?
     private var coordinator: HeadphoneCheckCoordinator?
+    private var updateCoordinator: UpdateCheckCoordinator?
     private var languageObserver: (any NSObjectProtocol)?
 
     /// True while the status item is installed. Python's rule from `app.py`: with a tray
@@ -101,6 +102,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let controller = MainWindowController(engine: engine, store: store)
         self.controller = controller
 
+        // The update check: the same coordinator serves the launch check and the About
+        // dialog's button, so there is one implementation of the flow. The relaunch is
+        // the one step that needs AppKit — it starts the replacement bundle and stops
+        // this process.
+        let updateCoordinator = UpdateCheckCoordinator(
+            installer: UpdateInstaller(relauncher: { newBundle in
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = true
+                NSWorkspace.shared.openApplication(at: newBundle, configuration: configuration) { _, error in
+                    if error == nil {
+                        DispatchQueue.main.async { NSApp.terminate(nil) }
+                    }
+                }
+            }),
+            target: controller.makeUpdateTarget()
+        )
+        self.updateCoordinator = updateCoordinator
+
         // The window's Space / arrow shortcuts are wired by the controller itself, which
         // owns the actions they invoke; the delegate only puts the window on screen.
         if let window = controller.window {
@@ -144,6 +163,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.setWindowVisible(true)
         DispatchQueue.main.async {
             _ = check.runAtLaunch(acknowledged: controller.currentSession.headphoneCheckAcknowledged)
+            // The update check runs after the headphone check, deferred the same way: a
+            // silent background check that only interrupts when there is an update to
+            // offer. It does not wait for the headphone dialog — the two are independent.
+            Task { await updateCoordinator.runAtLaunch() }
         }
     }
 
@@ -323,7 +346,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// SPEC §6.13: About, with the disclaimer verbatim.
     @objc private func showAbout() {
-        let dialog = AboutDialogController()
+        // The dialog gets the app's update coordinator, so its *Check for updates* button
+        // and the launch check are one implementation of the flow.
+        let dialog = AboutDialogController(coordinator: updateCoordinator)
         dialog.showWindow(nil)
         dialog.window?.center()
         dialog.window?.makeKeyAndOrderFront(nil)

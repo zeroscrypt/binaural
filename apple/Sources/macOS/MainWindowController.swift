@@ -90,6 +90,8 @@ final class MainWindowController: NSWindowController {
         // captured again from the pair that was restored — which is the same number, and
         // cannot disagree with the two frequencies stored beside it.
         differenceLock = DifferenceLock(isLocked: loaded.differenceLocked)
+        // The release the user skipped, restored like every other setting.
+        skippedUpdateVersion = loaded.skippedUpdateVersion
 
         let window = MainWindow(
             // Tall enough for the preset block F3 adds below the timer: the window is
@@ -463,7 +465,8 @@ final class MainWindowController: NSWindowController {
             lastPreset: lastPresetID,
             timerMinutes: timerView.selectedMinutes,
             presetCategory: presetCategoryID,
-            differenceLocked: differenceLock.isLocked
+            differenceLocked: differenceLock.isLocked,
+            skippedUpdateVersion: skippedUpdateVersion
         )
     }
 
@@ -978,6 +981,55 @@ final class MainWindowController: NSWindowController {
 
     /// The swap flag as the session records it.
     var isChannelsSwapped: Bool { channelsSwapped }
+
+    // MARK: - Update check
+
+    /// The release the user chose not to be asked about, as the session records it.
+    ///
+    /// Restored from the session on load and written back when the user skips a version,
+    /// so the preference survives a restart like every other setting.
+    private var skippedUpdateVersion: String?
+
+    /// The session's memory of the skipped release, for the update coordinator's target.
+    var currentSkippedUpdateVersion: String? { skippedUpdateVersion }
+
+    /// The update coordinator's window-side target: reads and writes the skipped release
+    /// through the session, like ``HeadphoneTarget`` does for the §4 flags.
+    ///
+    /// Internal, not private like ``HeadphoneTarget``: ``makeUpdateTarget()`` returns it to
+    /// the app delegate, which passes it to the coordinator.
+    @MainActor
+    final class UpdateTarget: UpdateCheckCoordinator.Target {
+        private unowned let controller: MainWindowController
+        init(controller: MainWindowController) { self.controller = controller }
+
+        func skippedUpdateVersion() -> String? {
+            controller.currentSkippedUpdateVersion
+        }
+
+        func persistSkippedUpdateVersion(_ version: String?) {
+            controller.recordSkippedUpdateVersion(version)
+        }
+    }
+
+    /// Strong owner of the update coordinator's weak target — see ``makeUpdateTarget()``.
+    private var updateTarget: UpdateTarget?
+
+    /// Build the update coordinator's target. The window does not run the coordinator: the
+    /// app delegate does, after the window is on screen, so the check never covers an
+    /// unpainted UI.
+    func makeUpdateTarget() -> UpdateTarget {
+        let target = UpdateTarget(controller: self)
+        updateTarget = target
+        return target
+    }
+
+    /// Remember the release to skip, and write the session so the preference survives a
+    /// restart. `nil` forgets it.
+    func recordSkippedUpdateVersion(_ version: String?) {
+        skippedUpdateVersion = version
+        scheduleSave()
+    }
 
     /// Set **both** channels at once, the way a preset and the frequency reference do.
     ///
