@@ -206,12 +206,12 @@ assets attached, because the unsigned `.app` cannot be distributed.
 | Area | State |
 |---|---|
 | Python core | oscillator, engine, session, playback timer, `difference_lock` — implemented, tested |
-| Python core (updates) | `core/update_checker.py` (version order + release lookup), `core/update_downloader.py`, `core/update_installer.py`, `session.skipped_update_version` — implemented, tested. The UI is **not in the tree yet** |
+| Python core (updates) | `core/update_checker.py` (version order + release lookup), `core/update_downloader.py`, `core/update_installer.py`, `session.skipped_update_version` — implemented, tested |
 | Python audio | device enumeration and classification (CoreAudio, `pactl`/`pw-cli`/`amixer`), headphone heuristics + perceptual L/R test — implemented, tested |
 | Python UI | main window, F3 preset registry, reference dialog, headphone dialogs, Settings, tray, the **update check** (result dialog, progress window, *Check for updates* in About) — implemented, tested |
 | Python suite | **581 passed, 2 skipped** |
 | `apple/` core | `BinauralCore` — provably equal to Python by test, not merely compiling |
-| `apple/` macOS | **All of M2**: live audio, main window, F3 preset registry (7 categories, 20 presets), the full frequency reference, headphone check, Settings, About, playback timer, menu-bar item, session persistence, the **"Lock difference"** checkbox |
+| `apple/` macOS | **All of M2**: live audio, main window, F3 preset registry (7 categories, 20 presets), the full frequency reference, headphone check, Settings, About, playback timer, menu-bar item, session persistence, the **"Lock difference"** checkbox, the **update check** |
 | Swift suites | **245 core + 155 macOS window** |
 | `apple/` Release | `apple/dist/Binaural.app`, unsigned |
 | `apple/` iOS | compiles and links; **never run** |
@@ -221,8 +221,17 @@ The preset registry (SPEC F3): 7 categories / 20 presets, all inside 1–30 Hz, 
 half-open band, a click setting both channels around the 200 Hz carrier so `fL = 200 − beat/2`,
 `fR = 200 + beat/2`. The chosen category is session state.
 
-Python is at parity with the Swift app for the interface: the F3 presets, Settings, the timer and the
-"Lock difference" checkbox are implemented on both sides. Milestone plan: `apple/M2.md`.
+Python is at parity with the Swift app for the interface: the F3 presets, Settings, the timer, the
+"Lock difference" checkbox and the update check are implemented on both sides. Milestone plan:
+`apple/M2.md`.
+
+The **update check** is the same feature on both sides: a silent background check at launch that
+interrupts only for a newer release, *Check for updates* in About that reports whatever the answer
+is, and Download / Skip / Later with the install confirmed separately because it restarts the app.
+The 14 sentences are one key each in `ru.py`, and `AboutContent.namedKeys` + the generated Swift
+catalogue keep the two sides honest. **It cannot do anything yet**: `v0.1.0` has no assets, so
+there is no Linux archive and no macOS `.app` to download. Traps 11 and 12 record the two
+Linux-specific decisions the macOS side does not need.
 
 The **About dialog** now carries four descriptive sections (SPEC §7 item 6): «Кто создал»,
 «Как это работает», «Что это и зачем», «Технические детали». Every sentence is one shared `tr()`
@@ -259,6 +268,11 @@ No other proposal is pending.
 - Signing, notarisation, the App Store — no Apple Developer identity.
 - WAV export — not implemented in either implementation; SPEC calls it optional (P2). It is
   deliberately absent, not forgotten.
+- **The update check has nothing to install.** `v0.1.0` is source only, so the release has no
+  assets and both implementations answer *"no archive"* — the macOS side finds no `.app`, the Linux
+  side no `binaural-<ver>-linux-<arch>.tar.gz`. Attaching assets needs `scripts/build_linux.sh` on a
+  Linux x64 and arm64 host (or the CI `workflow_dispatch` build-release job); the macOS `.app` needs a
+  machine that can run it. Until then the feature is exercised only by tests with canned documents.
 
 ## 10. Keeping this file honest
 
