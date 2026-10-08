@@ -42,6 +42,11 @@ class Session:
     #: never hold a lock that contradicts the pair beside it. Additive: a session written
     #: before the field existed loads as `False`.
     difference_locked: bool = False
+    #: The release the user chose to skip, as text (`"0.2.0"`), or `None` for "ask about
+    #: everything". A free string rather than an ``AppVersion`` so this module stays
+    #: free of the update logic, and so a session written before the field existed
+    #: loads with it unset rather than being refused.
+    skipped_update_version: str | None = None
 
 
 def _settings() -> QSettings:
@@ -84,6 +89,7 @@ def load() -> Session:
 
     preset = settings.value("session/last_preset")
     category = settings.value("session/preset_category")
+    skipped = settings.value("session/skipped_update_version")
 
     def _int(key: str, fallback: int) -> int:
         raw = settings.value(key)
@@ -107,4 +113,8 @@ def load() -> Session:
         # Additive, so a settings file written before SPEC §7's checkbox has no key here
         # and reads as the default rather than failing.
         difference_locked=_bool("difference_locked", defaults.difference_locked),
+        # Additive: a settings file written before the update check has no key here,
+        # which reads as "ask about everything" rather than as a failure. An empty
+        # string is the same answer — it names no version.
+        skipped_update_version=(str(skipped).strip() or None) if skipped is not None else None,
     )

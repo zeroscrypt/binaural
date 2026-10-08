@@ -146,3 +146,36 @@ def test_settings_write_and_sync():
     assert settings.contains("session/left_hz")
     settings.sync()
     assert settings.status() == QtCore.QSettings.Status.NoError
+
+def test_roundtrip_keeps_the_skipped_update_version():
+    """"Skip this version" is remembered across restarts, like the timer is."""
+    save(Session(skipped_update_version="0.2.0"))
+    assert load().skipped_update_version == "0.2.0"
+
+
+def test_no_skipped_version_by_default():
+    """A fresh session asks about every release."""
+    assert Session().skipped_update_version is None
+    assert load().skipped_update_version is None
+
+
+def test_a_session_written_before_the_field_existed_still_loads():
+    """The field is additive: an older settings file has no key and reads as `None`."""
+    save(Session(timer_minutes=30, left_hz=200.0, right_hz=260.0))
+    settings = QtCore.QSettings("binaural", "binaural")
+    settings.remove("session/skipped_update_version")
+    settings.sync()
+
+    restored = load()
+    assert restored.skipped_update_version is None
+    assert restored.timer_minutes == 30
+    assert (restored.left_hz, restored.right_hz) == (200.0, 260.0)
+
+
+def test_an_empty_skipped_version_reads_as_none():
+    """A blank string names no version, so it is "ask about everything"."""
+    save(Session())
+    settings = QtCore.QSettings("binaural", "binaural")
+    settings.setValue("session/skipped_update_version", "   ")
+    settings.sync()
+    assert load().skipped_update_version is None
