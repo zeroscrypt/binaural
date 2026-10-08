@@ -48,7 +48,8 @@ set -eu
 INSTALLER_VERSION="1.0.0"
 APP_NAME="binaural"
 APP_DISPLAY_NAME="Binaural"
-DEFAULT_APP_VERSION="0.1.0"
+# Empty means "the newest published release". BINAURAL_VERSION pins one.
+DEFAULT_APP_VERSION=""
 
 REPO="zeroscrypt/binaural"
 REPO_URL="https://github.com/${REPO}"
@@ -295,7 +296,7 @@ show_help() {
     out "  --source-url=URL   Fetch the source tarball from here (default: main branch)."
     out ""
     out "${C_BOLD}ENVIRONMENT${C_OFF}"
-    out "  BINAURAL_VERSION=0.1.0     App version to look for."
+    out "  BINAURAL_VERSION=0.2.0     Pin one release (default: the newest published)."
     out "  BINAURAL_PREFIX=DIR        Same as --prefix."
     out "  BINAURAL_BIN_DIR=DIR       Same as --bin-dir."
     out "  BINAURAL_RELEASE_URL=URL   Same as --release-url."
@@ -317,7 +318,7 @@ show_help() {
 
 print_version() {
     out "${APP_DISPLAY_NAME} installer ${INSTALLER_VERSION}"
-    out "default app version: ${APP_VERSION}"
+    out "default app version: ${APP_VERSION:-newest published release}"
     out "platforms: linux-x64 linux-arm64 macos-arm64"
     out "repository: ${REPO_URL}"
 }
@@ -578,7 +579,9 @@ release_archive_names() {
 
 # candidate_tags — one tag per line: requested version, then the newest published one
 candidate_tags() {
-    normalize_tag "$APP_VERSION"
+    if [ -n "$APP_VERSION" ]; then
+        normalize_tag "$APP_VERSION"
+    fi
     _tag="$(latest_tag_from_api || true)"
     if [ -n "$_tag" ]; then
         printf '%s\n' "$_tag"
@@ -1039,7 +1042,11 @@ install_from_release() {
     if [ -z "$_exe" ]; then
         die "the archive from ${_hit} contains no '${APP_NAME}' executable."
     fi
-    write_meta "release-url=${_hit}" "version=${APP_VERSION}" "platform=${PLATFORM}" "executable=${_exe}"
+    # The version installed is the one in the URL that worked, so the Python updater
+    # compares like with like. A URL that names no tag falls back to what was asked for.
+    _installed="$(printf '%s' "$_hit" | sed -n 's#.*/releases/download/v\([^/]*\)/.*#\1#p')"
+    [ -n "$_installed" ] || _installed="${APP_VERSION:-unknown}"
+    write_meta "release-url=${_hit}" "version=${_installed}" "platform=${PLATFORM}" "executable=${_exe}"
     install_desktop_files "$_exe"
     printf '%s' "$_exe"
     return 0
@@ -1106,7 +1113,7 @@ install_from_source() {
         err "pip finished but ${_exe} does not exist"
         return 1
     fi
-    write_meta "source-url=${SOURCE_URL}" "version=${APP_VERSION}" "platform=${PLATFORM}" "executable=${_exe}"
+    write_meta "source-url=${SOURCE_URL}" "version=${APP_VERSION:-source}" "platform=${PLATFORM}" "executable=${_exe}"
     printf '%s' "$_exe"
     return 0
 }
