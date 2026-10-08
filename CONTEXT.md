@@ -68,17 +68,17 @@ Every command below was run on `main` before this file was committed. If a numbe
 match your run, something changed — find out what before you trust either.
 
 ```bash
-# Python — 488 passed, 2 skipped
+# Python — 515 passed, 2 skipped (and the one known failure below, until the update UI lands)
 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest
 
 # Swift — regenerate the project first; Binaural.xcodeproj is generated and gitignored
 cd apple && xcodegen generate
 
-# 208 core tests (BinauralCoreTests)
+# 245 core tests (BinauralCoreTests)
 xcodebuild -project Binaural.xcodeproj -scheme BinauralCore \
   -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test
 
-# 141 window tests (BinauralMacTests, drives the real MainWindowController)
+# 155 window tests (BinauralMacTests, drives the real MainWindowController)
 xcodebuild -project Binaural.xcodeproj -scheme Binaural \
   -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test
 
@@ -166,6 +166,13 @@ Each of these cost real time. They are not stylistic preferences.
     The `affect` category also carries two **null results** (`affect-null-7`, `affect-null-40`) on
     purpose — the badge is a hint and the reference must not imply a mood effect the study did not
     find. The §6.13 disclaimer says beats are sound, not a substance.
+11. **The update strings already exist and nothing in `src/` references them yet.** `ru.py`
+    carries 14 update sentences (added alongside the Swift implementation in `0698dd7`), so
+    `test_i18n.py::test_no_orphan_catalogue_entries` **fails on `main` until the Python update UI
+    lands** — the baseline is `487 passed, 2 skipped, 1 failed`, not a green suite. That test
+    walks the AST of `src/` for `tr(NAME)` calls, so a sentence counts as referenced only when a
+    `tr()` call reaches it; a message table or a `QCoreApplication.translate` call elsewhere does
+    not satisfy it. 14 strings, 14 call sites, or the guard fires.
 
 ## 7. Conventions
 
@@ -192,12 +199,13 @@ assets attached, because the unsigned `.app` cannot be distributed.
 | Area | State |
 |---|---|
 | Python core | oscillator, engine, session, playback timer, `difference_lock` — implemented, tested |
+| Python core (updates) | `core/update_checker.py` — `AppVersion` order + the GitHub release lookup — implemented, tested. The downloader, the installer and the UI are **not in the tree yet** |
 | Python audio | device enumeration and classification (CoreAudio, `pactl`/`pw-cli`/`amixer`), headphone heuristics + perceptual L/R test — implemented, tested |
 | Python UI | main window, F3 preset registry, reference dialog, headphone dialogs, Settings, tray — implemented, tested |
-| Python suite | **488 passed, 2 skipped** |
+| Python suite | **515 passed, 2 skipped, 1 failed** — `test_no_orphan_catalogue_entries` fails until the update UI references the 14 update strings `ru.py` already carries |
 | `apple/` core | `BinauralCore` — provably equal to Python by test, not merely compiling |
 | `apple/` macOS | **All of M2**: live audio, main window, F3 preset registry (7 categories, 20 presets), the full frequency reference, headphone check, Settings, About, playback timer, menu-bar item, session persistence, the **"Lock difference"** checkbox |
-| Swift suites | **208 core + 141 macOS window** |
+| Swift suites | **245 core + 155 macOS window** |
 | `apple/` Release | `apple/dist/Binaural.app`, unsigned |
 | `apple/` iOS | compiles and links; **never run** |
 | Windows | not started |
