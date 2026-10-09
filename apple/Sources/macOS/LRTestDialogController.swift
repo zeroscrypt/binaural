@@ -219,7 +219,7 @@ final class LRTestDialogController: NSWindowController, NSWindowDelegate {
     }
 
     /// The red close button and Cmd+W dismiss the test exactly as *Close* does — stop the
-    /// tones, end the modal session, close. See ``SettingsDialogController/windowShouldClose(_:)``
+    /// tones, end the modal session, close. See ``HeadphoneCheckDialogController/windowShouldClose(_:)``
     /// for why ending the session rather than the window is the part that matters.
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         cancel()

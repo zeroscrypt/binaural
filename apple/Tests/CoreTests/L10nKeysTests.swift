@@ -29,7 +29,7 @@ final class L10nKeysTests: XCTestCase {
         "Output level from 0 to 100 percent. Not medical advice: keep it low.",
         // menus
         "Quit", "&View", "Language", "&Help", "Frequency &reference…",
-        "&Check headphones…", "&About",
+        "&Check headphones…", "&About", "Binaural",
         "The frequency reference is not available in this build.",
         // the window's own headphone-check button (SPEC §7)
         "Check headphones…",
@@ -54,8 +54,8 @@ final class L10nKeysTests: XCTestCase {
         "Speakers detected — binaural beats need headphones", "Unknown device",
         // timer (SPEC §5 F5)
         "Timer", "Off", "%1 min",
-        // Settings dialog (SPEC §7)
-        "Settings…", "Settings",
+        // the language control in the main window (SPEC §7.4)
+        "Language",
         // menu-bar status item (SPEC §7; Python's TrayController). All four were already in
         // ru.py for the tray, which is why none of them needed a Swift addition.
         "Show Binaural", "Hide Binaural", "Frequency reference…",

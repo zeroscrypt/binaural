@@ -83,13 +83,15 @@ final class MenuTests: XCTestCase {
         XCTAssertTrue(helpTitles.contains("About"), "\(helpTitles)")
     }
 
-    /// The application menu is where macOS puts Settings: `Cmd-,` plus Quit.
-    func testSettingsSitsInTheApplicationMenu() {
+    /// The application menu is where macOS puts Quit, and it is the only thing in it now:
+    /// Settings used to sit here under `Cmd-,` and was retired with its window.
+    func testTheApplicationMenuCarriesQuitAndNothingElse() {
         let appMenu = NSApp.mainMenu?.items.first?.submenu
-        let titles = (appMenu?.items ?? []).map(\.title)
-        XCTAssertEqual(titles, ["Settings…", "", "Quit"], "\(titles)")
-        XCTAssertEqual(appMenu?.items.first?.keyEquivalent, ",")
-        XCTAssertEqual(appMenu?.items.last?.keyEquivalent, "q")
+        let items = appMenu?.items ?? []
+        let titles = items.map(\.title)
+        XCTAssertEqual(titles, ["Quit"], "\(titles)")
+        XCTAssertEqual(items.first?.keyEquivalent, "q")
+        XCTAssertNil(items.first(where: { $0.keyEquivalent == "," }), "no Settings item")
     }
 
     // MARK: - Both languages

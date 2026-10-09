@@ -69,7 +69,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // Menu items whose titles are user-visible and therefore follow the language.
     private let quitItem = NSMenuItem()
-    private let settingsItem = NSMenuItem()
     private let viewItem = NSMenuItem()
     private let languageItem = NSMenuItem()
     private let languageMenu = NSMenu()
@@ -77,10 +76,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let checkHeadphonesItem = NSMenuItem()
     private let referenceItem = NSMenuItem()
     private let aboutItem = NSMenuItem()
-
-    /// Shows a dialog modally — the one place `NSApp.runModal(for:)` is called from the
-    /// delegate, so the modality rule has one home.
-    private let presenter = ModalPresenter()
 
     /// The menu-bar item, from launch (SPEC §7: the counterpart of Python's `TrayController`).
     private let statusItem = StatusItemController()
@@ -229,13 +224,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let main = NSMenu()
 
         let appMenu = NSMenu()
-        // SPEC §7 lists a Settings dialog; the application menu is where macOS puts it,
-        // and `Cmd-,` is the chord the platform expects.
-        settingsItem.target = self
-        settingsItem.action = #selector(openSettings)
-        settingsItem.keyEquivalent = ","
-        appMenu.addItem(settingsItem)
-        appMenu.addItem(.separator())
+        // Settings used to sit here, under `Cmd-,`, and was retired with its window: the
+        // language it existed for now lives in the window itself, and the timer, the volume
+        // and the headphone check were already there. What is left in this menu is Quit.
         quitItem.title = L10n.tr("Quit")
         quitItem.action = #selector(NSApplication.terminate(_:))
         quitItem.keyEquivalent = "q"
@@ -319,7 +310,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func retranslateMenus() {
         quitItem.title = Self.menuTitle(L10n.tr("Quit"))
-        settingsItem.title = Self.menuTitle(L10n.tr("Settings…"))
         viewItem.title = Self.menuTitle(L10n.tr("&View"))
         languageItem.title = Self.menuTitle(L10n.tr("Language"))
         languageMenu.title = Self.menuTitle(L10n.tr("Language"))
@@ -342,21 +332,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // MARK: - Help menu
-
-    /// SPEC §7's Settings: language, headphone check, timer, volume.
-    ///
-    /// Every control writes through to the live window — there is no OK button because
-    /// there is nothing to apply. The language switch here is the *same* `L10n.setLanguage`
-    /// the *View → Language* menu calls, which is what SPEC §7.4 asks for ("наряду с
-    /// меню *Вид → Язык*").
-    @objc private func openSettings() {
-        guard let controller else { return }
-        // The window builds its own Settings dialog, already wired to itself; see
-        // `MainWindowController.makeSettingsDialog()`.
-        let dialog = controller.makeSettingsDialog()
-        presenter.present(dialog)
-        dialog.tearDown()
-    }
 
     /// SPEC §4: repeat the check whenever the user wants to. Same coordinator, same
     /// dialog as the window's button — there is one implementation of the check.

@@ -58,21 +58,16 @@ final class BeatDisplayView: NSView {
         hintLabel.textColor = .systemOrange
         hintLabel.isHidden = true
 
-        // SPEC §7 puts the lock next to the difference it protects, so it sits directly
-        // under the BEAT row rather than in the transport row. The beat stays a read-out:
-        // there is no field for typing a difference, only a way to hold the current one.
+        // SPEC §7 puts the lock next to the difference it protects, and "next to" is on the
+        // BEAT row itself — to its right, not on a row of its own underneath. The beat
+        // stays a read-out: there is no field for typing a difference, only a way to hold
+        // the current one.
         lockCheckbox.target = self
         lockCheckbox.action = #selector(lockToggled)
         lockCheckbox.font = .systemFont(ofSize: 13)
 
-        let lockRow = NSStackView(views: [lockCheckbox])
-        lockRow.orientation = .horizontal
-        lockRow.alignment = .centerY
-        lockRow.spacing = 8
-
         let stack = NSStackView(views: [
-            metricRow(caption: beatCaption, value: beatValue, unit: beatUnit),
-            lockRow,
+            metricRow(caption: beatCaption, value: beatValue, unit: beatUnit, trailing: lockCheckbox),
             metricRow(caption: carrierCaption, value: carrierValue, unit: carrierUnit),
             hintLabel
         ])
@@ -88,19 +83,28 @@ final class BeatDisplayView: NSView {
             stack.trailingAnchor.constraint(equalTo: trailingAnchor),
             stack.topAnchor.constraint(equalTo: topAnchor),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor),
-            // One row taller than before: the lock row is inside the card, and SPEC §7.2's
-            // 44 px minimum target for the checkbox has to fit in it.
-            heightAnchor.constraint(greaterThanOrEqualToConstant: 184),
+            // The beat row carries the lock checkbox, so it — and not the card — is what
+            // has to clear SPEC §7.2's 44 px minimum target.
             lockCheckbox.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
         ])
     }
 
-    private func metricRow(caption: NSTextField, value: NSTextField, unit: NSTextField) -> NSStackView {
+    /// One row of the card: caption, value, unit, then whatever follows to the right.
+    ///
+    /// `trailing` is pushed to the far end by a stretch, which is what puts the lock box
+    /// at the right edge of the BEAT row rather than hugging the number it protects.
+    private func metricRow(
+        caption: NSTextField,
+        value: NSTextField,
+        unit: NSTextField,
+        trailing: NSView? = nil
+    ) -> NSStackView {
         unit.font = .systemFont(ofSize: 13)
         unit.textColor = .tertiaryLabelColor
         let row = NSStackView(views: [caption, value, unit, NSView()])
         row.orientation = .horizontal
         row.spacing = 8
+        if let trailing { row.addArrangedSubview(trailing) }
         return row
     }
 

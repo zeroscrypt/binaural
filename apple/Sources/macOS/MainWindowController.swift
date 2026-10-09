@@ -41,6 +41,15 @@ final class MainWindowController: NSWindowController {
     private let presetStatusLabel = NSTextField(labelWithString: "")
     private var presetStatusTimer: Timer?
 
+    /// SPEC §7's interface language, moved out of the Settings dialog into the window it
+    /// controls. The dialog it used to live in was retired: everything else it held — the
+    /// timer, the volume, re-running the headphone check — was already in the window, so
+    /// the dialog held exactly one thing that was not, and it cost a whole window to say
+    /// it. Native names in both languages ("English", "Русский"), so a user can always
+    /// find their own language in the list.
+    private let languageCaptionLabel = NSTextField(labelWithString: "")
+    private let languagePopup = NSPopUpButton(frame: .zero, pullsDown: false)
+
     /// SPEC §7: "кнопка проверки наушников прямо в окне — повторить §4 в любой момент, а
     /// не только при старте". It sits on the status row next to the always-visible
     /// indicator, so the warning and the way to re-check are in one place.
@@ -193,7 +202,18 @@ final class MainWindowController: NSWindowController {
         // The timer sits under the transport rather than inside it: it has its own
         // caption, a popup and a countdown, and SPEC §7 gives the transport row Play,
         // volume and mute.
-        let timerRow = NSStackView(views: [timerView, NSView()])
+        languageCaptionLabel.font = .systemFont(ofSize: 13)
+        languagePopup.controlSize = .regular
+        languagePopup.font = .systemFont(ofSize: 13)
+        languagePopup.target = self
+        languagePopup.action = #selector(languageSelected)
+
+        // Timer on the left, language on the right: both are "which language do you work
+        // in / how long" choices rather than transport controls, and neither belongs in the
+        // middle of Play–volume–mute.
+        let timerRow = NSStackView(views: [
+            timerView, NSView(), languageCaptionLabel, languagePopup
+        ])
         timerRow.orientation = .horizontal
         timerRow.alignment = .centerY
         timerRow.spacing = 12
@@ -250,6 +270,7 @@ final class MainWindowController: NSWindowController {
             volumeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
             muteButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             timerRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            languagePopup.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             // SPEC §7.2: the preset chips keep their 44 px targets; the block itself only
             // has to be tall enough to hold both rows.
             presetBlock.heightAnchor.constraint(greaterThanOrEqualToConstant: 100)
@@ -257,6 +278,7 @@ final class MainWindowController: NSWindowController {
         NSLayoutConstraint.activate(constraints)
 
         window?.contentView = content
+        rebuildLanguages()
     }
 
     private func connect() {
@@ -696,37 +718,31 @@ final class MainWindowController: NSWindowController {
     /// The report the indicator is currently showing.
     var currentHeadphoneReport: HeadphoneReport { headphoneState }
 
-    // MARK: - Settings (SPEC §7)
+    // MARK: - Language (SPEC §7.4)
 
-    /// Build the Settings dialog wired to this window.
+    /// The list, rebuilt so the caption and the selection follow the current language.
     ///
-    /// A factory rather than four loose closures handed over by the app delegate: this is
-    /// the **only** place where "Settings writes into the window" is decided, so the menu
-    /// item and a test cannot end up with a dialog whose sliders move nothing.
-    func makeSettingsDialog() -> SettingsDialogController {
-        let dialog = SettingsDialogController(
-            values: SettingsDialogController.Values(
-                language: L10n.language,
-                timerMinutes: timerView.selectedMinutes,
-                volume: volumeSlider.doubleValue,
-                headphoneReport: headphoneState
-            )
-        )
-        dialog.onTimerChange = { [weak self] minutes in self?.selectTimerMinutes(minutes) }
-        dialog.onVolumeChange = { [weak self] level in self?.setVolume(level) }
-        dialog.onLanguageChange = { [weak self] _ in self?.saveNow() }
-        dialog.onCheckHeadphones = { [weak self] in
-            guard let self else { return }
-            // The §4.3 dialog, not a second check: Settings offers the entry point.
-            coordinator?.rerunFromUser()
-            dialog.apply(headphoneReport: coordinator?.report ?? headphoneState)
+    /// `addItem(withTitle:)` returns the menu rather than the item, which is the only way to
+    /// reach the item and set its payload. The selection is re-applied after the rebuild:
+    /// `removeAllItems()` clears it.
+    private func rebuildLanguages() {
+        languagePopup.removeAllItems()
+        for code in L10n.languages {
+            languagePopup.menu?.addItem(
+                withTitle: LanguageCode.name(code),
+                action: nil,
+                keyEquivalent: ""
+            ).representedObject = code.rawValue
         }
-        settingsDialog = dialog
-        return dialog
+        let index = L10n.languages.firstIndex(of: L10n.language) ?? 0
+        languagePopup.selectItem(at: index)
     }
 
-    /// Kept so the Settings dialog cannot outlive the window it edits.
-    private weak var settingsDialog: SettingsDialogController?
+    @objc private func languageSelected() {
+        guard let raw = languagePopup.selectedItem?.representedObject as? String else { return }
+        // `L10n` posts the change; the window, the menus and this popup all re-read it.
+        L10n.setLanguage(raw)
+    }
 
     // MARK: - Language
 
@@ -760,6 +776,9 @@ final class MainWindowController: NSWindowController {
         )
 
         timerView.retranslate()
+        languageCaptionLabel.stringValue = L10n.tr("Language")
+        languagePopup.setAccessibilityLabel(L10n.tr("Language"))
+        rebuildLanguages()
         // SPEC §7.4: the preset chips are data (F3's own EN/RU names), but the caption
         // and the chip help go through `tr`, so the whole bar is re-read here.
         presetBar.retranslate()
@@ -1136,6 +1155,27 @@ final class MainWindowController: NSWindowController {
     /// so "the timer offers the session's durations" is checkable rather than asserted
     /// in a comment.
     var timerChoiceTitles: [String] { timerView.choiceTitles }
+
+    /// The language control in the window: its list, its caption and its selected item.
+    /// SPEC §7.4 says the choice is switchable from the window as well as from the menu,
+    /// which is what the control is.
+    var languageTitles: [String] { languagePopup.itemTitles }
+    var languageCaptionTitle: String { languageCaptionLabel.stringValue }
+    var languagePopupHeight: CGFloat { languagePopup.frame.height }
+    var selectedLanguage: LanguageCode {
+        guard let raw = languagePopup.selectedItem?.representedObject as? String else {
+            return L10n.language
+        }
+        return LanguageCode.parse(raw) ?? L10n.language
+    }
+
+    /// Pick a language as the popup would, going through `L10n.setLanguage` exactly as the
+    /// *View → Language* menu does.
+    func selectLanguage(_ code: LanguageCode) {
+        let index = L10n.languages.firstIndex(of: code) ?? 0
+        languagePopup.selectItem(at: index)
+        languageSelected()
+    }
 
     /// The selected duration in minutes, and the only place the window reads it from.
     var selectedTimerMinutes: Int { timerView.selectedMinutes }

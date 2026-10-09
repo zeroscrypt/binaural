@@ -239,7 +239,7 @@ final class HeadphoneCheckDialogController: NSWindowController, NSWindowDelegate
     /// The red close button and Cmd+W *are* the §4.3 way out — this dialog has no Cancel
     /// button, so a dismissal must count as "continue anyway" rather than leave the
     /// modal session spinning and the app blocked. See
-    /// ``SettingsDialogController/windowShouldClose(_:)`` for the mechanism.
+    /// ``LRTestDialogController/windowShouldClose(_:)`` for the mechanism.
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         continueAnyway()
         return true

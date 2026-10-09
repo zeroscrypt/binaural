@@ -23,10 +23,9 @@ enum RussianWindowAdditions {
     static let messages: [String: String] = [
         // SPEC F2 asks for a mute control and `main_window.py` has no mute button.
         "Mute": "Без звука",
-        // The Swift app opens the Settings dialog from the application menu, where macOS
-        // titles carry no "&" mnemonic — so `ru.py`'s "&Settings…" (a Qt menu item) is a
-        // different key, not a newer version of this one.
-        "Settings…": "Настройки…",
+        // The Settings dialog is retired: the language it held moved into the main window,
+        // so nothing here shows `Settings…` any more. `ru.py`'s "&Settings…" is still the Qt
+        // app's own menu item and stays in the generated catalogue, untouched.
         // The Swift build is macOS-only (apple/ is a separate product from the Python
         // PySide6 app, which ships macOS *and* Linux), so the shared "macOS and Linux"
         // tagline would be wrong here.
