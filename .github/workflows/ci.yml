@@ -206,18 +206,28 @@ jobs:
             libxkbcommon0 \
             libfontconfig1 \
             libfreetype6 \
-            libpulse0
+            libpulse0 \
+            xvfb
 
       - name: Install the project
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
 
-      - name: Tests
+      - name: Tests (Linux with xvfb)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" python -m pytest
+
+      - name: Tests (macOS)
+        if: runner.os == 'macOS'
         run: python -m pytest
 
-      - name: Tests, explicit -q and no cache
-        if: always()
+      - name: Tests, explicit -q and no cache (Linux with xvfb)
+        if: always() && runner.os == 'Linux'
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" python -m pytest --cache-clear
+
+      - name: Tests, explicit -q and no cache (macOS)
+        if: always() && runner.os == 'macOS'
         run: python -m pytest --cache-clear
 
       # The audio backend is a Qt plugin loaded through dlopen; a packaging mistake would
@@ -316,7 +326,7 @@ jobs:
   # -----------------------------------------------------------------------------
   release-macos:
     name: release (macos-arm64)
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     needs: [version, test-macos]
     runs-on: macos-latest
     steps:
@@ -345,7 +355,7 @@ jobs:
 
   release-linux:
     name: release (linux-x64)
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     needs: [version, test]
     runs-on: ubuntu-latest
     steps:
@@ -400,9 +410,12 @@ jobs:
           retention-days: 14
 
   # -----------------------------------------------------------------------------
-  # One release, two archives: the matrix above builds them, this job attaches them
-  # to the GitHub Release for the tag. softprops/action-gh-release creates the
-  # release when it does not exist yet and adds the files as assets when it does.
+  # Tag pushes: attach the archives to the GitHub Release. softprops/action-gh-release
+  # creates the release when it does not exist yet and adds the files as assets when
+  # it does.
+  #
+  # Push to main: upload the archives as workflow artifacts so a build is always
+  # available for download, without creating a draft release every time.
   # -----------------------------------------------------------------------------
   publish-release:
     name: publish the GitHub Release
@@ -421,6 +434,26 @@ jobs:
         with:
           files: dist/*.tar.gz
           generate_release_notes: true
+
+  upload-artifacts:
+    name: upload artifacts from main
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [release-macos, release-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download the built archives
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Upload combined artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaural-main-latest
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
 
   # -----------------------------------------------------------------------------
   # The installer is POSIX sh, so it must keep parsing on a strict shell too.
