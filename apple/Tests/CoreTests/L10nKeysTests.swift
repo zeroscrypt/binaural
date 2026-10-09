@@ -138,6 +138,10 @@ final class L10nKeysTests: XCTestCase {
         "Badges show how well a record is studied. Nothing is hidden by default.",
         "Well-studied", "Studied", "Reported", "Traditional", "Unknown",
         "Apply {label}",
+        // The caption on each record's button, and what VoiceOver reads for the dialog's
+        // own Close. Both were already translated in ru.py; they were missing here, which
+        // is exactly what the scan below is for — CI found it on the first run.
+        "Apply", "Close the frequency reference",
         "Set left = {left} Hz and right = {right} Hz (difference {beat})",
         "Tone — applied as the carrier with a {beat} Hz beat",
         "Carries {carrier} Hz",
