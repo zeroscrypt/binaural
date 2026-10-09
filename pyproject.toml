@@ -28,7 +28,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "numpy>=1.24"]
+# pytest-forked is not optional in practice: see [tool.pytest.ini_options] and the
+# note on `--forked` there. shiboken leaks a reference to None per destroyed Qt
+# object, which aborts CPython once the count reaches zero, so the Qt tests must
+# not share a process.
+dev = ["pytest>=7.0", "numpy>=1.24", "pytest-forked>=1.6"]
 
 [project.urls]
 Homepage = "https://github.com/zeroscrypt/binaural"

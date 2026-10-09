@@ -206,25 +206,34 @@ jobs:
             libxkbcommon0 \
             libfontconfig1 \
             libfreetype6 \
-            libpulse0 \
-            xvfb
+            libpulse0
 
       - name: Install the project
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
 
-      - name: Tests (Linux with xvfb)
+      # shiboken leaks a reference to `None` for every Qt object it hands back to
+      # CPython. Once that count reaches zero the interpreter cannot recover and
+      # aborts with `Fatal Python error: none_dealloc: deallocating None`
+      # (SIGABRT, exit 134) partway through the run — reproducible with nothing
+      # but a QComboBox in a loop, so it is an upstream bug rather than a
+      # mistake in these tests, and no fixed shiboken release exists.
+      #
+      # One test per process bounds the leak to a single test's worth instead of
+      # letting 596 of them accumulate. Linux only: Cocoa is not fork-safe, so
+      # --forked segfaults on macOS, where the leak does not reproduce anyway.
+      - name: Tests (Linux, one process per test)
         if: runner.os == 'Linux'
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" python -m pytest
+        run: python -m pytest --forked
 
       - name: Tests (macOS)
         if: runner.os == 'macOS'
         run: python -m pytest
 
-      - name: Tests, explicit -q and no cache (Linux with xvfb)
+      - name: Tests, explicit -q and no cache (Linux, one process per test)
         if: always() && runner.os == 'Linux'
-        run: xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" python -m pytest --cache-clear
+        run: python -m pytest --forked --cache-clear
 
       - name: Tests, explicit -q and no cache (macOS)
         if: always() && runner.os == 'macOS'
