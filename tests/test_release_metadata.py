@@ -76,6 +76,28 @@ def _set_version(root: Path, path: str, old: str, new: str) -> None:
     target.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
+def _current_version() -> str:
+    """The version this repository states right now, read from the real tree.
+
+    The tests below break a version on purpose, so they need the live value to break
+    it from. Hard-coding it meant every bump turned three of them red for reasons
+    that had nothing to do with what they test — the failure reads like a version
+    problem and is really a stale literal.
+    """
+    return check_version.pyproject_version()
+
+
+def _break_the_xcode_versions(repo: Path) -> None:
+    """Move the first Xcode target to a version the package does not have."""
+    current = _current_version()
+    _set_version(
+        repo,
+        "apple/project.yml",
+        f'MARKETING_VERSION: "{current}"',
+        'MARKETING_VERSION: "0.0.0-bumped"',
+    )
+
+
 # --------------------------------------------------------------------------
 # This repository
 # --------------------------------------------------------------------------
@@ -142,17 +164,17 @@ def test_the_updater_and_the_build_name_the_same_archive():
 
 
 def test_a_target_left_at_the_old_version_is_caught(repo: Path):
-    _set_version(repo, "apple/project.yml", 'MARKETING_VERSION: "0.2.2"', 'MARKETING_VERSION: "0.3.0"')
+    _break_the_xcode_versions(repo)
     assert check_version.main([], root=repo) == 1
 
 
 def test_a_tag_that_does_not_match_is_caught(repo: Path):
-    assert check_version.main(["--tag", "v0.2.2"], root=repo) == 0
+    assert check_version.main(["--tag", f"v{_current_version()}"], root=repo) == 0
     assert check_version.main(["--tag", "v9.9.9"], root=repo) == 1
 
 
 def test_a_tag_without_the_v_is_caught(repo: Path):
-    assert check_version.main(["--tag", "0.2.2"], root=repo) == 1
+    assert check_version.main(["--tag", _current_version()], root=repo) == 1
 
 
 def test_a_renamed_archive_is_caught(repo: Path):
@@ -182,7 +204,7 @@ def test_every_problem_is_reported_at_once(repo: Path):
     fix, run, read, fix, run. The whole point of running it in CI is to get the whole
     list in one pass.
     """
-    _set_version(repo, "apple/project.yml", 'MARKETING_VERSION: "0.2.2"', 'MARKETING_VERSION: "0.3.0"')
+    _break_the_xcode_versions(repo)
     _set_version(
         repo,
         "scripts/build_macos.sh",
@@ -199,6 +221,6 @@ def test_the_bump_commit_can_say_so_on_purpose(repo: Path):
     check — the second edit lands in the next commit. ``--allow-mismatch`` reports and
     exits 0 for exactly that step, and nothing else uses it.
     """
-    _set_version(repo, "apple/project.yml", 'MARKETING_VERSION: "0.2.2"', 'MARKETING_VERSION: "0.3.0"')
+    _break_the_xcode_versions(repo)
     assert check_version.main([], root=repo) == 1
     assert check_version.main(["--allow-mismatch"], root=repo) == 0

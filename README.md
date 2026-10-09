@@ -299,7 +299,7 @@ The complete tables behind the last row are in **[`docs/FREQUENCIES.md`][frequen
 
 | Platform | What you need |
 |---|---|
-| **macOS** | macOS 12 or newer. To build: Xcode (Swift 6.4) and `xcodegen` (`brew install xcodegen`). No Apple Developer account. |
+| **macOS** | macOS 14 or newer, on Apple Silicon (M1+) **or** Intel. To build: Xcode (Swift 6.4) and `xcodegen` (`brew install xcodegen`). No Apple Developer account. |
 | **Linux** | Linux (x86_64 or arm64) with a running PulseAudio or PipeWire session. From source: Python 3.10+ (developed against 3.12) and `pip`. PySide6 6.5+ is pulled in for you. |
 
 ### macOS — the native app
@@ -324,6 +324,27 @@ constraints are is written up in [`apple/README.md`][apple-readme].
 > it. Proper distribution — signing, notarisation, the App Store — needs an Apple Developer
 > account and is not done. **v0.1.0 on GitHub is source only**: no binaries are attached to the
 > release, so building it yourself is the install path on macOS.
+
+#### Which Macs it runs on
+
+Both — Apple Silicon and Intel. The release build sets `ARCHS = "arm64 x86_64"` with
+`ONLY_ACTIVE_ARCH = NO`, so the one binary that ships is a universal Mach-O and there is no
+separate Intel download:
+
+```console
+$ lipo -archs Binaural.app/Contents/MacOS/Binaural
+x86_64 arm64
+```
+
+Only the **archive name** says `macos-arm64` — `binaural-<version>-macos-arm64.tar.gz`. That is
+the string `install.sh` and the in-app updater both match on, so it is not a claim about the
+binary inside. Intel support therefore costs nothing: no second CI runner, no second artifact,
+no extra download for anyone.
+
+The floor is **macOS 14**, set by `MACOSX_DEPLOYMENT_TARGET` in `apple/project.yml`. An Intel Mac
+that cannot reach macOS 14 — a 2015 or older machine — is out of reach, and Rosetta 2 is not the
+answer: it translates x86_64 to run on Apple Silicon, never the reverse, so an Intel Mac cannot
+run an Apple-Silicon-only build either way. Such a machine needs an older release.
 
 ### Linux — one command
 
