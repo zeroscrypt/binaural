@@ -656,18 +656,32 @@ stands and what will bite you. The rules that bind both implementations are in
 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest     # 488 passed, 2 skipped
 ```
 
-The Swift side has its own suites, and **nothing in CI runs them** — every `xcodebuild` check is
-yours to run locally:
+The Swift side has its own suites. They ran only on the machine that wrote them until
+v0.2.2; CI runs both now, and running them locally still finds things faster:
 
 ```bash
-cd apple && xcodegen generate                               # 208 core tests
+cd apple && xcodegen generate                               # 246 core tests
 xcodebuild -project Binaural.xcodeproj -scheme BinauralCore \
   -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test
 xcodebuild -project Binaural.xcodeproj -scheme Binaural \
-  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test # + 141 window tests
+  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test # + 182 window tests
 ```
 
 `CODE_SIGNING_ALLOWED=NO` is required: no Apple Developer certificate is configured.
+
+**Cutting a release** is five commands and one check, written down in
+**[`docs/RELEASING.md`][releasing]**. The part that matters:
+
+```bash
+python3 scripts/check_version.py     # one version, in every file that states it
+```
+
+The version lives in `pyproject.toml`, in three `MARKETING_VERSION` lines in
+`apple/project.yml` and in the git tag, and nothing read them from one another. A tag of
+`v0.3.0` with the app still saying `0.2.2` builds an app that calls itself `0.2.2`, names
+its archive `binaural-0.2.2-…`, and ships an updater asking GitHub for
+`binaural-0.3.0-…` — which never arrives. The check compares all four, compares the tag,
+and compares the archive name the build writes with the name the updater looks for.
 
 Three conventions worth knowing before your first commit:
 
@@ -766,6 +780,7 @@ MIT — © 2026 @zeroscrypt. See [`LICENSE`][license].
 [context]: CONTEXT.md
 [spec]: docs/SPEC.md
 [contract]: docs/CONTRACT.md
+[releasing]: docs/RELEASING.md
 [install]: docs/INSTALL.md
 [frequencies]: docs/FREQUENCIES.md
 [science]: docs/SCIENCE.md

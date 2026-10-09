@@ -88,6 +88,76 @@ jobs:
           shellcheck --shell=sh --severity=warning install.sh scripts/*.sh || true
 
   # -----------------------------------------------------------------------------
+  # The version, in every file that states it, before anything else runs.
+  #
+  # A release tagged v0.3.0 while `MARKETING_VERSION` still said 0.2.2 builds an app
+  # that calls itself 0.2.2 and ships an updater that asks GitHub for an archive nobody
+  # published. Nothing fails: the build works, the release publishes, and *Check for
+  # updates* says "you are up to date" forever. The same check runs inside pytest, so a
+  # red run here means a red run there too; it is first because it is the one that can be
+  # fixed in ten seconds and means nothing is publishable.
+  # -----------------------------------------------------------------------------
+  version:
+    name: release metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `scripts/check_version.py` compares the tag with the files, so the tag object
+          # has to be in the clone.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: One version, everywhere
+        run: |
+          set -eu
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            python3 scripts/check_version.py --tag "${GITHUB_REF_NAME}"
+          else
+            python3 scripts/check_version.py
+          fi
+
+  # -----------------------------------------------------------------------------
+  # The macOS product's own tests.
+  #
+  # There were none. The Swift suite — 182 window and layout tests — ran only on the
+  # machine that wrote it, while CI built and published the app it verifies. Every bug
+  # fixed in this repository over the last few months (a scroll view whose document view
+  # put its first row off the top of the window, buttons built with an empty title, a
+  # dialog whose controller was garbage collected the moment it was shown) passed the
+  # whole Python matrix, because the Python matrix does not build a line of Swift.
+  #
+  # Separate from `test` rather than added to it: the two products share a repository and
+  # a contract, not a toolchain, and a Qt-only failure must not be able to stop a Swift
+  # release (or the other way round).
+  # -----------------------------------------------------------------------------
+  test-macos:
+    name: xcodebuild on macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate the project
+        # The .xcodeproj is a build product: project.yml is the source, and generating it
+        # here means the checked-in file can never drift from it.
+        run: |
+          set -eu
+          brew install xcodegen
+          cd apple && xcodegen generate
+      - name: Core
+        run: |
+          set -eu
+          cd apple
+          xcodebuild -project Binaural.xcodeproj -scheme BinauralCore \
+            -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test
+      - name: App
+        run: |
+          set -eu
+          cd apple
+          xcodebuild -project Binaural.xcodeproj -scheme Binaural \
+            -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test
+
+  # -----------------------------------------------------------------------------
   # The real test matrix (CONTRACT §7: `.venv/bin/python -m pytest` must stay green).
   # -----------------------------------------------------------------------------
   test:
@@ -169,7 +239,7 @@ jobs:
   build-release:
     name: pyinstaller ${{ matrix.target }}
     if: github.event_name == 'workflow_dispatch'
-    needs: [test]
+    needs: [version, test]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -230,25 +300,54 @@ jobs:
           retention-days: 14
 
   # -----------------------------------------------------------------------------
-  # Release builds. Tag pushes only: a PyInstaller build on every push would burn
-  # runner minutes for an artifact nobody consumes, and a release is a deliberate act.
-  # The two platforms build in parallel — PyInstaller cannot cross-compile, so each
-  # target runs on a runner of its own — and publish-release attaches both archives
-  # to the GitHub Release for that tag.
+  # Release builds. Tag pushes only: a full build on every push would burn runner
+  # minutes for an artifact nobody consumes, and a release is a deliberate act.
+  #
+  # Two jobs, not one matrix, because they are two products that gate on two different
+  # test suites. They used to share a single job behind `needs: [test]`, which meant a
+  # crash in the Qt test suite on Python 3.10 stopped the native macOS app being
+  # published — and it had been stopping it, silently, since v0.2.1. The Python suite is
+  # the right gate for the PyInstaller archive; the Swift suite is the right gate for
+  # the .app. Neither has any business gating the other.
+  #
+  # Both name their archive `binaural-<version>-<target>.tar.gz`; the macOS one is what
+  # the in-app updater asks GitHub for, and `scripts/check_version.py` (the `version` job,
+  # and pytest) checks that the name the build writes is still the name the updater reads.
   # -----------------------------------------------------------------------------
-  release:
-    name: release (${{ matrix.target }})
+  release-macos:
+    name: release (macos-arm64)
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [test]
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: linux-x64
-            os: ubuntu-latest
-          - target: macos-arm64
-            os: macos-latest
+    needs: [version, test-macos]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # CI has no Apple Developer identity, so the app is built unsigned, exactly as it
+      # is on a Mac.
+      - name: Build the app
+        run: |
+          set -eu
+          brew install xcodegen
+          sh scripts/build_macos.sh
+          ls -la dist/
+
+      - name: Upload the archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaural-macos-arm64
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  release-linux:
+    name: release (linux-x64)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [version, test]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -260,7 +359,6 @@ jobs:
       # libpulse.so.0, and scripts/build_linux.sh refuses to build when
       # `import PySide6.QtMultimedia` fails.
       - name: Qt runtime libraries (Linux)
-        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -287,24 +385,16 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]" pyinstaller
 
-      - name: Build the ${{ matrix.target }} archive
+      - name: Build the archive
         run: |
           set -eu
-          case "${{ matrix.target }}" in
-            macos-*)
-              # The macOS product is the native app, not the Python bundle. CI has no
-              # Developer identity, so it is built unsigned, exactly as on a Mac.
-              brew install xcodegen
-              sh scripts/build_macos.sh
-              ;;
-            *) sh scripts/build_linux.sh ;;
-          esac
+          sh scripts/build_linux.sh
           ls -la dist/
 
       - name: Upload the archive
         uses: actions/upload-artifact@v4
         with:
-          name: binaural-${{ matrix.target }}
+          name: binaural-linux-x64
           path: dist/*.tar.gz
           if-no-files-found: error
           retention-days: 14
@@ -317,7 +407,7 @@ jobs:
   publish-release:
     name: publish the GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [release]
+    needs: [release-macos, release-linux]
     runs-on: ubuntu-latest
     steps:
       - name: Download the built archives

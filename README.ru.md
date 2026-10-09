@@ -662,18 +662,32 @@ xattr -d com.apple.quarantine /path/to/Binaural.app
 QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest     # 488 успешно, 2 пропущено
 ```
 
-У Swift своя серия тестов, и **в CI она не запускается** — каждый `xcodebuild` нужно выполнять
-локально:
+У Swift своя серия тестов. До v0.2.2 она запускалась только на той машине, где писалась, — теперь
+обе запускает CI, но локально всё равно находится быстрее:
 
 ```bash
-cd apple && xcodegen generate                               # 208 тестов core
+cd apple && xcodegen generate                               # 246 тестов core
 xcodebuild -project Binaural.xcodeproj -scheme BinauralCore \
   -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test
 xcodebuild -project Binaural.xcodeproj -scheme Binaural \
-  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test # + 141 тест окна
+  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test # + 182 теста окна
 ```
 
 `CODE_SIGNING_ALLOWED=NO` здесь обязателен: сертификата Apple Developer нет.
+
+**Выпуск** — пять команд и одна проверка, всё расписано в
+**[`docs/RELEASING.md`][releasing]**. Важная часть:
+
+```bash
+python3 scripts/check_version.py     # одна версия во всех файлах, где она написана
+```
+
+Версия живёт в `pyproject.toml`, в трёх строках `MARKETING_VERSION` в `apple/project.yml` и в
+git-теге, и ничто их не сверяло. Тег `v0.3.0` при приложении, всё ещё называющем себя
+`0.2.2`, собирает приложение, которое называет себя `0.2.2`, называет свой архив
+`binaural-0.2.2-…` и содержит обновлялку, которая просит у GitHub
+`binaural-0.3.0-…` — которой там никогда не будет. Проверка сверяет все четыре, сверяет тег и
+сверяет имя архива, которое пишет сборка, с именем, которое ищет обновлялка.
 
 Три соглашения, о которых стоит знать до первого коммита:
 
@@ -773,6 +787,7 @@ MIT — © 2026 @zeroscrypt. См. [`LICENSE`][license].
 [context]: CONTEXT.md
 [spec]: docs/SPEC.md
 [contract]: docs/CONTRACT.md
+[releasing]: docs/RELEASING.md
 [install]: docs/INSTALL.md
 [frequencies]: docs/FREQUENCIES.md
 [science]: docs/SCIENCE.md
