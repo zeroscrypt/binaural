@@ -326,6 +326,12 @@ final class AboutTests: XCTestCase {
             }
             return nil
         }
+        func stacks(in view: NSView) -> [NSStackView] {
+            var found: [NSStackView] = []
+            if let stack = view as? NSStackView { found.append(stack) }
+            for sub in view.subviews { found.append(contentsOf: stacks(in: sub)) }
+            return found
+        }
         let scroll = try XCTUnwrap(window.contentView.flatMap(firstScrollView(in:)))
         XCTAssertGreaterThan(
             scroll.frame.width, 300,
@@ -341,6 +347,52 @@ final class AboutTests: XCTestCase {
             documentHeight, scroll.contentView.bounds.height,
             "the About body must overflow so the dialog scrolls"
         )
+
+        // …and the sections must not draw over each other. Two bugs in a row ended here:
+        // the document sized to the viewport, and then every label pinned 4 pt wider than
+        // the space the stack had left. Both compress the body, and a compressed body
+        // overlaps — while every label-based test in this suite still passed, because the
+        // text was all there, just all in the same place.
+        var overlaps: [String] = []
+        let roots = window.contentView.map { stacks(in: $0) } ?? []
+        for stack in roots where stack.orientation == .vertical {
+            let arranged = stack.arrangedSubviews
+            guard arranged.count > 1 else { continue }
+            let insets = stack.edgeInsets
+            let available: CGFloat = stack.frame.width - insets.left - insets.right
+            for view in arranged {
+                // No subview may ask for more width than the stack has between its insets.
+                // The 6 pt tolerance is `NSTextField`'s own 2 pt leading and trailing
+                // inset, which is part of every text field and not a layout error; the
+                // overlay this caught was 12 pt on a 560 pt stack.
+                if view.frame.width > available + 6 {
+                    let name = String(describing: type(of: view))
+                    overlaps.append("\(name) is \(Int(view.frame.width)) wide inside \(Int(available))")
+                }
+            }
+            // Vertical stacks must not stack their arranged subviews on top of each other.
+            for (upper, lower) in zip(arranged, arranged.dropFirst()) {
+                if lower.frame.maxY > upper.frame.minY + 0.5 {
+                    let name = String(describing: type(of: lower))
+                    overlaps.append("\(name) overlaps the view above it")
+                }
+            }
+            // …and nothing may collapse to zero height. `NSStackView` has no intrinsic
+            // height, so one that is pinned by constraints without a height of its own gets
+            // none — and a zero-height row does not register as an overlap against its
+            // neighbours, it simply spills its contents over them. That is how the section
+            // headings ended up drawn on top of each other's paragraphs twice.
+            for view in arranged where view.frame.height < 1 {
+                // A bare `NSView` is the trailing flexible spacer and is meant to take
+                // whatever height is left over, which is nothing when the body already
+                // overflows. Everything else carries content and must have height.
+                guard type(of: view) != NSView.self else { continue }
+                let name = String(describing: type(of: view))
+                overlaps.append("\(name) collapsed to zero height")
+            }
+        }
+        XCTAssertTrue(overlaps.isEmpty, "the About body overlaps itself:\n"
+            + overlaps.joined(separator: "\n"))
     }
 
 }

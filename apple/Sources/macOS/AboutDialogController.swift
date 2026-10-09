@@ -171,13 +171,13 @@ final class AboutDialogController: NSWindowController {
             root.topAnchor.constraint(equalTo: content.topAnchor),
             root.bottomAnchor.constraint(equalTo: content.bottomAnchor),
             scrollView.heightAnchor.constraint(greaterThanOrEqualToConstant: 320),
-            row.widthAnchor.constraint(equalTo: root.widthAnchor),
+            contentWidth(of: root, for: row),
             // A vertical `NSStackView` sizes an arranged subview to its **intrinsic**
             // width, and `NSScrollView` has none. Without this the scroll view lays out
             // at zero width, every label inside it collapses to a few points, and the
             // whole body renders blank — with the text still present in the
             // accessibility tree, which is why a label-based test cannot see it.
-            scrollView.widthAnchor.constraint(equalTo: root.widthAnchor)
+            contentWidth(of: root, for: scrollView)
         ])
         window?.contentView = content
     }
@@ -196,8 +196,15 @@ final class AboutDialogController: NSWindowController {
         stack.alignment = .leading
         stack.spacing = 8
         stack.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
-        fillWidth(stack)
+        stack.translatesAutoresizingMaskIntoConstraints = false
         box.contentView = stack
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: box.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: box.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: box.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: box.bottomAnchor),
+        ])
+        fillWidth(stack)
         box.setAccessibilityLabel(L10n.tr("Disclaimer"))
         // The tooltip is the accessibility description of the whole dialog, which is what
         // VoiceOver reads before the body.
@@ -221,31 +228,21 @@ final class AboutDialogController: NSWindowController {
     private func fillWidth(_ stack: NSStackView) {
         for view in stack.arrangedSubviews {
             view.translatesAutoresizingMaskIntoConstraints = false
-            view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+            contentWidth(of: stack, for: view).isActive = true
         }
     }
 
-    /// One titled section of SPEC §7 item 6: a heading and its body lines.
-    ///
-    /// A heading in `heading()`'s 16pt would compete with the `Binaural` title, so the
-    /// section heading gets its own size — visible as a heading, clearly below the title.
-    /// The body lines are plain paragraphs: nothing here is legal text, so they are not
-    /// `selectable()` and not 11pt caption type the way the disclaimer and licence are.
-    private func sectionBox(title: String, lines: [String]) -> NSView {
-        let stack = NSStackView(views: [
-            sectionHeading(title),
-        ])
-        for line in lines {
-            stack.addArrangedSubview(paragraph(line))
-        }
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 6
-        // Height comes from the parent `body` stack, which sizes its arranged subviews from
-        // their own content; only the width is imposed here, and that is the one thing the
-        // stack would otherwise get wrong for wrapping text.
-        fillWidth(stack)
-        return stack
+    /// `stack.widthAnchor` is the stack **including** its edge insets, so pinning an arranged
+    /// subview to it asks for more width than the stack has left to give: with 12 pt insets
+    /// each side every label came out wider than the space between them, Auto Layout
+    /// compressed the stack to reconcile it, and the sections drew on top of each other.
+    /// The width an arranged subview may use is what is left after the insets.
+    private func contentWidth(of stack: NSStackView, for view: NSView) -> NSLayoutConstraint {
+        let insets = stack.edgeInsets
+        return view.widthAnchor.constraint(
+            equalTo: stack.widthAnchor,
+            constant: -(insets.left + insets.right)
+        )
     }
 
     /// The four sections, in the order ``AboutContent`` declares them.
@@ -284,8 +281,15 @@ final class AboutDialogController: NSWindowController {
         stack.alignment = .leading
         stack.spacing = 8
         stack.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
-        fillWidth(stack)
+        stack.translatesAutoresizingMaskIntoConstraints = false
         box.contentView = stack
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: box.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: box.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: box.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: box.bottomAnchor),
+        ])
+        fillWidth(stack)
         box.setAccessibilityLabel(L10n.tr("MIT License"))
         return box
     }
@@ -407,7 +411,10 @@ final class AboutDialogController: NSWindowController {
         // text, which is the order a reader arriving at the dialog wants them in. Same
         // position as in `about.py`, so the two dialogs read identically.
         for section in sections {
-            body.addArrangedSubview(sectionBox(title: section.title, lines: section.body))
+            body.addArrangedSubview(sectionHeading(section.title))
+            for line in section.body {
+                body.addArrangedSubview(paragraph(line))
+            }
         }
 
         body.addArrangedSubview(disclaimerBox())
