@@ -47,8 +47,9 @@ final class MainWindowController: NSWindowController {
     /// the dialog held exactly one thing that was not, and it cost a whole window to say
     /// it. Native names in both languages ("English", "Русский"), so a user can always
     /// find their own language in the list.
-    private let languageCaptionLabel = NSTextField(labelWithString: "")
     private let languagePopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    /// The top row, kept so a test can read what is on it.
+    private var statusRowView: NSView?
 
     /// SPEC §7: "кнопка проверки наушников прямо в окне — повторить §4 в любой момент, а
     /// не только при старте". It sits on the status row next to the always-visible
@@ -159,15 +160,15 @@ final class MainWindowController: NSWindowController {
         // The language control lives on the top row, next to the app name and the headphone
         // state — it is a property of the window as a whole, not a transport control, and
         // it is the one thing a new user has to find before they can read anything else.
-        languageCaptionLabel.font = .systemFont(ofSize: 13)
         languagePopup.controlSize = .regular
         languagePopup.font = .systemFont(ofSize: 13)
         languagePopup.target = self
         languagePopup.action = #selector(languageSelected)
 
         let statusRow = NSStackView(views: [
-            indicator, NSView(), languageCaptionLabel, languagePopup, headphoneCheckButton
+            indicator, NSView(), headphoneCheckButton, languagePopup
         ])
+        statusRowView = statusRow
         statusRow.orientation = .horizontal
         statusRow.alignment = .centerY
         statusRow.spacing = 8
@@ -776,7 +777,6 @@ final class MainWindowController: NSWindowController {
         )
 
         timerView.retranslate()
-        languageCaptionLabel.stringValue = L10n.tr("Language")
         languagePopup.setAccessibilityLabel(L10n.tr("Language"))
         rebuildLanguages()
         // SPEC §7.4: the preset chips are data (F3's own EN/RU names), but the caption
@@ -1160,7 +1160,14 @@ final class MainWindowController: NSWindowController {
     /// SPEC §7.4 says the choice is switchable from the window as well as from the menu,
     /// which is what the control is.
     var languageTitles: [String] { languagePopup.itemTitles }
-    var languageCaptionTitle: String { languageCaptionLabel.stringValue }
+    /// The accessibility label: read aloud by VoiceOver, so unlike a visible caption it
+    /// does have to follow the language.
+    var languageAccessibilityLabel: String { languagePopup.accessibilityLabel() ?? "" }
+    /// The popup itself, so a test can measure where it ended up in the row.
+    var languageControl: NSPopUpButton { languagePopup }
+    /// The status row, for tests that need to see what sits on the top row and in which
+    /// order.
+    var statusRow: NSStackView? { statusRowView as? NSStackView }
     var languagePopupHeight: CGFloat { languagePopup.frame.height }
     var selectedLanguage: LanguageCode {
         guard let raw = languagePopup.selectedItem?.representedObject as? String else {

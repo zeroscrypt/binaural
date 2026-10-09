@@ -47,14 +47,39 @@ final class WindowLanguageTests: XCTestCase {
         XCTAssertEqual(controller.selectedLanguage, .ru, "the control follows the app")
     }
 
-    /// The caption and the accessibility label are catalogue keys, so the control reads in
-    /// the interface language like everything else.
-    func testTheCaptionIsTranslated() {
-        XCTAssertEqual(controller.languageCaptionTitle, "Language")
-        L10n.setLanguage("ru")
-        XCTAssertEqual(controller.languageCaptionTitle, "Язык")
+    /// No caption: the popup reads "English" or "Русский", which says what it is. The
+    /// accessibility label is still translated — that one is read aloud, not looked at.
+    func testThereIsNoCaptionButTheAccessibilityLabelIsTranslated() {
         XCTAssertEqual(controller.languageTitles, ["English", "Русский"],
                        "the language names stay native, as they must")
+        XCTAssertEqual(controller.languageAccessibilityLabel, "Language")
+        L10n.setLanguage("ru")
+        XCTAssertEqual(controller.languageAccessibilityLabel, "Язык")
+    }
+
+    /// SPEC §7: the top row carries the app's state — the headphone indicator, the re-check
+    /// button and the language. The language sits at the **right**, after the re-check
+    /// button, and the row is pinned to the top of the window.
+    func testTheControlSitsAtTheTopRight() throws {
+        let window = try XCTUnwrap(controller.window)
+        window.contentView?.layoutSubtreeIfNeeded()
+
+        let row = try XCTUnwrap(controller.statusRow)
+        let titles = row.arrangedSubviews.compactMap { ($0 as? NSButton)?.title }
+        XCTAssertEqual(
+            titles, ["Check headphones…", "English"],
+            "the re-check button first, then the language popup: \(titles)"
+        )
+
+        let rowFrame = row.convert(row.bounds, to: window.contentView)
+        let popupFrame = controller.languageControl.convert(
+            controller.languageControl.bounds, to: window.contentView
+        )
+        XCTAssertGreaterThan(
+            popupFrame.minX, rowFrame.minX + rowFrame.width - popupFrame.width - 1,
+            "the language popup is the last thing in the row, at its right edge"
+        )
+        XCTAssertLessThan(popupFrame.maxY, rowFrame.maxY + 1, "the row is at the top")
     }
 
     /// `setLanguage` is the same call the *View → Language* menu makes — one implementation

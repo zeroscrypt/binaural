@@ -30,8 +30,18 @@ final class ReferenceDialogController: NSWindowController {
     private let sidebar = NSStackView()
     private let resultsStack = NSStackView()
     private let scrollView = NSScrollView()
+    // Properties rather than locals in `buildContent()`: the layout tests need to measure
+    // where the two columns ended up, and a local would be gone by the time they ran.
+    private let sidebarScroll = NSScrollView()
+    private let body = NSStackView()
     private let resultLabel = NSTextField(labelWithString: "")
-    private let disclaimerBox = NSBox()
+    /// The disclaimer panel is a plain bordered view, not an `NSBox`.
+    ///
+    /// `NSBox` lays its content view out by autoresizing, so it never picked up a height
+    /// from Auto Layout and came out **0 pt tall** — the medical disclaimer was there in
+    /// the view tree and nowhere on the screen. A view whose border is drawn as a layer,
+    /// like the record cards, sizes itself from its content instead.
+    private let disclaimerView = NSView()
     private let disclaimerLabel = NSTextField(wrappingLabelWithString: "")
     private let disclaimerButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
 
@@ -60,6 +70,18 @@ final class ReferenceDialogController: NSWindowController {
 
     // MARK: - Building
 
+    /// A scroll view's document view with its origin at the top left.
+    ///
+    /// A plain `NSView` is bottom-left, and `NSClipView` parks a document taller than
+    /// itself at (0, 0) — which put the **top** of the content above the top of the
+    /// window. The first category chips were drawn over the search field and hit-tested as
+    /// the search field, which is exactly the report that clicking a category did nothing:
+    /// the chips were not inside the clip view at all. Flipping the document starts row one
+    /// where the eye starts, and puts every row inside the area that takes clicks.
+    private final class FlippedDocumentView: NSView {
+        override var isFlipped: Bool { true }
+    }
+
     private func buildContent() {
         searchField.delegate = self
         evidencePopup.target = self
@@ -78,7 +100,7 @@ final class ReferenceDialogController: NSWindowController {
 
         // The document view fills the clip view horizontally, which is what lets the
         // cards be as wide as the window instead of a hard-coded number of points.
-        let document = NSView()
+        let document = FlippedDocumentView()
         document.translatesAutoresizingMaskIntoConstraints = false
         document.addSubview(resultsStack)
         // The document goes into the scroll view **before** the width constraint is
@@ -101,8 +123,11 @@ final class ReferenceDialogController: NSWindowController {
         searchRow.spacing = 12
         searchRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
 
-        let sidebarScroll = NSScrollView()
-        sidebarScroll.documentView = sidebar
+        let sidebarScroll = self.sidebarScroll
+        let sidebarDocument = FlippedDocumentView()
+        sidebarDocument.translatesAutoresizingMaskIntoConstraints = false
+        sidebarDocument.addSubview(sidebar)
+        sidebarScroll.documentView = sidebarDocument
         sidebarScroll.hasVerticalScroller = true
         sidebarScroll.drawsBackground = false
         sidebarScroll.translatesAutoresizingMaskIntoConstraints = false
@@ -113,13 +138,20 @@ final class ReferenceDialogController: NSWindowController {
         // reference could fail outright rather than merely lay out oddly. The fixed width
         // moves down to where both views exist together.
         NSLayoutConstraint.activate([
+            sidebar.leadingAnchor.constraint(equalTo: sidebarDocument.leadingAnchor),
+            sidebar.trailingAnchor.constraint(equalTo: sidebarDocument.trailingAnchor),
+            sidebar.topAnchor.constraint(equalTo: sidebarDocument.topAnchor),
+            sidebar.bottomAnchor.constraint(equalTo: sidebarDocument.bottomAnchor),
             sidebar.widthAnchor.constraint(equalTo: sidebarScroll.contentView.widthAnchor)
         ])
 
-        let body = NSStackView(views: [sidebarScroll, scrollView])
+        let body = self.body
+        body.addArrangedSubview(sidebarScroll)
+        body.addArrangedSubview(scrollView)
         body.orientation = .horizontal
         body.spacing = 12
         body.distribution = .fill
+        body.alignment = .top
 
         buildDisclaimer()
 
@@ -150,7 +182,7 @@ final class ReferenceDialogController: NSWindowController {
             ),
             searchRow,
             body,
-            disclaimerBox,
+            disclaimerView,
             footer
         ])
         root.orientation = .vertical
@@ -161,7 +193,7 @@ final class ReferenceDialogController: NSWindowController {
 
         let content = NSView()
         content.addSubview(root)
-        for row in [searchRow, body, scrollView, footer, disclaimerBox] as [NSView] {
+        for row in [searchRow, body, scrollView, footer, disclaimerView] as [NSView] {
             row.translatesAutoresizingMaskIntoConstraints = false
         }
         NSLayoutConstraint.activate([
@@ -176,8 +208,13 @@ final class ReferenceDialogController: NSWindowController {
             body.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -40),
             body.heightAnchor.constraint(greaterThanOrEqualToConstant: 240),
             sidebarScroll.widthAnchor.constraint(equalToConstant: 240),
+            // Both columns are as tall as the row. Without this they kept whatever height
+            // their own (absent) intrinsic size gave them — zero — and the sidebar spilled
+            // its chips straight over the disclaimer box at the bottom of the window.
+            sidebarScroll.heightAnchor.constraint(equalTo: body.heightAnchor),
+            scrollView.heightAnchor.constraint(equalTo: body.heightAnchor),
             footer.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -40),
-            disclaimerBox.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -40)
+            disclaimerView.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -40)
         ])
 
         window?.title = L10n.tr("Frequency reference")
@@ -196,25 +233,22 @@ final class ReferenceDialogController: NSWindowController {
         stack.edgeInsets = NSEdgeInsets(top: 10, left: 12, bottom: 10, right: 12)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        disclaimerBox.titlePosition = .noTitle
-        disclaimerBox.boxType = .custom
-        disclaimerBox.borderWidth = 1
-        disclaimerBox.borderColor = .separatorColor
-        disclaimerBox.contentView = stack
+        disclaimerView.wantsLayer = true
+        disclaimerView.layer?.cornerRadius = 10
+        disclaimerView.layer?.borderWidth = 1
+        disclaimerView.layer?.borderColor = NSColor.separatorColor.cgColor
+        disclaimerView.translatesAutoresizingMaskIntoConstraints = false
+        disclaimerView.addSubview(stack)
 
-        if let content = disclaimerBox.contentView {
-            // Pinned to the box rather than sized by it: `NSBox` lays its content view out
-            // by autoresizing, so switching the stack to Auto Layout is what makes these
-            // constraints meaningful — and it keeps the stack from asking for the width of
-            // its wrapping text, which is how the disclaimer came out 4601 pt wide once.
-            stack.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([
-                stack.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-                stack.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-                stack.topAnchor.constraint(equalTo: content.topAnchor),
-                stack.bottomAnchor.constraint(equalTo: content.bottomAnchor)
-            ])
-        }
+        // Pinned on all four sides, so the panel takes the height of its own text — and
+        // the wrapping label inside is given a width to wrap at, which is what stopped it
+        // asking for the 4601 pt it wanted when nothing constrained it.
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: disclaimerView.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: disclaimerView.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: disclaimerView.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: disclaimerView.bottomAnchor)
+        ])
     }
 
     private func headingLabel(_ text: String) -> NSTextField {
@@ -294,9 +328,18 @@ final class ReferenceDialogController: NSWindowController {
     }
 
     private func applyCategorySelection() {
-        allCategoriesButton?.state = filter.categoryID == nil ? .on : .off
+        let all = filter.categoryID == nil
+        allCategoriesButton?.state = all ? .on : .off
+        allCategoriesButton?.contentTintColor = all ? .controlAccentColor : .labelColor
         for (id, button) in categoryButtons {
-            button.state = id == filter.categoryID ? .on : .off
+            let selected = id == filter.categoryID
+            button.state = selected ? .on : .off
+            // The toggle state alone is a hairline the eye has to hunt for, and the filter
+            // this list drives is the whole point of the dialog: the chosen category is
+            // filled with the accent colour instead. `state` stays on, so the selection is
+            // still there for VoiceOver and the focus ring — colour is not the only carrier
+            // (SPEC §7.2), the same rule the preset bar follows.
+            button.contentTintColor = selected ? .controlAccentColor : .labelColor
         }
     }
 
@@ -325,7 +368,14 @@ final class ReferenceDialogController: NSWindowController {
     /// search field does not churn every view on each keystroke.
     private func refresh() {
         let entries = filter.apply(to: catalogue)
-        let ids = entries.map(\.id)
+        // The order the dialog shows is **not** the order the filter hands back: the filter
+        // sorts ranges first and then by beat, the dialog groups by category in registry
+        // order (SPEC §6.12). Everything downstream — the skip-if-unchanged guard included —
+        // has to agree with what is on the screen, so the display order is worked out first
+        // and that is the order recorded. Asking for "the first record" used to return a
+        // record fourteen thousand points down the scroll view from the one at the top.
+        let grouped = Self.group(entries, by: catalogue)
+        let ids = grouped.flatMap { $0.entries.map(\.id) }
         guard ids != visibleIDs else {
             updateResultCount(shown: entries.count)
             return
@@ -340,12 +390,6 @@ final class ReferenceDialogController: NSWindowController {
         if entries.isEmpty {
             resultsStack.addArrangedSubview(noteLabel(L10n.tr("Nothing matches this filter.")))
         } else {
-            // Group headers, in registry order (SPEC §6.12).
-            var grouped: [(category: FrequencyCategory?, entries: [FrequencyEntry])] = []
-            for category in catalogue.categories {
-                let group = entries.filter { $0.category == category.id }
-                if !group.isEmpty { grouped.append((category, group)) }
-            }
             for (category, group) in grouped {
                 if let category { resultsStack.addArrangedSubview(headerView(for: category, count: group.count)) }
                 for entry in group {
@@ -353,16 +397,32 @@ final class ReferenceDialogController: NSWindowController {
                 }
             }
             // An entry whose category is not in the registry: `validate()` reports it and
-            // it is still shown rather than dropped silently.
-            let known = Set(catalogue.categories.map(\.id))
-            for entry in entries where !known.contains(entry.category) {
-                resultsStack.addArrangedSubview(cardView(for: entry))
-            }
+            // it is still shown rather than dropped silently. ``group(_:by:)`` puts them
+            // last, without a header.
         }
         resultsStack.addArrangedSubview(NSView())   // the trailing stretch
         // Cards only after they are in the column — see ``sizeCards(in:)``.
         sizeCards(in: resultsStack)
         updateResultCount(shown: entries.count)
+    }
+
+    /// Records grouped by category in registry order (SPEC §6.12), which is the order they
+    /// are shown in. Entries whose category is not in the registry come last, under no
+    /// header: `validate()` reports them, and the reference still shows them rather than
+    /// dropping them silently.
+    private static func group(
+        _ entries: [FrequencyEntry],
+        by catalogue: FrequencyCatalogue
+    ) -> [(category: FrequencyCategory?, entries: [FrequencyEntry])] {
+        var grouped: [(category: FrequencyCategory?, entries: [FrequencyEntry])] = []
+        for category in catalogue.categories {
+            let group = entries.filter { $0.category == category.id }
+            if !group.isEmpty { grouped.append((category, group)) }
+        }
+        let known = Set(catalogue.categories.map(\.id))
+        let orphans = entries.filter { !known.contains($0.category) }
+        if !orphans.isEmpty { grouped.append((nil, orphans)) }
+        return grouped
     }
 
     private func updateResultCount(shown: Int) {
@@ -496,7 +556,7 @@ final class ReferenceDialogController: NSWindowController {
     }
 
     @objc private func toggleDisclaimer() {
-        disclaimerBox.isHidden = disclaimerButton.state != .on
+        disclaimerView.isHidden = disclaimerButton.state != .on
     }
 
     @objc private func closeDialog() {
@@ -512,8 +572,17 @@ final class ReferenceDialogController: NSWindowController {
 
     // MARK: - State the tests read
 
-    /// The records currently on screen, in order.
-    var visibleEntries: [FrequencyEntry] { filter.apply(to: catalogue) }
+    /// The records currently on screen, in the order they are on screen.
+    ///
+    /// Read back from ``visibleEntryIDs`` rather than from the filter, because the two
+    /// order things differently and only one of them is what the user sees: the filter
+    /// sorts ranges first and then by beat, while the dialog groups by category in
+    /// registry order (SPEC §6.12). An accessor that answered "the first record" with a
+    /// different record than the one at the top of the list sent a test hunting for a
+    /// button fourteen thousand points off screen.
+    var visibleEntries: [FrequencyEntry] {
+        visibleIDs.compactMap { catalogue.entry(id: $0) }
+    }
 
     var visibleEntryIDs: [String] { visibleIDs }
 
@@ -546,13 +615,45 @@ final class ReferenceDialogController: NSWindowController {
         sidebar.arrangedSubviews.compactMap { ($0 as? NSButton)?.title }
     }
 
+    // The views behind ``sidebarTitles``, for the layout tests. The titles alone could not
+    // catch the bug they were written for: a sidebar whose scroll view had collapsed to
+    // zero height still produced the right list of titles — it just drew it over the
+    // disclaimer and answered no clicks, because hit-testing walks the frames.
+    var sidebarChips: [ChipButton] { sidebar.arrangedSubviews.compactMap { $0 as? ChipButton } }
+
+    var sidebarColumn: NSStackView { sidebar }
+
+    var sidebarScroller: NSScrollView { sidebarScroll }
+
+    var bodyRow: NSStackView { body }
+
+
+    /// The Apply buttons currently on screen, so a test can click one where the user sees
+    /// it rather than calling the action behind its back.
+    var applyButtons: [ChipButton] {
+        resultsStack.arrangedSubviews
+            .compactMap { $0 as? NSStackView }
+            .flatMap(\.arrangedSubviews)
+            .compactMap { $0 as? NSStackView }
+            .flatMap(\.arrangedSubviews)
+            .compactMap { $0 as? ChipButton }
+    }
+
+    var disclaimerPanel: NSView { disclaimerView }
+
     var evidenceTitles: [String] { evidencePopup.itemArray.map(\.title) }
 
     var resultCountText: String { resultLabel.stringValue }
 
-    var isDisclaimerVisible: Bool { !disclaimerBox.isHidden }
+    var isDisclaimerVisible: Bool { !disclaimerView.isHidden }
 
     var disclaimerText: String { disclaimerLabel.stringValue }
+
+    /// The tint of a category chip, so a test can assert the selection by colour rather
+    /// than by toggle state — the chip used to be grey with its state set to "on".
+    func categoryTint(for categoryID: String) -> NSColor? {
+        categoryButtons[categoryID]?.contentTintColor
+    }
 
     /// Apply a record as if its button had been pressed.
     @discardableResult
