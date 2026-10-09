@@ -71,7 +71,7 @@ DISCLAIMER_EN = (
 )
 
 LICENSE_NAME = "MIT License"
-LICENSE_HOLDER = "Dmitriy Solontsov"
+LICENSE_HOLDER = "@zeroscrypt"
 LICENSE_YEAR = "2026"
 LICENSE_SUMMARY_EN = (
     "Permission is hereby granted, free of charge, to any person obtaining a copy of "
@@ -115,7 +115,7 @@ _TECHNICAL_TITLE = "Technical details"
 # «Кто создал». Two handles, a name, a year and the repository — nothing else.
 # A biography, a company and a contact address would all be invented.
 _CREDITS_LINE = (
-    "Written by @zeroscrypt (Dmitriy Solontsov), with special thanks to @hakatao."
+    "Written by @zeroscrypt, with special thanks to @hakatao."
 )
 _CREDITS_WHERE = "The project lives at github.com/zeroscrypt/binaural. Released in 2026."
 

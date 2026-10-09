@@ -110,7 +110,7 @@ final class L10nKeysTests: XCTestCase {
         // macOS-only and live in `RussianWindowAdditions`, like the tagline above.
         "Who made it", "How it works", "What it is and what it is for",
         "Technical details",
-        "Written by @zeroscrypt (Dmitriy Solontsov), with special thanks to @hakatao.",
+        "Written by @zeroscrypt, with special thanks to @hakatao.",
         "The project lives at github.com/zeroscrypt/binaural. Released in 2026.",
         "Two sine tones of different frequency, one sent to each ear, and the brain hears a third tone that is not there. That third tone is the difference between the two frequencies, and it is called the beat.",
         "The beat is the difference between the two frequencies. The carrier is their average — the tone you actually hear in each ear, with the beat pulsing inside it.",

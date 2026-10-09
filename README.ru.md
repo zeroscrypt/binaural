@@ -738,7 +738,7 @@ xcodebuild -project Binaural.xcodeproj -scheme Binaural \
 
 ## Лицензия
 
-MIT — © 2026 Дмитрий Солонцов. См. [`LICENSE`][license].
+MIT — © 2026 @zeroscrypt. См. [`LICENSE`][license].
 
 <a href="#лицензия">⬆ Наверх</a>
 
@@ -746,7 +746,7 @@ MIT — © 2026 Дмитрий Солонцов. См. [`LICENSE`][license].
 
 ## Контакты
 
-- Автор — **@zeroscrypt** (Dmitriy Solontsov)
+- Автор — **@zeroscrypt**
 - Issues — [github.com/zeroscrypt/binaural/issues][issues]
 - Исходный код — <https://github.com/zeroscrypt/binaural>
 

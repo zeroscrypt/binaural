@@ -249,7 +249,7 @@ final class AboutTests: XCTestCase {
             "the version line is shown: \(lines.prefix(3))"
         )
         XCTAssertTrue(lines.contains { $0.contains("MIT License") })
-        XCTAssertTrue(lines.contains { $0.contains("Dmitriy Solontsov") })
+        XCTAssertTrue(lines.contains { $0.contains("@zeroscrypt") })
     }
 
     /// §7.4: the dialog reads the language itself, so a switch while it is open reaches every

@@ -731,7 +731,7 @@ because an unsigned `.app` cannot be distributed. Alpha otherwise.
 
 ## License
 
-MIT — © 2026 Dmitriy Solontsov. See [`LICENSE`][license].
+MIT — © 2026 @zeroscrypt. See [`LICENSE`][license].
 
 <a href="#license">⬆ Back to top</a>
 
@@ -739,7 +739,7 @@ MIT — © 2026 Dmitriy Solontsov. See [`LICENSE`][license].
 
 ## Contact
 
-- Author — **@zeroscrypt** (Dmitriy Solontsov)
+- Author — **@zeroscrypt**
 - Issues — [github.com/zeroscrypt/binaural/issues][issues]
 - Source — <https://github.com/zeroscrypt/binaural>
 

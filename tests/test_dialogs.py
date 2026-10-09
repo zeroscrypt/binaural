@@ -830,7 +830,7 @@ def test_about_contains_mit_licence(qapp):
     text = _labels_text(dialog)
 
     assert "MIT License" in text
-    assert "Copyright (c) 2026 Dmitriy Solontsov" in text
+    assert "Copyright (c) 2026 @zeroscrypt" in text
     assert "without warranty of any kind" in text
 
 

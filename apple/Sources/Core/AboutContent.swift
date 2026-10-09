@@ -62,7 +62,7 @@ public enum AboutContent {
     /// «Кто создал». Two handles, one name, a year and the repository — and nothing
     /// else. A biography, a company and a contact address are all invented, so they
     /// are all absent.
-    public static let creditsLine = "Written by @zeroscrypt (Dmitriy Solontsov), "
+    public static let creditsLine = "Written by @zeroscrypt, "
         + "with special thanks to @hakatao."
     public static let creditsWhere = "The project lives at github.com/zeroscrypt/binaural. "
         + "Released in 2026."
@@ -194,7 +194,7 @@ public enum AboutContent {
     // MARK: - Licence
 
     public static let licenseName = "MIT License"
-    public static let licenseHolder = "Dmitriy Solontsov"
+    public static let licenseHolder = "@zeroscrypt"
     public static let licenseYear = "2026"
 
     /// The MIT notice, **verbatim** from `about.py::LICENSE_SUMMARY_EN` — and therefore
@@ -213,7 +213,7 @@ public enum AboutContent {
         + "of the MIT licence. The software is provided \"as is\", without warranty of any "
         + "kind, express or implied."
 
-    /// `"Copyright (c) 2026 Dmitriy Solontsov"` — the key, translated with its two
+    /// `"Copyright (c) 2026 @zeroscrypt"` — the key, translated with its two
     /// placeholders filled.
     @MainActor
     public static func copyrightText() -> String {

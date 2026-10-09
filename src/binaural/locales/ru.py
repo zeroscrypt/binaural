@@ -281,8 +281,8 @@ MESSAGES: dict[str, str] = {
     "Technical details": "Технические детали",
     # «Кто создал» — short and factual on purpose: a handle, a name, a
     # contributor, a year and the repository. No biography is invented.
-    "Written by @zeroscrypt (Dmitriy Solontsov), with special thanks to @hakatao.": (
-        "Автор — @zeroscrypt (Dmitriy Solontsov), отдельное спасибо — @hakatao."
+    "Written by @zeroscrypt, with special thanks to @hakatao.": (
+        "Автор — @zeroscrypt, отдельное спасибо — @hakatao."
     ),
     "The project lives at github.com/zeroscrypt/binaural. Released in 2026.": (
         "Проект живёт на github.com/zeroscrypt/binaural. Вышел в 2026 году."
