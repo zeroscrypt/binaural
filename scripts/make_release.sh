@@ -208,6 +208,36 @@ write_checksums() {
     return 0
 }
 
+# prune_other_versions — drop every archive that is not the version just built.
+#
+# A Linux release is ~90 MB, so keeping one per version fills a disk for no
+# reason: the archives are published on GitHub, and dist/ is a staging area for
+# the build that is running right now. Only files whose name carries a version
+# are considered, so an unpacked directory or anything hand-placed in dist/ is
+# left alone rather than deleted on a guess.
+prune_other_versions() {
+    _removed=0
+    for _pattern in '*.tar.gz' '*.zip'; do
+        for _archive in "${DIST_DIR}"/$_pattern; do
+            [ -f "$_archive" ] || continue
+            _base="$(basename "$_archive")"
+            case "$_base" in
+                *dSYM*) continue ;;
+            esac
+            case "$_base" in
+                *"${VERSION}"*) continue ;;
+            esac
+            rm -f "$_archive"
+            info "removed stale archive ${_base}"
+            _removed=$((_removed + 1))
+        done
+    done
+    # SHA256SUMS describes what was in dist/ a moment ago, so it would list
+    # files that are no longer there unless it is rewritten.
+    [ "$_removed" -gt 0 ] && write_checksums >/dev/null
+    return 0
+}
+
 if [ "$CHECKSUMS_ONLY" -eq 1 ]; then
     write_checksums
     step "done"
@@ -257,6 +287,12 @@ done
 # --------------------------------------------------------------------------- #
 # Checksums and summary
 # --------------------------------------------------------------------------- #
+
+# Only once the build is known to have produced something: pruning a failed
+# build's dist/ would destroy the previous archives along with the failure.
+if [ -n "$BUILT" ]; then
+    prune_other_versions
+fi
 
 write_checksums
 
