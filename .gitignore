@@ -102,6 +102,11 @@ DerivedData/
 *.profraw
 *.profdata
 
+# Scratch space for one-off investigations: throwaway reproducers, bisect
+# harnesses, ad-hoc Dockerfiles. Nothing here is part of the product, and a
+# repro is only interesting while the bug it reproduces is still open.
+.probe/
+
 # ---- Explicitly NOT ignored -------------------------------------------------
 # Listed so the intent is visible if someone tries to 'fix' this file:
 #   src/       — the application package, tracked
@@ -114,5 +119,11 @@ DerivedData/
 #                generated Binaural.xcodeproj inside it is ignored (see the Xcode section
 #                above), never the sources.
 
-# 334 MB core dump from a crashed test run on Linux (PySide6 none_dealloc)
-core
+# 334 MB core dump from a crashed test run on Linux (PySide6 none_dealloc).
+# Anchored to the repository root, and given a name rather than the bare word
+# `core`: an unanchored `core` matches any path segment called `core`, so it was
+# also excluding `src/binaural/core/` — the already-tracked files survived on
+# git's memory of them, but a *new* module added there would have been silently
+# dropped from every commit.
+/core
+*.core

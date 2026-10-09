@@ -65,6 +65,29 @@ def pyproject_version(root: Path = ROOT) -> str:
     return match.group(1)
 
 
+#: The version literal in `binaural/__init__.py`. Not the source of truth — the
+#: package reads its metadata, and this is only the fallback for a source tree
+#: that was never installed. It still has to agree: a stale fallback is the one
+#: way this file can report the wrong version, and it did exactly that at 0.2.2
+#: while the release being cut was 0.2.3.
+FALLBACK_VERSION_MATCHES = (
+    (Path("src/binaural/__init__.py"), r'_FALLBACK_VERSION\s*=\s*"([^"]+)"'),
+)
+
+
+def fallback_versions(root: Path = ROOT) -> dict[Path, str]:
+    """The fallback literal in each file that carries one, keyed by path."""
+    found: dict[Path, str] = {}
+    for relative, pattern in FALLBACK_VERSION_MATCHES:
+        path = root / relative
+        if not path.exists():
+            continue
+        match = re.search(pattern, path.read_text(encoding="utf-8"))
+        if match is not None:
+            found[relative] = match.group(1)
+    return found
+
+
 def marketing_versions(root: Path = ROOT) -> dict[str, str]:
     """``MARKETING_VERSION`` of every Xcode target, keyed by the target's name.
 
@@ -151,6 +174,14 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
             problems.append(
                 f"apple/project.yml: target {target} has MARKETING_VERSION {version!r}, "
                 f"pyproject.toml says {package!r}"
+            )
+
+    for relative, version in sorted(fallback_versions(root).items()):
+        if version != package:
+            problems.append(
+                f"{relative}: _FALLBACK_VERSION is {version!r}, pyproject.toml says "
+                f"{package!r} — an app run from an uninstalled source tree would "
+                f"report itself as the wrong version"
             )
 
     if args.tag:

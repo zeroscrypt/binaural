@@ -60,6 +60,13 @@ def repo(tmp_path: Path) -> Path:
     shutil.copy(
         ROOT / "scripts/build_macos.sh", tmp_path / "scripts/build_macos.sh"
     )
+    # The package's fallback version literal: the checker watches it, so the
+    # fixture has to contain it or the check would quietly have nothing to read.
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/binaural").mkdir()
+    shutil.copy(
+        ROOT / "src/binaural/__init__.py", tmp_path / "src/binaural/__init__.py"
+    )
     (tmp_path / "apple/Sources").mkdir()
     (tmp_path / "apple/Sources/Core").mkdir()
     shutil.copy(
@@ -137,6 +144,42 @@ def test_the_repository_matches_its_latest_tag():
     if newest is None:
         pytest.skip("no release tag in this clone")
     assert check_version.main(["--tag", newest]) == 0
+
+
+def test_the_python_package_reports_the_repository_version():
+    """``binaural.__version__`` must be the version in ``pyproject.toml``.
+
+    It used to be a literal here, and the two drifted: a release tagged
+    ``v0.2.3`` while this file said ``0.2.2`` shipped an app that reported
+    itself as 0.2.2. ``running_version()`` then compared 0.2.2 with the 0.2.3
+    release, found nothing newer, and answered *you are up to date* forever —
+    the exact failure this module exists to prevent, invisible to it because the
+    checker did not know the file existed.
+    """
+    import binaural
+
+    assert binaural.__version__ == check_version.pyproject_version()
+
+
+def test_a_stale_fallback_version_is_caught(repo: Path):
+    """The uninstalled-source-tree fallback is checked too.
+
+    ``binaural.__version__`` normally comes from distribution metadata, but a
+    source tree that was never installed has none to read, and the literal is
+    what it falls back to. That is the one remaining way the package can
+    misreport itself, so the checker watches it like every other copy.
+    """
+    found = check_version.fallback_versions(repo)
+    if not found:
+        pytest.skip("no fallback literal in the copied tree")
+    for relative, version in found.items():
+        _set_version(
+            repo,
+            str(relative),
+            f'_FALLBACK_VERSION = "{version}"',
+            '_FALLBACK_VERSION = "0.0.0-stale"',
+        )
+    assert check_version.main([], root=repo) == 1
 
 
 def test_every_xcode_target_carries_the_version():

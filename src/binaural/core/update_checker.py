@@ -22,6 +22,8 @@ from typing import Callable, Iterable
 from urllib import error as _urlerror
 from urllib import request as _urlrequest
 
+from .. import PROJECT_URL
+
 __all__ = [
     "AppVersion",
     "Availability",
@@ -38,8 +40,25 @@ __all__ = [
     "running_version",
 ]
 
-#: ``GET /repos/{owner}/{repo}/releases/latest`` for this repository.
-DEFAULT_ENDPOINT = "https://api.github.com/repos/zeroscrypt/binaural/releases/latest"
+def _releases_endpoint(project_url: str) -> str:
+    """``GET /repos/{owner}/{repo}/releases/latest`` for a GitHub project URL.
+
+    Derived from ``binaural.PROJECT_URL`` rather than written out, so the update
+    check and the About dialog cannot end up pointing at different repositories
+    after one of them is edited. Falls back to writing the endpoint out if the
+    URL is not the GitHub shape this expects — a wrong guess here would send
+    every check nowhere, whereas the literal at least fails loudly.
+    """
+    prefix = "https://github.com/"
+    if project_url.startswith(prefix):
+        owner_repo = project_url[len(prefix):].strip("/")
+        if owner_repo:
+            return f"https://api.github.com/repos/{owner_repo}/releases/latest"
+    return "https://api.github.com/repos/zeroscrypt/binaural/releases/latest"
+
+
+#: The endpoint the checker reads unless a test injects another.
+DEFAULT_ENDPOINT = _releases_endpoint(PROJECT_URL)
 
 #: How long a check may take before the app gives up on it. A launch-time check
 #: must not hold the window hostage on a bad connection.

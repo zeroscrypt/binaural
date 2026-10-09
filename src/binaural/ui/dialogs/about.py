@@ -13,6 +13,7 @@ from PySide6 import __version__ as _pyside_version
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QFrame, QScrollArea, QVBoxLayout, QWidget
 
+from binaural import PROJECT_URL as _project_url
 from binaural import __version__
 
 if TYPE_CHECKING:  # pragma: no cover - the annotation only, the import is lazy
@@ -47,7 +48,9 @@ __all__ = [
     "version_line",
 ]
 
-PROJECT_URL = "https://github.com/zeroscrypt/binaural"
+#: From the package metadata, so the About dialog and the update check cannot
+#: disagree about which project they are talking about.
+PROJECT_URL = _project_url
 
 DISCLAIMER_TITLE = "Disclaimer"
 
