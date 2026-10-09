@@ -214,8 +214,7 @@ final class HeadphoneCheckDialogController: NSWindowController, NSWindowDelegate
             self.report = HeadphoneDetector.withLRResult(result, in: self.report)
             self.refresh()
         }
-        dialog.showWindow(nil)
-        dialog.window?.center()
+        WindowKeeper.shared.show(dialog)
         dialog.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         return dialog.answer ?? report.lrTest

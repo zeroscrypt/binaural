@@ -355,7 +355,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         dialog.onApply = { [weak self] left, right in
             self?.controller?.applyFrequencyPair(leftHz: left, rightHz: right)
         }
-        dialog.showWindow(nil)
+        WindowKeeper.shared.show(dialog)
         dialog.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -365,8 +365,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The dialog gets the app's update coordinator, so its *Check for updates* button
         // and the launch check are one implementation of the flow.
         let dialog = AboutDialogController(coordinator: updateCoordinator)
-        dialog.showWindow(nil)
-        dialog.window?.center()
+        WindowKeeper.shared.show(dialog)
         dialog.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }

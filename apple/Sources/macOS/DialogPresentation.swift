@@ -40,6 +40,72 @@ final class ModalPresenter: Presenting {
     }
 }
 
+/// Keeps a non-modal dialog alive for as long as its window is on screen.
+///
+/// AppKit holds a control's target **weakly**. A controller that exists only in a local
+/// variable is deallocated the instant the method that created it returns — and every
+/// button in its window keeps its place, its caption and its layout, with a `nil` target.
+/// The dialog is on screen, translated, and answers nothing: no category chip, no Apply, no
+/// Close, no Escape. That is not a subtle degradation, it is the whole dialog.
+///
+/// ``ModalPresenter`` never saw it, because its nested event loop keeps the caller's local
+/// alive for the entire modal session. A dialog shown with `showWindow(_:)` and nothing
+/// else gets no such accident of scope — the reference, About and the L/R test inside the
+/// headphone check were all shown that way, and all three were dead on arrival.
+///
+/// A kept dialog is held until `NSWindow.willCloseNotification`, so one the user has
+/// finished with is not retained for the life of the process.
+@MainActor
+final class WindowKeeper {
+
+    static let shared = WindowKeeper()
+
+    private var kept: [ObjectIdentifier: NSWindowController] = [:]
+    private var observers: [ObjectIdentifier: NSObjectProtocol] = [:]
+
+    /// Show `controller`, centred, and hold it until its window closes.
+    func show(_ controller: NSWindowController) {
+        controller.showWindow(nil)
+        controller.window?.center()
+        keep(controller)
+    }
+
+    /// Hold `controller` until its window closes, without showing it.
+    ///
+    /// Separate from ``show(_:)`` because a test host cannot call `showWindow(_:)` — it
+    /// would run the real window server against the test runner and restart the whole
+    /// suite. `window` is read without showing, which is enough to make the window exist
+    /// and give the keeper something to observe.
+    func keep(_ controller: NSWindowController) {
+        guard let window = controller.window else { return }
+
+        let key = ObjectIdentifier(controller)
+        kept[key] = controller
+        guard observers[key] == nil else { return }
+        observers[key] = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: window, queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.kept[key] = nil
+            self.observers[key] = nil
+        }
+    }
+
+    /// How many dialogs are being kept right now — a test hook, and the quickest way to
+    /// see a keeper that never lets go.
+    var count: Int { kept.count }
+
+    /// Drop everything being held. A test case that does not do this leaks its dialog into
+    /// the next one.
+    func resetForTest() {
+        for token in observers.values {
+            NotificationCenter.default.removeObserver(token)
+        }
+        observers.removeAll()
+        kept.removeAll()
+    }
+}
+
 /// Ending a modal session — the one piece every dialog here needs.
 ///
 /// `NSApp.runModal(for:)` is a **nested event loop**, and closing its window from the

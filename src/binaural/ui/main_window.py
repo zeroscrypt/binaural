@@ -417,7 +417,16 @@ class MainWindow(QMainWindow):
             widget = item.widget()
             if widget is None:
                 continue
-            self._preset_group.removeButton(widget)
+            # No `removeButton` here, and that is deliberate.
+            #
+            # `QButtonGroup` already drops a button when the button is destroyed — it
+            # listens to the button, it does not own it — so removing it first is
+            # redundant work. It is also, on PySide6 with Python 3.10, a crash:
+            # `removeButton(w)` followed by `w.deleteLater()` corrupts shiboken's
+            # reference bookkeeping, and the interpreter dies during finalisation with
+            # `Fatal Python error: none_dealloc: deallocating None`, after every test has
+            # already passed. `deleteLater()` on its own does not. Deleting is enough:
+            # the group forgets the button on its own, one line later.
             widget.setParent(None)
             widget.deleteLater()
 

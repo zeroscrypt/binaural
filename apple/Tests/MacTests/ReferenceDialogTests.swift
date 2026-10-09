@@ -139,6 +139,54 @@ final class ReferenceDialogTests: XCTestCase {
         XCTAssertGreaterThan(sidebar.minY, disclaimerTop - 1, "and stays clear of the footer")
     }
 
+    /// Every button says what it does.
+    ///
+    /// The Apply buttons and the Close button were all built with `title: ""` and nothing
+    /// ever set one, so the results column was 110 blank grey rectangles and the corner of
+    /// the footer was a blank blue rectangle. A test that only checked the button's target,
+    /// its action and its `representedID` passed the whole time — the button was
+    /// perfectly wired and perfectly invisible.
+    func testEveryButtonSaysWhatItDoes() throws {
+        let (dialog, window) = try makeDialog()
+        defer { window.close() }
+
+        XCTAssertFalse(dialog.applyButtonTitles.isEmpty, "there are records on screen")
+        for title in dialog.applyButtonTitles {
+            XCTAssertEqual(title, "Apply", "every card offers the same, named action")
+        }
+        XCTAssertEqual(dialog.closeButtonTitle, "Close")
+    }
+
+    /// And they say it in the interface language — the captions are catalogue keys like
+    /// everything else (SPEC §7.4).
+    func testTheButtonsAreTranslated() throws {
+        let (dialog, window) = try makeDialog()
+        defer { window.close() }
+        defer { L10n.setLanguage("en") }
+
+        L10n.setLanguage("ru")
+        dialog.retranslate()
+        XCTAssertEqual(dialog.applyButtonTitles.first, "Применить")
+        XCTAssertEqual(dialog.closeButtonTitle, "Закрыть")
+    }
+
+    /// Apply sits at the card's right edge, not pressed against the record's name.
+    func testApplySitsAtTheRightOfTheCard() throws {
+        let (dialog, window) = try makeDialog()
+        defer { window.close() }
+
+        guard let button = dialog.applyButtons.first,
+              let card = button.superview?.superview
+        else { return XCTFail("the first record has no Apply button on screen") }
+
+        let cardFrame = frame(of: card, in: window)
+        let buttonFrame = frame(of: button, in: window)
+        XCTAssertGreaterThan(
+            buttonFrame.midX, cardFrame.midX,
+            "the action belongs on the right of the card, not beside the name"
+        )
+    }
+
     /// The disclaimer has to be on the screen. It is the one line of this dialog that
     /// says what the numbers are not, and it was being laid out at **0 pt** — present in
     /// the view tree, clipped to nothing.

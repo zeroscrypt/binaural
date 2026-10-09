@@ -44,6 +44,7 @@ final class ReferenceDialogController: NSWindowController {
     private let disclaimerView = NSView()
     private let disclaimerLabel = NSTextField(wrappingLabelWithString: "")
     private let disclaimerButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
+    private let closeButton = NSButton()
 
     private var categoryButtons: [String: NSButton] = [:]
     private var allCategoriesButton: NSButton?
@@ -162,12 +163,13 @@ final class ReferenceDialogController: NSWindowController {
         disclaimerButton.action = #selector(toggleDisclaimer)
         disclaimerButton.state = .on
 
-        let close = NSButton(title: "", target: self, action: #selector(closeDialog))
-        close.bezelStyle = .rounded
-        close.keyEquivalent = "\r"
-        close.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        closeButton.target = self
+        closeButton.action = #selector(closeDialog)
+        closeButton.bezelStyle = .rounded
+        closeButton.keyEquivalent = "\r"
+        closeButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
 
-        let footer = NSStackView(views: [resultLabel, NSView(), disclaimerButton, close])
+        let footer = NSStackView(views: [resultLabel, NSView(), disclaimerButton, closeButton])
         footer.orientation = .horizontal
         footer.spacing = 12
         footer.alignment = .centerY
@@ -456,7 +458,9 @@ final class ReferenceDialogController: NSWindowController {
 
     /// One record: title, frequency, Apply, effect, badge and source (SPEC §6.12).
     private func cardView(for entry: FrequencyEntry) -> NSView {
-        let applyButton = ChipButton(title: "", target: self, action: #selector(applyEntry(_:)))
+        let applyButton = ChipButton(
+            title: L10n.tr("Apply"), target: self, action: #selector(applyEntry(_:))
+        )
         applyButton.bezelStyle = .rounded
         applyButton.representedID = entry.id
         applyButton.toolTip = applyTooltip(for: entry)
@@ -466,7 +470,10 @@ final class ReferenceDialogController: NSWindowController {
         let title = NSTextField(labelWithString: entry.label)
         title.font = .systemFont(ofSize: 13, weight: .semibold)
 
-        let titleRow = NSStackView(views: [title, applyButton])
+        // The stretch puts Apply at the card's right edge: it is the action the card
+        // offers, not another word of its title, and next to the name it read as part of
+        // the sentence rather than as the way to take the record into the main window.
+        let titleRow = NSStackView(views: [title, NSView(), applyButton])
         titleRow.orientation = .horizontal
         titleRow.spacing = 12
         titleRow.alignment = .centerY
@@ -643,6 +650,15 @@ final class ReferenceDialogController: NSWindowController {
 
     var evidenceTitles: [String] { evidencePopup.itemArray.map(\.title) }
 
+    /// What the two buttons say. Both were built with an empty title and nothing ever
+    /// set one, which is why the dialog showed 110 blank rectangles and a blank blue
+    /// corner: there was nothing on them to read and nothing to aim at.
+    var applyButtonTitles: [String] {
+        applyButtons.map(\.title)
+    }
+
+    var closeButtonTitle: String { closeButton.title }
+
     var resultCountText: String { resultLabel.stringValue }
 
     var isDisclaimerVisible: Bool { !disclaimerView.isHidden }
@@ -678,6 +694,8 @@ final class ReferenceDialogController: NSWindowController {
             L10n.tr("Badges show how well a record is studied. Nothing is hidden by default.")
         )
         scrollView.setAccessibilityLabel(L10n.tr("Reference records"))
+        closeButton.title = L10n.tr("Close")
+        closeButton.setAccessibilityLabel(L10n.tr("Close the frequency reference"))
         disclaimerButton.title = L10n.tr(AboutContent.disclaimerTitle)
         disclaimerLabel.stringValue = AboutContent.disclaimerText()
         disclaimerLabel.setAccessibilityLabel(L10n.tr(AboutContent.disclaimerTitle))
