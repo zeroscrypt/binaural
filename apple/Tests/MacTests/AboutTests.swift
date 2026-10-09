@@ -293,4 +293,54 @@ final class AboutTests: XCTestCase {
         XCTAssertTrue(line.hasPrefix("Версия"), "the caption is translated: \(line)")
         L10n.setLanguage("en")
     }
+
+    // MARK: - Geometry
+
+    /// The dialog must lay out **readable**, and the way it failed was not a crash or a
+    /// missing string: the window came up as a ~16 pt wide vertical strip showing nothing
+    /// but its own scrollbar. Every other test here reads labels, so they all passed while
+    /// the dialog was unusable.
+    ///
+    /// So the layout is the assertion. It runs without `showWindow`: pumping the run loop to
+    /// let a real window appear took the whole test host down with it, and a forced layout
+    /// pass resolves exactly the same constraints — which is where the collapse lived.
+    func testTheDialogLaysOutReadable() throws {
+        let dialog = makeDialog()
+        let window = try XCTUnwrap(dialog.window)
+
+        // The window is created at its `contentRect`, so the content view already has the
+        // right size; one forced pass settles every constraint below it.
+        window.contentView?.layoutSubtreeIfNeeded()
+
+        XCTAssertGreaterThan(
+            window.frame.width, 400,
+            "the About window collapsed to a vertical strip — width \(Int(window.frame.width))"
+        )
+
+        // The scroll view has to be wide enough for the text inside it; a narrow scroll view
+        // is how the body lost its width. It sits inside the root stack, so the search walks.
+        func firstScrollView(in view: NSView) -> NSScrollView? {
+            if let scroll = view as? NSScrollView { return scroll }
+            for sub in view.subviews {
+                if let found = firstScrollView(in: sub) { return found }
+            }
+            return nil
+        }
+        let scroll = try XCTUnwrap(window.contentView.flatMap(firstScrollView(in:)))
+        XCTAssertGreaterThan(
+            scroll.frame.width, 300,
+            "the scroll view collapsed — width \(Int(scroll.frame.width))"
+        )
+
+        // The document has to be **taller** than the viewport: that is what scrolling *is*.
+        // Sized to the viewport instead, the body cannot fit and the whole layout collapses
+        // — which is the bug this dialog had, and the reason the width assertion above is
+        // here next to it rather than on its own.
+        let documentHeight = scroll.documentView?.frame.height ?? 0
+        XCTAssertGreaterThan(
+            documentHeight, scroll.contentView.bounds.height,
+            "the About body must overflow so the dialog scrolls"
+        )
+    }
+
 }

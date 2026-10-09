@@ -91,23 +91,43 @@ final class AboutDialogController: NSWindowController {
 
     private func buildContent() {
         body.orientation = .vertical
+        // The body is full of **wrapping** labels, and a wrapping label only wraps if
+        // something gives it a width — see ``fillWidth(_:)``, which is what pins them.
         body.alignment = .leading
         body.spacing = 16
         body.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 8, right: 12)
         body.translatesAutoresizingMaskIntoConstraints = false
 
         let document = NSView()
+        // Auto Layout, not autoresizing — and that is the whole fix for this dialog coming up
+        // as a 16 pt wide strip. Left on autoresizing, AppKit sized the document view to the
+        // clip view **in both directions**, so the body (four sections, the disclaimer, the
+        // licence) had to fit into one viewport's height. Auto Layout compressed it, the
+        // `Stack.Min` chain broke, and the width collapsed to the width of a scrollbar.
+        //
+        // The width is pinned to the clip view so the text wraps at the window's width; the
+        // **height is deliberately not pinned to anything**, because a document taller than
+        // the viewport is what scrolling *is*. No bottom constraint either — the document is
+        // exactly as tall as the body.
+        document.translatesAutoresizingMaskIntoConstraints = false
         document.addSubview(body)
-        // The document goes into the scroll view **before** the width constraint is
-        // activated: a constraint between two views that have no common ancestor is illegal,
-        // and `documentView` is what makes them related.
+        // The document goes into the scroll view **before** the constraints are
+        // activated: a constraint between two views that have no common ancestor is
+        // illegal, and `documentView` is what makes them related.
         scrollView.documentView = document
         NSLayoutConstraint.activate([
+            document.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
+            document.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
+            document.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor),
+            document.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
+            body.topAnchor.constraint(equalTo: document.topAnchor),
             body.leadingAnchor.constraint(equalTo: document.leadingAnchor),
             body.trailingAnchor.constraint(equalTo: document.trailingAnchor),
-            body.topAnchor.constraint(equalTo: document.topAnchor),
-            body.bottomAnchor.constraint(equalTo: document.bottomAnchor),
-            document.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor)
+            // The document is exactly as tall as the body — and that is what makes the
+            // scroll range non-zero. Pinning the body to the document's bottom is not the
+            // same as pinning the document to the viewport: the document stays free to grow
+            // past it, which is the whole point of a scrolling body.
+            body.bottomAnchor.constraint(equalTo: document.bottomAnchor)
         ])
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
@@ -176,6 +196,7 @@ final class AboutDialogController: NSWindowController {
         stack.alignment = .leading
         stack.spacing = 8
         stack.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+        fillWidth(stack)
         box.contentView = stack
         box.setAccessibilityLabel(L10n.tr("Disclaimer"))
         // The tooltip is the accessibility description of the whole dialog, which is what
@@ -184,6 +205,24 @@ final class AboutDialogController: NSWindowController {
             "Medical disclaimer — read it before using the application."
         )
         return box
+    }
+
+    /// Pin every arranged subview to the stack's own width.
+    ///
+    /// A vertical `NSStackView` hands its arranged subviews their **fitting** width, and the
+    /// fitting width of a wrapping `NSTextField` is the whole paragraph laid out on one line.
+    /// Left alone, every label in the About body asks for the width of the licence text, the
+    /// document outgrows the scroll view sideways and the layout resolves the contradiction by
+    /// squeezing everything — which is how the dialog came up as a 16 pt wide strip instead
+    /// of wrapping its text.
+    ///
+    /// Spelled out rather than left to an alignment value on purpose: `NSStackView`'s
+    /// cross-axis behaviour is not something to depend on for correctness.
+    private func fillWidth(_ stack: NSStackView) {
+        for view in stack.arrangedSubviews {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        }
     }
 
     /// One titled section of SPEC §7 item 6: a heading and its body lines.
@@ -202,10 +241,10 @@ final class AboutDialogController: NSWindowController {
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 6
-        // Autoresizing, not Auto Layout, like every other label in this dialog. An
-        // `NSStackView` has no intrinsic content size, so pinning it into constraints
-        // gives it an undetermined — in practice zero — height and the section renders
-        // as empty space. The parent `body` stack sizes it from its arranged subviews.
+        // Height comes from the parent `body` stack, which sizes its arranged subviews from
+        // their own content; only the width is imposed here, and that is the one thing the
+        // stack would otherwise get wrong for wrapping text.
+        fillWidth(stack)
         return stack
     }
 
@@ -245,6 +284,7 @@ final class AboutDialogController: NSWindowController {
         stack.alignment = .leading
         stack.spacing = 8
         stack.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+        fillWidth(stack)
         box.contentView = stack
         box.setAccessibilityLabel(L10n.tr("MIT License"))
         return box
@@ -373,6 +413,7 @@ final class AboutDialogController: NSWindowController {
         body.addArrangedSubview(disclaimerBox())
         body.addArrangedSubview(licenseBox())
         body.addArrangedSubview(NSView())
+        fillWidth(body)
     }
 
     // MARK: - State the tests read

@@ -241,6 +241,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         quitItem.keyEquivalent = "q"
         appMenu.addItem(quitItem)
         let appItem = NSMenuItem()
+        // A bare `NSMenuItem()` keeps its placeholder title, and the application menu is
+        // the one menu macOS shows under the app's own name — an untitled one made the bar
+        // read "NSMenuItem" instead of "Binaural".
+        appItem.title = L10n.tr("Binaural")
         appItem.submenu = appMenu
         main.addItem(appItem)
 
@@ -288,23 +292,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return main
     }
 
-    /// A translated menu title with its mnemonic marker in **AppKit's** spelling.
+    /// A translated menu title with the **catalogue's** mnemonic marker removed.
     ///
     /// The catalogues are shared with the Qt implementation, where `&` introduces the
-    /// mnemonic (`&View`); AppKit has no meaning for `&` at all and draws it literally, so
-    /// every title in this menu used to read `&View`, `&About`, `&Help` with a visible
-    /// ampersand. Rewriting the marker here, at the one boundary where a translated string
-    /// becomes a menu title, fixes it without touching the generated catalogue, which must
-    /// stay byte-identical to a run of `Tools/generate_russian_catalogue.py` (CONTRACT rule
-    /// 10's spirit: one catalogue, two products, no per-platform copy).
+    /// mnemonic (`&View`). AppKit has no meaning for `&` and draws it literally, so every
+    /// title in this menu used to read `&View`, `&About`, `&Help` with a visible ampersand.
+    /// The marker is dropped here, at the one boundary where a translated string becomes a
+    /// menu title, which leaves the generated catalogue — and the Qt app, which *does* read
+    /// `&` — untouched (CONTRACT rule 10's spirit: one catalogue, two products).
     ///
-    /// Every occurrence is rewritten, not just a leading one, so `Frequency &reference…`
-    /// becomes `Frequency _reference…`.
+    /// Dropped, not translated into AppKit's `_`: a mnemonic underlines the first letter,
+    /// which is a look nobody asked for here, and the menu is fully usable without one —
+    /// arrow keys and Ctrl-F2 reach every item.
     ///
     /// Internal rather than private so `MenuTests` can pin the rule directly; the app's own
     /// titles are asserted through the real `NSApp.mainMenu`.
     static func menuTitle(_ translated: String) -> String {
-        translated.replacingOccurrences(of: "&", with: "_")
+        translated.replacingOccurrences(of: "&", with: "")
     }
 
     private func languageDidChange() {

@@ -10,8 +10,10 @@ import XCTest
 /// The catalogue is shared with the Qt implementation, where `&` marks the mnemonic of a
 /// menu item (`&View`). **AppKit has no meaning for `&`**: it draws it literally, so every
 /// title in this menu used to read `&View`, `&Help`, `&About` with a visible ampersand.
-/// AppKit's own marker is `_`. ``AppDelegate/menuTitle(_:)`` rewrites it at the single
-/// boundary where a translated string becomes a menu title.
+/// ``AppDelegate/menuTitle(_:)`` strips it at the single boundary where a translated string
+/// becomes a menu title — and strips it rather than substituting AppKit's own `_` marker,
+/// because an underlined first letter is a look nobody asked for and the menu is fully
+/// usable without a mnemonic.
 ///
 /// The tests assert the titles of the real `NSApp.mainMenu`, which the app delegate built
 /// in `applicationWillFinishLaunching` — the menu a user actually clicks, not a
@@ -32,7 +34,7 @@ final class MenuTests: XCTestCase {
 
     // MARK: - Fixtures
 
-    /// Titles of a top-level menu, in bar order: `["Binaural", "_View", "_Help"]`.
+    /// Titles of a top-level menu, in bar order.
     private func topLevelTitles() -> [String] {
         (NSApp.mainMenu?.items ?? []).map(\.title)
     }
@@ -54,28 +56,31 @@ final class MenuTests: XCTestCase {
         let offenders = allTitles().filter { $0.contains("&") }
         XCTAssertTrue(
             offenders.isEmpty,
-            "a literal '&' in a menu title — AppKit spells the mnemonic '_':\n"
-                + offenders.joined(separator: "\n")
+            "a literal '&' in a menu title:\n" + offenders.joined(separator: "\n")
         )
     }
 
-    /// …and the mnemonic is not merely deleted: it is AppKit's marker, on the right letter.
-    func testTheMnemonicIsAppKitsUnderscore() {
-        XCTAssertTrue(topLevelTitles().contains("_View"), "\(topLevelTitles())")
-        XCTAssertTrue(topLevelTitles().contains("_Help"), "\(topLevelTitles())")
+    /// …and no title carries AppKit's mnemonic marker either. The marker is **removed**,
+    /// not substituted: an underlined first letter is not what this menu should look like.
+    func testNoMenuTitleCarriesAMnemonicMarker() {
+        let offenders = allTitles().filter { $0.hasPrefix("_") || $0.contains(" _") }
+        XCTAssertTrue(
+            offenders.isEmpty,
+            "an AppKit mnemonic marker in a menu title:\n" + offenders.joined(separator: "\n")
+        )
     }
 
     /// The menu keeps its shape: the application menu, *View* and *Help*, with *Language*
     /// under *View* and the three §7 dialogs under *Help*.
     func testTheMenuHasTheThreeTopLevelMenus() {
-        XCTAssertEqual(topLevelTitles().count, 3, "\(topLevelTitles())")
+        XCTAssertEqual(topLevelTitles(), ["Binaural", "View", "Help"])
         let view = NSApp.mainMenu?.items[1].submenu
         XCTAssertEqual(view?.items.first?.title, "Language")
         let help = NSApp.mainMenu?.items[2].submenu
         let helpTitles = help?.items.map(\.title) ?? []
-        XCTAssertTrue(helpTitles.contains("Frequency _reference…"), "\(helpTitles)")
-        XCTAssertTrue(helpTitles.contains("_Check headphones…"), "\(helpTitles)")
-        XCTAssertTrue(helpTitles.contains("_About"), "\(helpTitles)")
+        XCTAssertTrue(helpTitles.contains("Frequency reference…"), "\(helpTitles)")
+        XCTAssertTrue(helpTitles.contains("Check headphones…"), "\(helpTitles)")
+        XCTAssertTrue(helpTitles.contains("About"), "\(helpTitles)")
     }
 
     /// The application menu is where macOS puts Settings: `Cmd-,` plus Quit.
@@ -89,37 +94,39 @@ final class MenuTests: XCTestCase {
 
     // MARK: - Both languages
 
-    /// The marker is rewritten after translation, so the Russian titles carry it too —
-    /// `&` → `_` applies to `&Справка` just as it does to `&Help`.
-    func testTheRussianTitlesCarryTheAppKitMnemonicAndNoAmpersand() {
+    /// The marker is stripped after translation, so the Russian titles come out clean too —
+    /// `&Справка` reads `Справка`, exactly as `&Help` reads `Help`.
+    func testTheRussianTitlesCarryNoMarkerEither() {
         L10n.setLanguage("ru")
         let titles = topLevelTitles()
-        XCTAssertTrue(titles.contains("_Вид"), "\(titles)")
-        XCTAssertTrue(titles.contains("_Справка"), "\(titles)")
-        let offenders = allTitles().filter { $0.contains("&") }
+        XCTAssertTrue(titles.contains("Вид"), "\(titles)")
+        XCTAssertTrue(titles.contains("Справка"), "\(titles)")
+        let offenders = allTitles().filter { $0.contains("&") || $0.contains("_") }
         XCTAssertTrue(offenders.isEmpty, offenders.joined(separator: "\n"))
     }
 
-    /// A language switch re-reads every title, mnemonic included: `retranslateMenus()` runs
-    /// through the same helper, so the marker cannot survive in one language only.
-    func testSwitchingLanguageRewritesTheMnemonicToo() {
+    /// A language switch re-reads every title: `retranslateMenus()` runs through the same
+    /// helper, so the marker cannot survive in one language only.
+    func testSwitchingLanguageKeepsTheTitlesClean() {
         L10n.setLanguage("ru")
         L10n.setLanguage("en")
-        XCTAssertTrue(topLevelTitles().contains("_View"), "\(topLevelTitles())")
+        XCTAssertEqual(topLevelTitles(), ["Binaural", "View", "Help"])
     }
 
-    /// The helper itself, including the rule that matters: `&` is replaced **everywhere**,
-    /// not only at the front.
-    func testTheHelperRewritesEveryMarker() {
-        XCTAssertEqual(AppDelegate.menuTitle("&View"), "_View")
-        XCTAssertEqual(AppDelegate.menuTitle("Frequency &reference…"), "Frequency _reference…")
-        XCTAssertEqual(AppDelegate.menuTitle("Quit"), "Quit")
-        XCTAssertEqual(AppDelegate.menuTitle("Settings…"), "Settings…")
+    // MARK: - The helper itself
+
+    /// Every occurrence is stripped, not only a leading one — the marker sits mid-word in
+    /// `Frequency &reference…`.
+    func testTheHelperStripsEveryMarker() {
+        XCTAssertEqual(AppDelegate.menuTitle("&View"), "View")
+        XCTAssertEqual(AppDelegate.menuTitle("Frequency &reference…"), "Frequency reference…")
+        XCTAssertEqual(AppDelegate.menuTitle("&Check headphones…"), "Check headphones…")
+        XCTAssertEqual(AppDelegate.menuTitle("&О программе"), "О программе")
     }
 
-    /// A title with no marker passes through untouched — a plain caption must not gain one.
+    /// A title with no marker passes through untouched.
     func testATitleWithoutAMarkerIsUnchanged() {
-        for key in ["Play", "Stop", "Volume", "Language", "Binaural"] {
+        for key in ["Play", "Stop", "Volume", "Language", "Binaural", "Quit"] {
             XCTAssertEqual(AppDelegate.menuTitle(key), key)
         }
     }

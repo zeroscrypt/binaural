@@ -152,7 +152,11 @@ final class SettingsDialogController: NSWindowController, NSWindowDelegate {
             stack.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             stack.topAnchor.constraint(equalTo: content.topAnchor),
             stack.bottomAnchor.constraint(equalTo: content.bottomAnchor),
-            stack.widthAnchor.constraint(equalTo: content.widthAnchor, constant: -40),
+            // No width constraint here on purpose: pinning both edges already fixes the
+            // width to `content.width`, and asking for `content.width - 40` as well was
+            // unsatisfiable — Auto Layout broke one of the two at random, which is how the
+            // dialog could come up as a narrow column. The 20 pt `edgeInsets` above are
+            // what insets the rows from the edges.
             // SPEC §7.2: 44 px minimum click target.
             languagePopup.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             timerPopup.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
