@@ -254,7 +254,9 @@ final class PresetBarView: NSView {
 
         isSyncing = true
         for (id, button) in categoryButtons {
-            button.state = id == wanted ? .on : .off
+            let selected = id == wanted
+            button.state = selected ? .on : .off
+            button.contentTintColor = selected ? .controlAccentColor : .labelColor
         }
         isSyncing = false
 
@@ -274,7 +276,25 @@ final class PresetBarView: NSView {
 
     private func markSelectedPreset() {
         for button in presetButtons {
-            button.state = button.representedID == lastPresetID ? .on : .off
+            let selected = button.representedID == lastPresetID
+            button.state = selected ? .on : .off
+            // `state = .on` alone was too quiet to read: a toggle chip at rest and a toggle
+            // chip that is on differ by a hairline, which is not enough to answer "which
+            // preset produced these frequencies?" at a glance. The selected chip is filled
+            // with the accent colour instead, so the answer is a colour rather than a
+            // border. Colour is never the only carrier — `state` stays on, so VoiceOver and
+            // the focus ring still report it (SPEC §7.2).
+            button.contentTintColor = selected ? .controlAccentColor : .labelColor
+            button.font = selected
+                ? .systemFont(ofSize: 13, weight: .semibold)
+                : .systemFont(ofSize: 13)
+        }
+        // The category row reads the same way, so "which category am I in" is answerable
+        // without counting rows.
+        for (id, button) in categoryButtons {
+            let selected = id == selectedCategoryID
+            button.state = selected ? .on : .off
+            button.contentTintColor = selected ? .controlAccentColor : .labelColor
         }
     }
 
@@ -315,7 +335,41 @@ final class PresetBarView: NSView {
         return true
     }
 
-    // MARK: - State the tests read
+    // MARK: - What the tests read
+
+    /// The tint of the chip standing for `presetID`, and of every other chip, so the
+    /// selected one can be told apart **by colour** and not only by a toggle border.
+    ///
+    /// `state` is what VoiceOver and the focus ring report, and it is enough for a test to
+    /// pass while the user still cannot see it — so these assertions are about the colour
+    /// specifically: `markSelectedPreset` must actually change it.
+    func presetTint(for presetID: String) -> NSColor? {
+        presetButtons.first { $0.representedID == presetID }?.contentTintColor
+    }
+
+    var anyOtherPresetTint: NSColor? {
+        presetButtons.first { $0.representedID != lastPresetID }?.contentTintColor
+    }
+
+    func categoryTint(for categoryID: String) -> NSColor? {
+        categoryButtons[categoryID]?.contentTintColor
+    }
+
+    /// The ids of the presets in the selected category, in registry order — what the
+    /// selection tests address chips by.
+    var presetIDs: [String] {
+        presetButtons.compactMap(\.representedID)
+    }
+
+    /// Whether a chip is toggled on, which is what VoiceOver and the focus ring report —
+    /// the non-colour half of the selection.
+    func isPresetMarkedAsOn(_ presetID: String) -> Bool {
+        presetButtons.first { $0.representedID == presetID }?.state == .on
+    }
+
+    var anyOtherCategoryTint: NSColor? {
+        categoryButtons.first { $0.key != selectedCategoryID }?.value.contentTintColor
+    }
 
     /// The preset chips on screen, as captions — "what the user can pick right now".
     var visiblePresetTitles: [String] { presetButtons.map(\.title) }

@@ -340,6 +340,80 @@ final class PresetBarTests: XCTestCase {
         window.contentView?.layoutSubtreeIfNeeded()
         window.contentView?.displayIfNeeded()
     }
+
+    // MARK: - The selection is visible (colour, not only a toggle border)
+
+    /// Picking a preset must change the chip's **colour**.
+    ///
+    /// `state = .on` alone was passing every test and answering the user's question only
+    /// with a hairline: "which preset produced these frequencies?" was not answerable at a
+    /// glance. Colour is asserted directly here, so a chip that stays grey while its toggle
+    /// state says "on" fails.
+    func testTheSelectedPresetIsMarkedByColour() throws {
+        let (controller, _) = try makeWindowedController()
+        let bar = controller.presetBarControl
+        defer { controller.tearDown() }
+        let first = bar.presetIDs.first ?? ""
+        let second = bar.presetIDs.dropFirst().first ?? ""
+        // Nothing is selected yet, so every chip is plain — and that is what the next
+        // assertion is measured against, not the fact that two chips match.
+        XCTAssertNotEqual(bar.presetTint(for: first), .controlAccentColor, "nothing selected yet")
+
+        XCTAssertTrue(bar.tapPreset(id: first))
+        XCTAssertEqual(
+            bar.presetTint(for: first), .controlAccentColor,
+            "the applied preset is the accent colour"
+        )
+        XCTAssertNotEqual(
+            bar.presetTint(for: second), .controlAccentColor,
+            "the others are not"
+        )
+    }
+
+    /// The selection follows a preset that produced the frequencies, and clears when the
+    /// user moves a control and the answer is no longer a preset.
+    func testTheColourFollowsMarkAndClears() throws {
+        let (controller, _) = try makeWindowedController()
+        let bar = controller.presetBarControl
+        defer { controller.tearDown() }
+        let id = bar.presetIDs.first ?? ""
+
+        bar.markPreset(id)
+        XCTAssertEqual(bar.presetTint(for: id), .controlAccentColor)
+
+        bar.markPreset(nil)
+        XCTAssertNotEqual(
+            bar.presetTint(for: id), .controlAccentColor,
+            "no preset is driving the frequencies any more, so none is highlighted"
+        )
+    }
+
+    /// The category row reads the same way, so "which category am I in" needs no counting.
+    func testTheSelectedCategoryIsMarkedByColour() throws {
+        let (controller, _) = try makeWindowedController()
+        let bar = controller.presetBarControl
+        defer { controller.tearDown() }
+        let categories = PresetCatalogue.categories.map(\.id)
+        guard categories.count > 1 else { return XCTFail("the registry has one category") }
+
+        bar.select(categoryID: categories[1])
+        XCTAssertEqual(bar.categoryTint(for: categories[1]), .controlAccentColor)
+        XCTAssertNotEqual(bar.categoryTint(for: categories[0]), .controlAccentColor)
+    }
+
+    /// Colour is never the only carrier (SPEC §7.2): the toggle state still says it, so
+    /// VoiceOver and the focus ring report the selection without seeing the colour.
+    func testColourIsNotTheOnlySignal() throws {
+        let (controller, _) = try makeWindowedController()
+        let bar = controller.presetBarControl
+        defer { controller.tearDown() }
+        let id = bar.presetIDs.first ?? ""
+        XCTAssertTrue(bar.tapPreset(id: id))
+        XCTAssertTrue(
+            bar.isPresetMarkedAsOn(id),
+            "the chip is still toggled on: the colour does not replace the state"
+        )
+    }
 }
 
 

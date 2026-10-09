@@ -156,7 +156,18 @@ final class MainWindowController: NSWindowController {
         headphoneCheckButton.action = #selector(headphoneCheckTapped)
         headphoneCheckButton.bezelStyle = .rounded
 
-        let statusRow = NSStackView(views: [indicator, NSView(), headphoneCheckButton])
+        // The language control lives on the top row, next to the app name and the headphone
+        // state — it is a property of the window as a whole, not a transport control, and
+        // it is the one thing a new user has to find before they can read anything else.
+        languageCaptionLabel.font = .systemFont(ofSize: 13)
+        languagePopup.controlSize = .regular
+        languagePopup.font = .systemFont(ofSize: 13)
+        languagePopup.target = self
+        languagePopup.action = #selector(languageSelected)
+
+        let statusRow = NSStackView(views: [
+            indicator, NSView(), languageCaptionLabel, languagePopup, headphoneCheckButton
+        ])
         statusRow.orientation = .horizontal
         statusRow.alignment = .centerY
         statusRow.spacing = 8
@@ -202,18 +213,7 @@ final class MainWindowController: NSWindowController {
         // The timer sits under the transport rather than inside it: it has its own
         // caption, a popup and a countdown, and SPEC §7 gives the transport row Play,
         // volume and mute.
-        languageCaptionLabel.font = .systemFont(ofSize: 13)
-        languagePopup.controlSize = .regular
-        languagePopup.font = .systemFont(ofSize: 13)
-        languagePopup.target = self
-        languagePopup.action = #selector(languageSelected)
-
-        // Timer on the left, language on the right: both are "which language do you work
-        // in / how long" choices rather than transport controls, and neither belongs in the
-        // middle of Play–volume–mute.
-        let timerRow = NSStackView(views: [
-            timerView, NSView(), languageCaptionLabel, languagePopup
-        ])
+        let timerRow = NSStackView(views: [timerView, NSView()])
         timerRow.orientation = .horizontal
         timerRow.alignment = .centerY
         timerRow.spacing = 12
