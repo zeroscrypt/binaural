@@ -249,6 +249,14 @@ final class HeadphoneCheckDialogController: NSWindowController, NSWindowDelegate
         continueAnyway()
     }
 
+    /// Escape is *Continue anyway* here, exactly as the red close button is: §4.3 never
+    /// blocks, so a dismissal must not be something the user has to hunt for. See
+    /// ``AboutDialogController/cancelOperation(_:)`` for why this is an override and not a
+    /// key equivalent on the button.
+    override func cancelOperation(_ sender: Any?) {
+        continueAnyway()
+    }
+
     // MARK: - Refresh
 
     private func refresh() {

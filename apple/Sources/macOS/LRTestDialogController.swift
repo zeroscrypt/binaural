@@ -226,6 +226,14 @@ final class LRTestDialogController: NSWindowController, NSWindowDelegate {
         return true
     }
 
+    /// Escape closes the test — SPEC §7.2's Escape-to-close. The Close button already
+    /// carries the Escape key equivalent; this makes it work when focus is not on that
+    /// button, which is most of the time once an answer panel is showing. See
+    /// ``AboutDialogController/cancelOperation(_:)`` for the mechanism.
+    override func cancelOperation(_ sender: Any?) {
+        cancel()
+    }
+
     private func finish(_ result: LRTestResult) {
         guard !isFinished else { return }
         isFinished = true

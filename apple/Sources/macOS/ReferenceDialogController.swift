@@ -106,8 +106,14 @@ final class ReferenceDialogController: NSWindowController {
         sidebarScroll.hasVerticalScroller = true
         sidebarScroll.drawsBackground = false
         sidebarScroll.translatesAutoresizingMaskIntoConstraints = false
+        // The sidebar's width has to be constrained **inside** `body`, not before it: the
+        // width constraint below compared a stack that had no common ancestor with this one,
+        // and AppKit refuses to activate such a constraint — it raised
+        // `NSGenericException` the moment the dialog was built, which is why opening the
+        // reference could fail outright rather than merely lay out oddly. The fixed width
+        // moves down to where both views exist together.
         NSLayoutConstraint.activate([
-            sidebarScroll.widthAnchor.constraint(equalToConstant: 240)
+            sidebar.widthAnchor.constraint(equalTo: sidebarScroll.contentView.widthAnchor)
         ])
 
         let body = NSStackView(views: [sidebarScroll, scrollView])
@@ -163,10 +169,13 @@ final class ReferenceDialogController: NSWindowController {
             root.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             root.topAnchor.constraint(equalTo: content.topAnchor),
             root.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+            // `root` has 20 pt edge insets on each side, so what is left between them is
+            // its width minus 40 — every row below is sized from that, not from the full
+            // width, which is what left them overlapping the insets.
             searchRow.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -40),
             body.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -40),
             body.heightAnchor.constraint(greaterThanOrEqualToConstant: 240),
-            scrollView.widthAnchor.constraint(greaterThanOrEqualToConstant: 380),
+            sidebarScroll.widthAnchor.constraint(equalToConstant: 240),
             footer.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -40),
             disclaimerBox.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -40)
         ])
@@ -194,6 +203,11 @@ final class ReferenceDialogController: NSWindowController {
         disclaimerBox.contentView = stack
 
         if let content = disclaimerBox.contentView {
+            // Pinned to the box rather than sized by it: `NSBox` lays its content view out
+            // by autoresizing, so switching the stack to Auto Layout is what makes these
+            // constraints meaningful — and it keeps the stack from asking for the width of
+            // its wrapping text, which is how the disclaimer came out 4601 pt wide once.
+            stack.translatesAutoresizingMaskIntoConstraints = false
             NSLayoutConstraint.activate([
                 stack.leadingAnchor.constraint(equalTo: content.leadingAnchor),
                 stack.trailingAnchor.constraint(equalTo: content.trailingAnchor),
@@ -346,6 +360,8 @@ final class ReferenceDialogController: NSWindowController {
             }
         }
         resultsStack.addArrangedSubview(NSView())   // the trailing stretch
+        // Cards only after they are in the column — see ``sizeCards(in:)``.
+        sizeCards(in: resultsStack)
         updateResultCount(shown: entries.count)
     }
 
@@ -415,11 +431,25 @@ final class ReferenceDialogController: NSWindowController {
         stack.layer?.borderWidth = 1
         stack.layer?.borderColor = NSColor.separatorColor.cgColor
         stack.setAccessibilityLabel(entry.label)
-        stack.widthAnchor.constraint(
-            equalTo: resultsStack.widthAnchor,
-            constant: -(stack.edgeInsets.left + stack.edgeInsets.right)
-        ).isActive = true
         return stack
+    }
+
+    /// Width of every card in the results column.
+    ///
+    /// The card stacks are built by ``cardView(for:)`` **before** they are added to
+    /// `resultsStack`, so a card cannot pin itself to that stack's width: the two have no
+    /// common ancestor yet, and AppKit refuses to activate such a constraint outright —
+    /// `NSGenericException`, and the reference dialog would not open at all. The cards are
+    /// therefore sized once they are in place, from the same edge-inset arithmetic the card
+    /// used to do for itself.
+    private func sizeCards(in stack: NSStackView) {
+        for card in stack.arrangedSubviews {
+            card.translatesAutoresizingMaskIntoConstraints = false
+            card.widthAnchor.constraint(
+                equalTo: stack.widthAnchor,
+                constant: -(stack.edgeInsets.left + stack.edgeInsets.right)
+            ).isActive = true
+        }
     }
 
     private func carrierHint(for entry: FrequencyEntry) -> String {
@@ -471,6 +501,13 @@ final class ReferenceDialogController: NSWindowController {
 
     @objc private func closeDialog() {
         close()
+    }
+
+    /// Escape closes the reference — SPEC §7.2's Escape-to-close. See
+    /// ``AboutDialogController/cancelOperation(_:)`` for why this is an override and not a
+    /// key equivalent on the Close button.
+    override func cancelOperation(_ sender: Any?) {
+        closeDialog()
     }
 
     // MARK: - State the tests read

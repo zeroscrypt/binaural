@@ -242,6 +242,22 @@ class LrTestSequence(QObject):
         self._gap_ms = max(1, int(gap_seconds * 1000))
         self._step = STEP_IDLE
         self._result: LrTestResult | None = None
+        # One owned timer rather than three `QTimer.singleShot` calls.
+        #
+        # `singleShot` with a bound method registers a connection that outlives the object
+        # it points at: when the dialog closes while a tone is still pending, the receiver
+        # is destroyed with it and shiboken aborts the whole interpreter with
+        # `Fatal Python error: none_dealloc: deallocating None` — a hard crash of `pytest`,
+        # not a test failure, and one that only showed up on Python 3.10.
+        #
+        # A `QTimer` parented to this object has no such problem: it is a child, so Qt
+        # destroys it with its parent, and ``stop()`` cancels what is pending in the normal
+        # case, long before that happens.
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self._on_timeout)
+        #: What ``_on_timeout`` should call, set by whichever step armed the timer.
+        self._pending: object | None = None
 
     # -- state --------------------------------------------------------------
 
@@ -259,6 +275,18 @@ class LrTestSequence(QObject):
 
     # -- flow ---------------------------------------------------------------
 
+    def _arm(self, delay_ms: int, callback: object) -> None:
+        """Fire ``callback`` after ``delay_ms``, replacing any pending one."""
+        self._timer.stop()
+        self._pending = callback
+        self._timer.start(delay_ms)
+
+    def _on_timeout(self) -> None:
+        callback = self._pending
+        self._pending = None
+        if callable(callback):
+            callback()
+
     def begin(self) -> None:
         """Starts the sequence: left tone, pause, right tone, then the question."""
         if self._step not in (STEP_IDLE, STEP_ANSWER):
@@ -266,21 +294,21 @@ class LrTestSequence(QObject):
         self._result = None
         self._goto(STEP_LEFT)
         self._player.play_left(self._freq_hz, self._tone_ms / 1000.0)
-        QTimer.singleShot(self._tone_ms, self._after_left)
+        self._arm(self._tone_ms, self._after_left)
 
     def _after_left(self) -> None:
         if self._step not in (STEP_LEFT,):
             return
         self._goto(STEP_PAUSE)
         self._player.stop()
-        QTimer.singleShot(self._gap_ms, self._after_pause)
+        self._arm(self._gap_ms, self._after_pause)
 
     def _after_pause(self) -> None:
         if self._step not in (STEP_PAUSE,):
             return
         self._goto(STEP_RIGHT)
         self._player.play_right(self._freq_hz, self._tone_ms / 1000.0)
-        QTimer.singleShot(self._tone_ms, self._ask)
+        self._arm(self._tone_ms, self._ask)
 
     def _ask(self) -> None:
         if self._step not in (STEP_RIGHT,):
@@ -300,12 +328,19 @@ class LrTestSequence(QObject):
             except ValueError:
                 result = LrTestResult.INDETERMINATE
         self._result = result
+        self._timer.stop()
+        self._pending = None
         self._player.stop()
         self._goto(STEP_IDLE)
         self.finished.emit(result)
 
     def stop(self) -> None:
         """Aborts playback and returns to the idle step."""
+        # Cancel what is pending first: the next scheduled step would otherwise fire into a
+        # sequence that has already been stopped, and a timer left running past this point is
+        # the thing that used to abort the interpreter when its owner was destroyed.
+        self._timer.stop()
+        self._pending = None
         self._player.stop()
         self._goto(STEP_IDLE)
 

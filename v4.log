@@ -1,0 +1,104 @@
+qt.multimedia.symbolsresolver: Couldn't load pipewire-0.3 library
+qt.multimedia.symbolsresolver: Couldn't resolve pipewire-0.3 symbols
+....................This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.........This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+..This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+...................This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+....................This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.sThis plugin does not support propagateSizeHints()
+..This plugin does not support propagateSizeHints()
+.This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+.......................................................No QtMultimedia backends found. Only QMediaDevices, QAudioDevice, QSoundEffect, QAudioSink, and QAudioSource are available.
+PulseAudioService: pa_context_connect() failed
+ssssssss.................................................Fatal Python error: none_dealloc: deallocating None
+Python runtime state: initialized
+
+Current thread 0x0000ed14944ac4c0 (most recent call first):
+  File "/w/src/binaural/ui/widgets/freq_control.py", line 308 in setCaption
+  File "/w/src/binaural/ui/widgets/freq_control.py", line 323 in retranslate
+  File "/w/src/binaural/ui/main_window.py", line 625 in retranslate
+  File "/w/src/binaural/ui/main_window.py", line 609 in _on_language_changed
+  File "/w/src/binaural/i18n.py", line 118 in set_language
+  File "/w/tests/test_i18n.py", line 51 in isolated_language
+  File "/usr/local/lib/python3.10/site-packages/_pytest/fixtures.py", line 1014 in _teardown_yield_fixture
+  File "/usr/local/lib/python3.10/site-packages/_pytest/fixtures.py", line 1156 in finish
+  File "/usr/local/lib/python3.10/site-packages/_pytest/runner.py", line 568 in teardown_exact
+  File "/usr/local/lib/python3.10/site-packages/_pytest/runner.py", line 199 in pytest_runtest_teardown
+  File "/usr/local/lib/python3.10/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/usr/local/lib/python3.10/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/usr/local/lib/python3.10/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/usr/local/lib/python3.10/site-packages/_pytest/runner.py", line 250 in <lambda>
+  File "/usr/local/lib/python3.10/site-packages/_pytest/runner.py", line 361 in from_call
+  File "/usr/local/lib/python3.10/site-packages/_pytest/runner.py", line 249 in call_and_report
+  File "/usr/local/lib/python3.10/site-packages/_pytest/runner.py", line 144 in runtestprotocol
+  File "/usr/local/lib/python3.10/site-packages/_pytest/runner.py", line 118 in pytest_runtest_protocol
+  File "/usr/local/lib/python3.10/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/usr/local/lib/python3.10/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/usr/local/lib/python3.10/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/usr/local/lib/python3.10/site-packages/_pytest/main.py", line 408 in pytest_runtestloop
+  File "/usr/local/lib/python3.10/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/usr/local/lib/python3.10/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/usr/local/lib/python3.10/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/usr/local/lib/python3.10/site-packages/_pytest/main.py", line 384 in _main
+  File "/usr/local/lib/python3.10/site-packages/_pytest/main.py", line 330 in wrap_session
+  File "/usr/local/lib/python3.10/site-packages/_pytest/main.py", line 377 in pytest_cmdline_main
+  File "/usr/local/lib/python3.10/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/usr/local/lib/python3.10/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/usr/local/lib/python3.10/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/usr/local/lib/python3.10/site-packages/_pytest/config/__init__.py", line 229 in _main
+  File "/usr/local/lib/python3.10/site-packages/_pytest/config/__init__.py", line 253 in _console_main
+  File "/usr/local/lib/python3.10/site-packages/pytest/__main__.py", line 9 in <module>
+  File "/usr/local/lib/python3.10/runpy.py", line 86 in _run_code
+  File "/usr/local/lib/python3.10/runpy.py", line 196 in _run_module_as_main
+
+Extension modules: shiboken6.Shiboken, PySide6.QtCore, PySide6.QtGui, PySide6.QtWidgets, PySide6.QtNetwork, PySide6.QtMultimedia, PySide6.QtTest (total: 7)

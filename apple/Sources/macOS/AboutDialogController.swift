@@ -323,6 +323,15 @@ final class AboutDialogController: NSWindowController {
         close()
     }
 
+    /// Escape closes the dialog, as SPEC §7.2 asks of every dialog. Only the L/R test had a
+    /// key equivalent for it, and a `keyEquivalent` can only be one character — Escape and
+    /// Return are two different chords and a button can carry one of them. `cancelOperation`
+    /// is where AppKit sends Escape, so this is the place that covers the whole dialog
+    /// rather than one control on it.
+    override func cancelOperation(_ sender: Any?) {
+        closeTapped()
+    }
+
     /// *Check for updates* — the same check the app runs at launch, on request.
     @objc private func checkForUpdatesTapped() {
         Task { await coordinator.checkFromAbout() }

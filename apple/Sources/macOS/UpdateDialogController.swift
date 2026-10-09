@@ -125,6 +125,14 @@ final class UpdateDialogController: NSWindowController {
         endModalSessionAndClose()
     }
 
+    /// Escape means "not now", the same as *Later* — SPEC §7.2's Escape-to-close, and the
+    /// update flow is the one place where it matters most, since the dialog appears on its
+    /// own at launch. See ``AboutDialogController/cancelOperation(_:)`` for why this is an
+    /// override rather than a key equivalent.
+    override func cancelOperation(_ sender: Any?) {
+        dismissTapped()
+    }
+
     @objc private func releasePageTapped() {
         guard case .updateAvailable(let release) = mode,
               let url = release.htmlURL else { return }
