@@ -46,7 +46,7 @@ targets:
         DEFINES_MODULE: YES
         SKIP_INSTALL: YES
         DYLIB_INSTALL_NAME_BASE: "@rpath"
-        MARKETING_VERSION: "0.2.3"
+        MARKETING_VERSION: "0.2.4"
         CURRENT_PROJECT_VERSION: "1"
 
   # ------------------------------------------------------------- unit tests ---
@@ -110,7 +110,7 @@ targets:
         PRODUCT_NAME: Binaural
         PRODUCT_BUNDLE_IDENTIFIER: app.binaural.mac
         GENERATE_INFOPLIST_FILE: YES
-        MARKETING_VERSION: "0.2.3"
+        MARKETING_VERSION: "0.2.4"
         CURRENT_PROJECT_VERSION: "1"
         COMBINE_HIDPI_IMAGES: YES
         ENABLE_HARDENED_RUNTIME: NO
@@ -135,7 +135,7 @@ targets:
         PRODUCT_NAME: Binaural-iOS
         PRODUCT_BUNDLE_IDENTIFIER: app.binaural.ios
         GENERATE_INFOPLIST_FILE: YES
-        MARKETING_VERSION: "0.2.3"
+        MARKETING_VERSION: "0.2.4"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1,2"
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
