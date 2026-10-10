@@ -203,7 +203,7 @@ final class PresetBarTests: XCTestCase {
         L10n.setLanguage("ru")
         XCTAssertEqual(controller.presetCategoryTitles,
                        ["Сон", "Медитация", "Расслабление", "Ясность",
-                        "Сосредоточенность", "Работа", "Спорт"])
+                        "Концентрация", "Работа", "Спорт"])
         XCTAssertEqual(controller.visiblePresetTitles, ["Альфа 8", "Альфа 9", "Альфа 10"])
 
         L10n.setLanguage("en")
@@ -357,15 +357,15 @@ final class PresetBarTests: XCTestCase {
         let second = bar.presetIDs.dropFirst().first ?? ""
         // Nothing is selected yet, so every chip is plain — and that is what the next
         // assertion is measured against, not the fact that two chips match.
-        XCTAssertNotEqual(bar.presetTint(for: first), .controlAccentColor, "nothing selected yet")
+        XCTAssertFalse(bar.isPresetSelected(first), "nothing selected yet")
 
         XCTAssertTrue(bar.tapPreset(id: first))
-        XCTAssertEqual(
-            bar.presetTint(for: first), .controlAccentColor,
-            "the applied preset is the accent colour"
+        XCTAssertTrue(
+            bar.isPresetSelected(first),
+            "the applied preset is the one carrying the accent fill"
         )
-        XCTAssertNotEqual(
-            bar.presetTint(for: second), .controlAccentColor,
+        XCTAssertFalse(
+            bar.isPresetSelected(second),
             "the others are not"
         )
     }
@@ -379,11 +379,11 @@ final class PresetBarTests: XCTestCase {
         let id = bar.presetIDs.first ?? ""
 
         bar.markPreset(id)
-        XCTAssertEqual(bar.presetTint(for: id), .controlAccentColor)
+        XCTAssertTrue(bar.isPresetSelected(id))
 
         bar.markPreset(nil)
-        XCTAssertNotEqual(
-            bar.presetTint(for: id), .controlAccentColor,
+        XCTAssertFalse(
+            bar.isPresetSelected(id),
             "no preset is driving the frequencies any more, so none is highlighted"
         )
     }
@@ -397,8 +397,8 @@ final class PresetBarTests: XCTestCase {
         guard categories.count > 1 else { return XCTFail("the registry has one category") }
 
         bar.select(categoryID: categories[1])
-        XCTAssertEqual(bar.categoryTint(for: categories[1]), .controlAccentColor)
-        XCTAssertNotEqual(bar.categoryTint(for: categories[0]), .controlAccentColor)
+        XCTAssertTrue(bar.isCategorySelected(categories[1]))
+        XCTAssertFalse(bar.isCategorySelected(categories[0]))
     }
 
     /// Colour is never the only carrier (SPEC §7.2): the toggle state still says it, so

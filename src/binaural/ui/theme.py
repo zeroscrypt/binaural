@@ -52,8 +52,12 @@ ENV_REDUCED_MOTION = "BINAURAL_REDUCED_MOTION"
 
 #: token -> (light, dark), exactly as in SPEC §7.1.
 TOKENS: dict[str, tuple[str, str]] = {
-    "primary": ("#7C3AED", "#A78BFA"),  # left channel, main accents
+    "primary": ("#7C3AED", "#A78BFA"),  # app accent: buttons, chips, focus ring, links
     "secondary": ("#8B5CF6", "#C4B5FD"),  # right channel
+    # The left channel is blue and the right one purple, so "which ear is this" is
+    # answerable without reading the caption. They used to be two purples — `primary`
+    # and `secondary`, a step apart — which is not a distinction anyone can see.
+    "left": ("#2563EB", "#60A5FA"),  # left channel
     "accent": ("#059669", "#34D399"),  # play button, confirmations
     "background": ("#FAF5FF", "#151221"),
     "surface": ("#FFFFFF", "#1E1A2E"),
@@ -74,9 +78,11 @@ _DERIVED_LIGHT: dict[str, str] = {
     "destructive-strong": "#B91C1C",
     "on-accent": "#FFFFFF",  # text on a filled accent button
     "focus-soft": "#EFE7FC",
-    # secondary (#8B5CF6) is only 3.9:1 on white; copy needs a darker shade
-    # while the 42px display number may keep the SPEC colour.
-    "secondary-text": "#6D3FD4",
+    # The channel colours are display colours: secondary (#8B5CF6) is 4.2:1 on white
+    # and left (#2563EB) is 5.2:1, which is fine for the 42px number but under the
+    # 4.5:1 that 16px captions need. Copy takes the darker shade of the same hue.
+    "secondary-text": "#6D3FD4",  # 6.3:1
+    "left-text": "#1D4ED8",  # 6.7:1
 }
 
 _DERIVED_DARK: dict[str, str] = {
@@ -86,7 +92,8 @@ _DERIVED_DARK: dict[str, str] = {
     "destructive-strong": "#F87171",
     "on-accent": "#06251A",
     "focus-soft": "#322B4A",
-    "secondary-text": "#C4B5FD",
+    "secondary-text": "#C4B5FD",  # 9.2:1
+    "left-text": "#93C5FD",  # 9.4:1
 }
 
 LIGHT: dict[str, str] = {name: pair[0] for name, pair in TOKENS.items()} | _DERIVED_LIGHT
@@ -302,15 +309,39 @@ QPushButton#primary {
 }
 QPushButton#primary:hover { background: %(accent)s; border-color: %(accent)s; }
 QPushButton#primary:focus { border: 2px solid %(ring)s; outline: 2px solid %(ring)s; }
+/* --- preset bar: two levels, deliberately not alike ------------------------
+   SPEC §5 F3 is a two-level control — a category, then the presets inside it —
+   and the two rows used to be built from the same chip, so nothing on screen said
+   which was which. They are now the same *kind* of control at different weights:
+   the category row is the top level and is taller, bolder and more widely spaced;
+   the preset row is subordinate and recedes. Selection is then a colour within
+   that, not the only thing separating the rows. */
+QPushButton#category {
+    padding: 10px 16px;
+    font-size: %(title_size)spx;
+    font-weight: 600;
+    border-radius: %(radius_sm)s;
+}
+QPushButton#category:checked {
+    color: %(on_accent)s;
+    background: %(primary)s;
+    border-color: %(primary)s;
+}
 QPushButton#chip {
     padding: 8px 14px;
     font-size: %(body_size)spx;
     border-radius: %(radius_sm)s;
 }
+/* Filled, not merely tinted: `focus_soft` was a few percent of purple over the surface,
+   measurable in the contrast tests and invisible to anyone looking at the bar. */
 QPushButton#chip:checked {
-    color: %(primary)s;
+    color: %(on_accent)s;
+    background: %(primary)s;
     border-color: %(primary)s;
-    background: %(focus_soft)s;
+    font-weight: 600;
+}
+QPushButton#chip:hover {
+    border-color: %(primary)s;
 }
 QPushButton#ghost {
     background: transparent;

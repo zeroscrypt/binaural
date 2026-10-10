@@ -58,7 +58,7 @@ final class PresetCatalogueTests: XCTestCase {
                         "Concentration", "Work", "Sport"])
         XCTAssertEqual(PresetCatalogue.categories.map(\.nameRu),
                        ["Сон", "Медитация", "Расслабление", "Ясность",
-                        "Сосредоточенность", "Работа", "Спорт"])
+                        "Концентрация", "Работа", "Спорт"])
     }
 
     // MARK: - The rules

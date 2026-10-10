@@ -238,7 +238,7 @@ def test_category_names_follow_f3_in_both_languages(isolated_language):
         "Медитация",
         "Расслабление",
         "Ясность",
-        "Сосредоточенность",
+        "Концентрация",
         "Работа",
         "Спорт",
     ]

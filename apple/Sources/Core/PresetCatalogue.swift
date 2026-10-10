@@ -212,7 +212,7 @@ public enum PresetCatalogue {
             Preset(categoryID: "awareness", beatHz: 11),
             Preset(categoryID: "awareness", beatHz: 12)
         ]),
-        PresetCategory(id: "concentration", nameEn: "Concentration", nameRu: "Сосредоточенность", presets: [
+        PresetCategory(id: "concentration", nameEn: "Concentration", nameRu: "Концентрация", presets: [
             Preset(categoryID: "concentration", beatHz: 13),
             Preset(categoryID: "concentration", beatHz: 14),
             Preset(categoryID: "concentration", beatHz: 15)

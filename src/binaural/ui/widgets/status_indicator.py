@@ -168,7 +168,7 @@ class StatusIndicator(QWidget):
             token = "accent-strong"
             description = tr("Binaural beats are rendered correctly.")
         elif state == STATE_SPEAKERS:
-            label = tr("Speakers detected — binaural beats need headphones")
+            label = tr("Speakers detected — headphones needed")
             token = "warning-text"
             description = tr(
                 "On speakers the two tones mix in the air, so the beat disappears. "

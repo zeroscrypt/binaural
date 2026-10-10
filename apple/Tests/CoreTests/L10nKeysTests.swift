@@ -38,6 +38,7 @@ final class L10nKeysTests: XCTestCase {
         "1 – 20000 Hz",
         "Frequency for %1, from 1 to 20000 hertz. Use the arrow keys for 0.1 hertz steps.",
         "%1 frequency in hertz", "%1 frequency slider",
+        "Raises or lowers the frequency by 0.1 hertz. Keep it held down to repeat.",
         "Type an exact value between 1 and 20000, in steps of 0.1 hertz.",
         "Sweeps the frequency from 1 to 20000 hertz.",
         // beat card
@@ -51,7 +52,7 @@ final class L10nKeysTests: XCTestCase {
         "Stopped at the range limit: the difference is locked, so the other channel cannot follow any further.",
         // status indicator
         "Audio output status", "Headphones detected",
-        "Speakers detected — binaural beats need headphones", "Unknown device",
+        "Speakers detected — headphones needed", "Unknown device",
         // timer (SPEC §5 F5)
         "Timer", "Off", "%1 min",
         // the language control in the main window (SPEC §7.4)

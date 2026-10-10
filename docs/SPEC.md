@@ -194,7 +194,7 @@ Reznik & Allen 2020 (eNeuro), Garcia-Argibay et al. 2025 (Sci Rep) и др.
 | `meditation` | Meditation | Медитация | 4, 5, 6 |
 | `relaxation` | Relaxation | Расслабление | 8, 9, 10 |
 | `awareness` | Awareness | Ясность | 11, 12 |
-| `concentration` | Concentration | Сосредоточенность | 13, 14, 15 |
+| `concentration` | Concentration | Концентрация | 13, 14, 15 |
 | `work` | Work | Работа | 16, 18, 20 |
 | `sport` | Sport | Спорт | 22, 25, 28 |
 

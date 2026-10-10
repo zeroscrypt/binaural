@@ -17,8 +17,16 @@ final class MainWindowController: NSWindowController {
     private let session: Session
 
     private let indicator = HeadphoneIndicatorView()
-    private let leftControl = FrequencyControlView(ear: .left, accent: .controlAccentColor)
-    private let rightControl = FrequencyControlView(ear: .right, accent: .systemPurple)
+    private let leftControl = FrequencyControlView(
+        ear: .left,
+        accent: ChannelPalette.left,
+        accentText: ChannelPalette.leftText
+    )
+    private let rightControl = FrequencyControlView(
+        ear: .right,
+        accent: ChannelPalette.right,
+        accentText: ChannelPalette.rightText
+    )
     private let beatView = BeatDisplayView()
     private let playButton = NSButton()
     private let volumeCaptionLabel = NSTextField(labelWithString: "")
@@ -108,12 +116,12 @@ final class MainWindowController: NSWindowController {
             // built once here, so the default frame has to cover every row rather than
             // scroll. Python's `setMinimumSize(720, 620)` is the same idea for the same
             // reason.
-            contentRect: NSRect(x: 0, y: 0, width: 760, height: 780),
+            contentRect: NSRect(x: 0, y: 0, width: 600, height: 780),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
-        window.minSize = NSSize(width: 720, height: 700)
+        window.minSize = NSSize(width: 580, height: 700)
         // The tray can hide and show this window, so closing it must not destroy it.
         // Without this, `close()` releases the controller and the status item's Show
         // command would have nothing to show.

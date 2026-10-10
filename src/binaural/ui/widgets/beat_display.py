@@ -321,7 +321,7 @@ class BeatDisplay(QFrame):
                 _fmt(self._carrier_hz),
             )
         )
-        self._pulse.set_colors("primary", "secondary")
+        self._pulse.set_colors("left", "secondary")
         self._apply_hint()
 
     # ----------------------------------------------------------------- private

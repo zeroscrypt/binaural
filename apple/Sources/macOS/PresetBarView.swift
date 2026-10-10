@@ -16,17 +16,103 @@ import BinauralCore
 /// `L10n` key is involved — there is no third language and no free text to translate.
 ///
 /// The rows are wrapped by hand because AppKit has no flow layout: seven chips
-/// ("Сосредоточенность" next to four others) do not fit on one line in a 760 pt window,
+/// ("Концентрация" next to four others) do not fit on one line in a 600 pt window,
 /// and Russian is the long one.
 /// A chip that knows which catalogue entry it stands for.
 ///
 /// `NSMenuItem` has a `representedObject`; `NSButton` does not, and the ids here are
 /// `String`s that come straight out of ``PresetCatalogue``, so they live on a
 /// three-line subclass rather than being encoded into an `Int` tag and decoded again.
+/// Which row of SPEC §5 F3 a chip belongs to.
+///
+/// The two levels used to be drawn identically, so the bar read as one flat list of
+/// seven-plus-three buttons and nothing on screen said which seven were the categories.
+/// They are now the same kind of control at two weights: the category row is the top
+/// level and is larger and bolder, the preset row is subordinate and recedes.
+enum ChipLevel {
+    case category
+    case preset
+
+    var size: CGFloat {
+        switch self {
+        case .category: return 13
+        case .preset: return 12
+        }
+    }
+
+    /// Drawn height. Deliberately under the 44 px click target SPEC §7.2 asks for:
+    /// `ChipButton` adds the difference back as hit slop, so the chip can look compact
+    /// without becoming harder to hit. A 44 px frame instead would show as loose padding
+    /// above and below the caption, which is exactly what was complained about.
+    var height: CGFloat {
+        switch self {
+        case .category: return 34
+        case .preset: return 30
+        }
+    }
+
+    var cornerRadius: CGFloat {
+        switch self {
+        case .category: return 9
+        case .preset: return 8
+        }
+    }
+
+    /// At rest. The rows already differ in size here, so the hierarchy survives even when
+    /// nothing is selected.
+    var font: NSFont {
+        switch self {
+        case .category: return .systemFont(ofSize: size)
+        case .preset: return .systemFont(ofSize: size)
+        }
+    }
+
+    /// Selected. Bold on both rows: making only the category bold would put weight and
+    /// selection on the same channel, and a deselected preset would have to fall back to
+    /// the category's size to stay legible.
+    var selectedFont: NSFont {
+        switch self {
+        case .category: return .systemFont(ofSize: size, weight: .semibold)
+        case .preset: return .systemFont(ofSize: size, weight: .semibold)
+        }
+    }
+}
+
 @MainActor
 final class ChipButton: NSButton {
     /// The category or preset id this chip stands for.
     var representedID: String?
+    /// Which row this chip is on. Size, weight and corner radius all follow from it, which
+    /// is what keeps the two rows from drifting apart as more styling is added.
+    var level: ChipLevel = .preset
+
+    /// Whether this chip is the selected one in its row. `style(_:selected:)` keeps this in
+    /// step with the layer fill it paints, so a test can read the selection without
+    /// resolving a `CGColor` out of a dynamic colour to do it.
+    ///
+    /// Not named `isSelected`: `NSControl` already has one of those, for table-cell
+    /// selection, and shadowing it narrows a setter AppKit expects to stay open.
+    fileprivate(set) var isChipSelected = false
+
+    /// SPEC §7.2: a 44×44 px click target. The chip is drawn shorter than that, so the
+    /// missing band is added here rather than padded into the frame — the row stays compact
+    /// and the target stays honest.
+    ///
+    /// The vertical bands of two neighbouring rows overlap by a pixel or two. AppKit hands
+    /// the point to the frontmost view, and this is a fixed block with nothing to drag
+    /// through it, so the overlap costs nothing.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        // `point` arrives in the *superview's* coordinates, not ours — a chip is an
+        // arranged subview of a row, so only the first one sits at the origin. Comparing
+        // the raw point against `bounds` therefore missed every chip but the first, which
+        // is why the bar looked inert.
+        let local = convert(point, from: superview)
+        let band = bounds.insetBy(dx: 0, dy: -(Self.minimumTarget - bounds.height) / 2)
+        return band.contains(local) ? self : nil
+    }
+
+    /// SPEC §7.2.
+    private static let minimumTarget: CGFloat = 44
 }
 
 @MainActor
@@ -118,7 +204,7 @@ final class PresetBarView: NSView {
         categoryButtons.removeAll()
 
         for category in PresetCatalogue.categories {
-            let button = chip(title: category.name(for: L10n.language))
+            let button = chip(title: category.name(for: L10n.language), level: .category)
             button.target = self
             button.action = #selector(categoryClicked(_:))
             button.representedID = category.id
@@ -143,7 +229,7 @@ final class PresetBarView: NSView {
 
         let presets = PresetCatalogue.presets(inCategory: selectedCategoryID)
         for preset in presets {
-            let button = chip(title: preset.title(for: L10n.language))
+            let button = chip(title: preset.title(for: L10n.language), level: .preset)
             button.target = self
             button.action = #selector(presetClicked(_:))
             button.representedID = preset.id
@@ -158,12 +244,19 @@ final class PresetBarView: NSView {
         markSelectedPreset()
     }
 
-    private func chip(title: String) -> ChipButton {
+    private func chip(title: String, level: ChipLevel) -> ChipButton {
         let button = ChipButton(title: title, target: nil, action: nil)
         button.bezelStyle = .rounded
         button.setButtonType(.toggle)
-        button.font = .systemFont(ofSize: 13)
-        button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        button.level = level
+        button.font = level.font
+        button.heightAnchor.constraint(equalToConstant: level.height).isActive = true
+        // The selected chip is filled by hand rather than by the bezel. A `.rounded` toggle
+        // shows its on-state as a hairline outline — at chip size that is a pixel or two,
+        // which is present and invisible, and was the reason a pressed preset gave nothing
+        // away. A layer carries a real fill instead. The bezel draws over it, so the colour
+        // is applied per selection state in `markSelectedPreset()`.
+        button.wantsLayer = true
         return button
     }
 
@@ -173,7 +266,7 @@ final class PresetBarView: NSView {
     ///
     /// `intrinsicContentSize` is asked for rather than a fixed width per chip: chip titles
     /// differ between English and Russian and between the seven categories, so any hard
-    /// width would either clip "Сосредоточенность" or leave "Work" floating in a gap.
+    /// width would either clip "Концентрация" or leave "Work" floating in a gap.
     private func wrap(categoryButtons buttons: [NSButton], into column: NSStackView) {
         let key = ObjectIdentifier(column)
         // A column whose chips are gone must be cleared even when the width has not moved:
@@ -223,7 +316,8 @@ final class PresetBarView: NSView {
         row.alignment = .centerY
         row.spacing = chipSpacing
         row.translatesAutoresizingMaskIntoConstraints = false
-        row.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        // No minimum row height: each chip already carries its own drawn height, and the
+        // 44 px target it owes SPEC §7.2 lives in `ChipButton.hitTest(_:)`.
         row.addArrangedSubview(NSView())   // the trailing stretch of the Python row
         column.addArrangedSubview(row)
     }
@@ -254,9 +348,7 @@ final class PresetBarView: NSView {
 
         isSyncing = true
         for (id, button) in categoryButtons {
-            let selected = id == wanted
-            button.state = selected ? .on : .off
-            button.contentTintColor = selected ? .controlAccentColor : .labelColor
+            style(button, selected: id == wanted)
         }
         isSyncing = false
 
@@ -276,26 +368,46 @@ final class PresetBarView: NSView {
 
     private func markSelectedPreset() {
         for button in presetButtons {
-            let selected = button.representedID == lastPresetID
-            button.state = selected ? .on : .off
-            // `state = .on` alone was too quiet to read: a toggle chip at rest and a toggle
-            // chip that is on differ by a hairline, which is not enough to answer "which
-            // preset produced these frequencies?" at a glance. The selected chip is filled
-            // with the accent colour instead, so the answer is a colour rather than a
-            // border. Colour is never the only carrier — `state` stays on, so VoiceOver and
-            // the focus ring still report it (SPEC §7.2).
-            button.contentTintColor = selected ? .controlAccentColor : .labelColor
-            button.font = selected
-                ? .systemFont(ofSize: 13, weight: .semibold)
-                : .systemFont(ofSize: 13)
+            style(button, selected: button.representedID == lastPresetID)
         }
         // The category row reads the same way, so "which category am I in" is answerable
         // without counting rows.
         for (id, button) in categoryButtons {
-            let selected = id == selectedCategoryID
-            button.state = selected ? .on : .off
-            button.contentTintColor = selected ? .controlAccentColor : .labelColor
+            style(button, selected: id == selectedCategoryID)
         }
+    }
+
+    /// Paint one chip for its selection state.
+    ///
+    /// Three things change together, and the first is not decoration:
+    ///
+    /// * `state` stays the carrier of truth. VoiceOver, the focus ring and the tests all read
+    ///   it, so selection is never carried by colour alone (SPEC §7.2).
+    /// * the fill is the accent colour. That is what the eye reads — a tinted outline at
+    ///   chip size is a difference of a pixel or two, which is present and invisible.
+    /// * the title turns white on that fill, because accent-coloured text on the accent fill
+    ///   is invisible and dark text on it is worse.
+    private func style(_ button: ChipButton, selected: Bool) {
+        let level = button.level
+        let font = selected ? level.selectedFont : level.font
+        button.state = selected ? .on : .off
+        button.isChipSelected = selected
+        button.font = font
+        button.layer?.cornerRadius = level.cornerRadius
+        button.layer?.backgroundColor = selected ? NSColor.controlAccentColor.cgColor : nil
+        button.layer?.borderWidth = selected ? 0 : 1
+        button.layer?.borderColor = selected ? nil : NSColor.separatorColor.cgColor
+        // `contentTintColor` is deliberately not set. It tints the title *towards* the
+        // layer background, which on a filled chip is accent on accent; an attributed
+        // title names the colour outright instead.
+        button.attributedTitle = NSAttributedString(
+            string: button.title,
+            attributes: [
+                .foregroundColor: selected ? NSColor.white : NSColor.labelColor,
+                .font: font,
+            ]
+        )
+        button.needsDisplay = true
     }
 
     // MARK: - Actions
@@ -343,16 +455,22 @@ final class PresetBarView: NSView {
     /// `state` is what VoiceOver and the focus ring report, and it is enough for a test to
     /// pass while the user still cannot see it — so these assertions are about the colour
     /// specifically: `markSelectedPreset` must actually change it.
-    func presetTint(for presetID: String) -> NSColor? {
-        presetButtons.first { $0.representedID == presetID }?.contentTintColor
+    /// Whether a preset is the one that produced the frequencies on screen.
+    ///
+    /// This used to report `contentTintColor`, which is no longer what carries selection:
+    /// the title is painted white *on* the accent fill, so tinting the title by the accent
+    /// too would erase it. Reading the fill is also the honest assertion — it is the pixel
+    /// the reader is actually looking at, not a parallel copy of the same fact.
+    func isPresetSelected(_ presetID: String) -> Bool {
+        presetButtons.first { $0.representedID == presetID }?.isChipSelected ?? false
     }
 
-    var anyOtherPresetTint: NSColor? {
-        presetButtons.first { $0.representedID != lastPresetID }?.contentTintColor
+    var isAnyOtherPresetSelected: Bool {
+        presetButtons.first { $0.representedID != lastPresetID }?.isChipSelected ?? false
     }
 
-    func categoryTint(for categoryID: String) -> NSColor? {
-        categoryButtons[categoryID]?.contentTintColor
+    func isCategorySelected(_ categoryID: String) -> Bool {
+        categoryButtons[categoryID]?.isChipSelected ?? false
     }
 
     /// The ids of the presets in the selected category, in registry order — what the

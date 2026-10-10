@@ -251,6 +251,12 @@ class FreqControl(QFrame):
         self._spin.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self._spin.setFont(theme.font("title"))
         self._spin.setMinimumHeight(44)
+        # The arrows are drawn *inside* the spinbox rather than being controls of their
+        # own, so the step they take is a tooltip on it. The wording is the macOS stepper's
+        # accessibility help, so both implementations describe one control in one voice.
+        self._spin.setToolTip(
+            tr("Raises or lowers the frequency by 0.1 hertz. Keep it held down to repeat.")
+        )
         layout.addWidget(self._spin)
 
         self._slider = QSlider(Qt.Orientation.Horizontal, self)
@@ -323,7 +329,7 @@ class FreqControl(QFrame):
         self.setCaption(caption)
 
     def set_accent(self, token: str) -> None:
-        """Colour token for this channel: ``primary`` = left, ``secondary`` = right."""
+        """Colour token for this channel: ``left`` = left ear, ``secondary`` = right ear."""
         self._accent = token
         colour = theme.color(token)
         table = theme.DARK if theme.prefers_dark() else theme.LIGHT
@@ -338,6 +344,12 @@ class FreqControl(QFrame):
             f"QSlider::sub-page:horizontal {{ background: {colour}; }}"
             f" QSlider::handle:horizontal {{ border: 2px solid {colour}; }}"
         )
+        # The panel's own edge is tinted too. It used to come from the global `border`
+        # token, so both ears were outlined in the same pale grey and the only thing
+        # telling them apart was the caption — which is the one thing the colour was
+        # supposed to be saving the reader from. An inline sheet is set on the frame
+        # itself and touches nothing else, so the themed background and radius stay.
+        self.setStyleSheet(f"QFrame#panel {{ border: 1px solid {colour}; }}")
 
     def set_slider_from_value(self, hz: float) -> None:
         self._slider.setValue(_hz_to_slider(hz))

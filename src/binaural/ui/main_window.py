@@ -177,7 +177,7 @@ class MainWindow(QMainWindow):
         # --- ear panels ---------------------------------------------------
         ears = QHBoxLayout()
         ears.setSpacing(theme.SPACE_LG)
-        self._left = FreqControl(tr(LEFT_EAR), "primary")
+        self._left = FreqControl(tr(LEFT_EAR), "left")
         self._right = FreqControl(tr(RIGHT_EAR), "secondary")
         ears.addWidget(self._left, 1)
         ears.addWidget(self._right, 1)
@@ -358,6 +358,7 @@ class MainWindow(QMainWindow):
                 entry.localized_name(),
                 self._category_description(entry),
                 parent=box,
+                level="category",
             )
             button.clicked.connect(
                 lambda _checked=False, cid=entry.id: self.select_preset_category(cid)
@@ -395,10 +396,16 @@ class MainWindow(QMainWindow):
 
         return box
 
-    def _make_chip(self, caption: str, description: str, parent: QWidget) -> QPushButton:
-        """One chip with the shared metrics of SPEC §7.2 (44 px, focus ring)."""
+    def _make_chip(self, caption: str, description: str, parent: QWidget, *, level: str = "preset") -> QPushButton:
+        """One chip with the shared metrics of SPEC §7.2 (44 px, focus ring).
+
+        ``level`` is what tells the two rows of the preset bar apart: ``"category"`` is
+        the top level of SPEC §5 F3 and is drawn heavier, ``"preset"`` is the choice inside
+        it. They used to be the same object name, which left the bar looking like one
+        undifferentiated list of buttons.
+        """
         button = QPushButton(caption, parent)
-        button.setObjectName("chip")
+        button.setObjectName("category" if level == "category" else "chip")
         button.setCheckable(True)
         button.setMinimumHeight(44)
         button.setAccessibleName(caption)

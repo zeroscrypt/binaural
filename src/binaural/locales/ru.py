@@ -54,7 +54,7 @@ MESSAGES: dict[str, str] = {
     "Meditation": "Медитация",
     "Relaxation": "Расслабление",
     "Awareness": "Ясность",
-    "Concentration": "Сосредоточенность",
+    "Concentration": "Концентрация",
     "Work": "Работа",
     "Sport": "Спорт",
     "Current frequencies: left %1, right %2.": "Текущие частоты: слева %1, справа %2.",
@@ -165,6 +165,9 @@ MESSAGES: dict[str, str] = {
     "Type an exact value between 1 and 20000, in steps of 0.1 hertz.": (
         "Введите точное значение от 1 до 20000 с шагом 0,1 Гц."
     ),
+    "Raises or lowers the frequency by 0.1 hertz. Keep it held down to repeat.": (
+        "Повышает или понижает частоту на 0,1 Гц. Удерживайте, чтобы повторять."
+    ),
     "Sweeps the frequency from 1 to 20000 hertz.": (
         "Плавно меняет частоту от 1 до 20000 Гц."
     ),
@@ -172,9 +175,7 @@ MESSAGES: dict[str, str] = {
     "Audio output status": "Состояние аудиовыхода",
     "Headphones detected": "Наушники обнаружены",
     "Binaural beats are rendered correctly.": "Бинауральные биения формируются верно.",
-    "Speakers detected — binaural beats need headphones": (
-        "Обнаружены динамики — для бинауральных биений нужны наушники"
-    ),
+    "Speakers detected — headphones needed": "Обнаружены динамики — нужны наушники",
     "On speakers the two tones mix in the air, so the beat disappears. "
     "Use headphones for the effect.": (
         "На динамиках два тона смешиваются в воздухе, поэтому биение исчезает. "

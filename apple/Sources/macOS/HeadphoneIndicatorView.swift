@@ -115,7 +115,7 @@ final class HeadphoneIndicatorView: NSView {
             colour = .systemGreen
         case .speakers:
             symbol = "!"
-            text = L10n.tr("Speakers detected — binaural beats need headphones")
+            text = L10n.tr("Speakers detected — headphones needed")
             colour = .systemOrange
         case .unknown:
             symbol = "?"
