@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "binaural"
-version = "0.2.5"
+version = "0.2.6"
 description = "Binaural beat generator for macOS and Linux — two independent frequencies, one perceived difference."
 readme = "README.md"
 requires-python = ">=3.10"
