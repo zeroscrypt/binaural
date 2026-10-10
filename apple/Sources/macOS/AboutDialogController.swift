@@ -57,6 +57,11 @@ final class AboutDialogController: NSWindowController {
         )
         window.minSize = NSSize(width: 440, height: 420)
         super.init(window: window)
+        // The red close button and Cmd+W reach the window's delegate, not any button
+        // action, so without this they dismiss the dialog and leave `runModal` spinning.
+        // Held by the window; the forwarder holds this controller weakly, so the keeper's
+        // lifetime rule still holds. See ``ModalCloseForwarder``.
+        window.delegate = ModalCloseForwarder(owner: self)
         buildContent()
         retranslate()
 

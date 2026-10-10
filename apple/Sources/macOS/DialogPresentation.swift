@@ -128,3 +128,35 @@ extension NSWindowController {
         close()
     }
 }
+
+/// Ends a modal session when its window is closed from *outside* the dialog's buttons.
+///
+/// The red close button and Cmd+W do not reach a button action: AppKit asks the window's
+/// delegate whether the close may proceed, and a `true` returned from there lets the window
+/// close *without* ending the modal session. `NSApp.runModal(for:)` is a nested event loop
+/// and does not notice its window has gone, so the session keeps running: the dialog is
+/// dismissed, yet the main menu stays disabled for the length of a modal session and `Cmd+Q`
+/// is never delivered. The app then looks frozen with nothing on screen to explain it, and
+/// the only way out is Force Quit.
+///
+/// The delegate is a separate object holding the dialog **weakly** on purpose. Making the
+/// controller its own window delegate also works, but `NSWindow.delegate` retains its
+/// target — and that is exactly the lifetime ``WindowKeeper`` exists to work around: a
+/// dialog held only in a local would stop dying with its scope, and the keeper would have
+/// nothing left to fix. Two tests in `WindowKeeperTests` pin that.
+@MainActor
+final class ModalCloseForwarder: NSObject, NSWindowDelegate {
+
+    /// The dialog whose dismissal this stands in for. Weak, for the reason above.
+    private weak var owner: NSWindowController?
+
+    init(owner: NSWindowController) {
+        self.owner = owner
+    }
+
+    /// End the owner's session, then let the close proceed.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        owner?.endModalSessionAndClose()
+        return true
+    }
+}
