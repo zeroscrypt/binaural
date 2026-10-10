@@ -273,16 +273,36 @@ extension DeviceModelTests {
     /// called `deviceIDs()` until the app ran the §4 check at start-up, and it faulted —
     /// SIGBUS inside `swift_retain`, on the way out of `withUnsafeMutableBytes(of:)`.
     ///
-    /// Nothing is asserted about *which* devices exist — a CI machine, a Mac mini and a
-    /// studio all differ. What is asserted is the contract: enumerating must not fault, and
-    /// whatever comes back must be usable.
+    /// Nothing is asserted about *which* devices exist — a CI machine, a Mac mini, a studio and
+    /// a laptop with a phone plugged into it all differ. What is asserted is the contract:
+    /// enumerating must not fault, and whatever comes back must be usable.
+    ///
+    /// Deliberately **not** asserted: that every device is classified as something other than
+    /// `.unknown`. A device the heuristic has never seen is exactly the case `.unknown` exists
+    /// for — CONTRACT §3 makes UNKNOWN the answer for anything detection cannot resolve, and
+    /// `NullAudioDeviceBackend` returns it unconditionally. Plugging an iPhone in over USB adds
+    /// a device the tables have no row for, and this test failed on a developer's own machine
+    /// for no reason connected to the code: the app copes with that device correctly and the
+    /// test simply had nothing to say about it. What is pinned below is that classification
+    /// is total and repeatable, which holds whatever the hardware is.
     func testTheRealHALEnumeratesWithoutFaulting() {
         let backend = CoreAudioDeviceBackend()
         let devices = backend.listOutputs()
         for device in devices {
             XCTAssertFalse(device.name.isEmpty)
             XCTAssertFalse(device.transport.isEmpty)
-            XCTAssertNotEqual(backend.classify(device), .unknown, "\(device.name) is classified")
+            // Classification is a pure function of the device, so asking twice must agree —
+            // and it must answer rather than trap, whatever the device is.
+            let first = backend.classify(device)
+            let second = backend.classify(device)
+            XCTAssertEqual(
+                first, second,
+                "\(device.name) is classified repeatably; the heuristics are pure"
+            )
+            XCTAssertTrue(
+                DeviceClass.allCases.contains(first),
+                "\(device.name) gets a real verdict, including .unknown"
+            )
         }
         if let defaultDevice = backend.defaultOutput() {
             XCTAssertTrue(

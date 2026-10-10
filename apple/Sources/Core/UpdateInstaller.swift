@@ -127,6 +127,20 @@ public struct UpdateInstaller: Sendable {
         try? fileManager.removeItem(at: backup)
     }
 
+    /// The `open` arguments that start the replacement bundle.
+    ///
+    /// `-n` is the whole reason this is a function. The update replaces the running bundle
+    /// **at the same path**, and LaunchServices has that path registered as already running —
+    /// so `open` (and `NSWorkspace.openApplication`, which asks the same service) resolves to
+    /// *activate the process that is already there* instead of starting the new binary. The
+    /// old app then terminates and nothing is left running: the app appears to update itself
+    /// and then simply disappears, and only relaunching by hand brings it back. `-n` asks for
+    /// a new instance regardless, which is the only thing that can start the code that was
+    /// just written over the running one.
+    public static func relaunchArguments(for bundle: URL) -> [String] {
+        ["-n", bundle.path]
+    }
+
     /// The real relaunch: start the replacement bundle and stop this process.
     ///
     /// `open` starts the new bundle without waiting for it to be ready; the delay before
@@ -134,7 +148,7 @@ public struct UpdateInstaller: Sendable {
     public static func defaultRelaunch(_ newBundle: URL) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = [newBundle.path]
+        process.arguments = relaunchArguments(for: newBundle)
         try? process.run()
         DispatchQueue.global().asyncAfter(deadline: .now() + 1.0) {
             exit(0)

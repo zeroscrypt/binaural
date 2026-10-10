@@ -121,12 +121,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // this process.
         let updateCoordinator = UpdateCheckCoordinator(
             installer: UpdateInstaller(relauncher: { newBundle in
-                let configuration = NSWorkspace.OpenConfiguration()
-                configuration.activates = true
-                NSWorkspace.shared.openApplication(at: newBundle, configuration: configuration) { _, error in
-                    if error == nil {
-                        DispatchQueue.main.async { NSApp.terminate(nil) }
-                    }
+                // `open -n`, not `NSWorkspace.openApplication`: the bundle was replaced at
+                // the path this process is running from, and LaunchServices resolves that to
+                // "activate the app already there". Asking it to open the same path then
+                // terminated the only instance, which is a self-update that uninstalls the
+                // app from under you. `-n` starts a new instance of the new binary.
+                // `UpdateInstaller.relaunchArguments` is the one definition of that.
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+                process.arguments = UpdateInstaller.relaunchArguments(for: newBundle)
+                try? process.run()
+                // Long enough for the new process to claim the dock and the menu bar, and
+                // a graceful leave rather than the abrupt `exit(0)` the default uses.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    NSApp.terminate(nil)
                 }
             }),
             target: controller.makeUpdateTarget()
