@@ -107,6 +107,21 @@ DerivedData/
 # repro is only interesting while the bug it reproduces is still open.
 .probe/
 
+# Captured terminal output, at the repository root only. Thirteen of these were
+# committed by accident during one investigation — `dbg.log`, `v1.log`…`v5.log`,
+# `p312.log`, `gdb.log`, `dlg.log`, `dlg2.log`, `fix.log` — and none was read by
+# anything: no script, no test, no workflow names one. The answer they held is
+# written down in scripts/check_version.py and in the tests that cover it, so the
+# files were only clutter that looked like documentation.
+#
+# Anchored to the root on purpose. A bare `*.log` would also swallow the logs a
+# product *should* keep — packaging/, dist/ and the release artefacts all use
+# the extension for real outputs.
+# `order.txt` is covered by the same rule: it was a node-id list a bisect wrote,
+# used by nothing.
+/*.log
+/*.txt
+
 # ---- Explicitly NOT ignored -------------------------------------------------
 # Listed so the intent is visible if someone tries to 'fix' this file:
 #   src/       — the application package, tracked

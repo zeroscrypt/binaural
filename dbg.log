@@ -1,8 +1,0 @@
-============================= test session starts ==============================
-platform linux -- Python 3.10.22, pytest-9.1.1, pluggy-1.6.0
-rootdir: /w
-configfile: pyproject.toml
-collected 79 items / 2 deselected / 77 selected
-
-tests/test_dialogs.py .................................................. [ 64%]
-....................
