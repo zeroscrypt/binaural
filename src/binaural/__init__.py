@@ -30,7 +30,7 @@ from importlib.metadata import version as _distribution_version
 
 #: Fallbacks for a source tree that was never installed — `python src/...` with no
 #: `pip install -e .` leaves no distribution metadata to read.
-_FALLBACK_VERSION = "0.2.4"
+_FALLBACK_VERSION = "0.2.5"
 _FALLBACK_PROJECT_URL = "https://github.com/zeroscrypt/binaural"
 
 
