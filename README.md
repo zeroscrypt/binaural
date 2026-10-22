@@ -285,9 +285,17 @@ The complete tables behind the last row are in **[`docs/FREQUENCIES.md`][frequen
   and *Lock difference* lets you tune one ear by hand while the other follows.
 - **It warns you before it goes silent.** A headphone check runs on every start; a perceptual
   left/right test catches swapped channels and swaps the output for you.
-- **A reference that shows its sources.** 110 entries in 11 categories, each with an evidence
+- **A reference that shows its sources.** 118 entries in 12 categories, each with an evidence
   badge, searchable, and bilingual in English and Russian — including the claims that are
   tradition or folklore rather than research.
+- **A mode that walks the spine (macOS).** The earth and the seven solfeggio tones, up the
+  body and back, a step every 30 seconds or every few minutes. The tones of the steps below
+  the one being played can be summed under it, the way the reference app accumulated them, so
+  that by the crown all of them sound at once.
+- **A figure made of grains, and an aura around it (macOS).** Without the sound the grains
+  float in a pale, chaotic dust of every colour; with it they gather into a clear contour
+  and a shell around the body, and the beat, the step and the journey's position are
+  summed into one wave that colours it in the chakra being played.
 
 <a href="#features">⬆ Back to top</a>
 

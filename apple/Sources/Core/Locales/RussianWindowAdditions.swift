@@ -36,6 +36,10 @@ enum RussianWindowAdditions {
         "Pulse": "Пульс",
         // The tones of the steps below the one being played keep sounding under it.
         "Sum": "Суммировать",
+        // The chakra mode, which only the macOS build has.
+        "The chakra mode walks the spine: the earth and the seven solfeggio tones, up and back, with the figure and its aura beside it. The tones of the steps below the one being played can be summed under it, the way the reference app accumulated them.": (
+            "Режим чакр идёт по позвоночнику: земля и семь соль-факторийных тонов, вверх и обратно, рядом фигура и её аура. Тона ступеней ниже играющей можно суммировать под ней, как накапливались они в том приложении."
+        ),
         "Silences the sound. The volume itself is not changed.": (
             "Выключает звук. Сама громкость не меняется."
         ),

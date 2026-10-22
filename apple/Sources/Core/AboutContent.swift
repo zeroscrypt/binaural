@@ -94,8 +94,15 @@ public enum AboutContent {
     /// the claims a user is most likely to want checked.
     public static let appDoesLine = "The application itself does the plain part: two "
         + "independent frequencies you set, play and stop, volume, a timer, presets, "
-        + "the frequency reference and a headphone check. Nothing is added to the "
-        + "sound and nothing is sent anywhere."
+        + "the frequency reference and a headphone check. The tones are generated, "
+        + "not processed: there is no effect chain, nothing is recorded, and nothing "
+        + "is sent anywhere."
+
+    /// The chakra mode, which only the macOS build has.
+    ///
+    /// It is a macOS-only line like the tagline: the Qt build has no mode, and saying
+    /// it there would be false.
+    public static let chakraModeLine = "The chakra mode walks the spine: the earth and the seven solfeggio tones, up and back, with the figure and its aura beside it. The tones of the steps below the one being played can be summed under it, the way the reference app accumulated them."
 
     /// «Что это и зачем», part 1: what the thing is, in one sentence.
     public static let scopeLine = "Binaural is a desktop generator of binaural beats. "
@@ -261,6 +268,8 @@ public enum AboutContent {
         mechanismLine, termsLine, headphonesWhyLine, appDoesLine,
         scopeLine, notMedicalLine,
         platformLicenceLine, stackLine, unsignedLine,
+        // The macOS-only mode.
+        chakraModeLine,
         // The update check.
         checkForUpdatesButton, checkingMessage, upToDateMessage, updateAvailableTemplate,
         downloadAndInstallButton, laterButton, skipThisVersionButton, downloadingMessage,
@@ -284,6 +293,7 @@ public enum AboutContentText {
     public static var whoMadeItTitle: String { L10n.tr(AboutContent.whoMadeItTitle) }
     public static var howItWorksTitle: String { L10n.tr(AboutContent.howItWorksTitle) }
     public static var whatItIsForTitle: String { L10n.tr(AboutContent.whatItIsForTitle) }
+    public static var chakraModeLine: String { L10n.tr(AboutContent.chakraModeLine) }
     public static var technicalTitle: String { L10n.tr(AboutContent.technicalTitle) }
     public static var creditsLine: String { L10n.tr(AboutContent.creditsLine) }
     public static var creditsWhere: String { L10n.tr(AboutContent.creditsWhere) }

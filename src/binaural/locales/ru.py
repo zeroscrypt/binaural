@@ -358,11 +358,12 @@ MESSAGES: dict[str, str] = {
     ),
     "The application itself does the plain part: two independent frequencies you set, "
     "play and stop, volume, a timer, presets, the frequency reference and a headphone "
-    "check. Nothing is added to the sound and nothing is sent anywhere.": (
+    "check. The tones are generated, not processed: there is no effect chain, nothing "
+    "is recorded, and nothing is sent anywhere.": (
         "Само приложение делает простую часть: две независимые частоты, которые вы "
         "задаёте, запуск и остановка, громкость, таймер, пресеты, справочник частот и "
-        "проверка наушников. К звуку ничего не добавляется и никуда ничего не "
-        "отправляется."
+        "проверка наушников. Тона генерируются, а не обрабатываются: цепочки эффектов "
+        "нет, ничего не записывается и никуда ничего не отправляется."
     ),
     # «Что это и зачем» — scope, stated as plainly as possible. The medical
     # sentence is §6.13 and is restated here only in the three words that matter;

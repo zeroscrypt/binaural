@@ -76,6 +76,8 @@ final class L10nKeysTests: XCTestCase {
         "Pulse",
         // the tones of the steps below the one being played keep sounding under it
         "Sum",
+        // the macOS-only mode, with its figure and its aura
+        "The chakra mode walks the spine: the earth and the seven solfeggio tones, up and back, with the figure and its aura beside it. The tones of the steps below the one being played can be summed under it, the way the reference app accumulated them.",
         "Direction", "Up, then back", "Down, then back",
         "The default 21 Hz sits in the alpha band.",
         // the language control in the main window (SPEC §7.4)
@@ -141,7 +143,7 @@ final class L10nKeysTests: XCTestCase {
         "Two sine tones of different frequency, one sent to each ear, and the brain hears a third tone that is not there. That third tone is the difference between the two frequencies, and it is called the beat.",
         "The beat is the difference between the two frequencies. The carrier is their average — the tone you actually hear in each ear, with the beat pulsing inside it.",
         "Headphones are not a preference but a physical requirement: the two frequencies have to reach your ears separately, and only headphones do that. On speakers they mix in the air first, and there is nothing left to fuse.",
-        "The application itself does the plain part: two independent frequencies you set, play and stop, volume, a timer, presets, the frequency reference and a headphone check. Nothing is added to the sound and nothing is sent anywhere.",
+        "The application itself does the plain part: two independent frequencies you set, play and stop, volume, a timer, presets, the frequency reference and a headphone check. The tones are generated, not processed: there is no effect chain, nothing is recorded, and nothing is sent anywhere.",
         "Binaural is a desktop generator of binaural beats. It makes a sound and shows you what is known about the frequencies it can play.",
         "It is not a medical device and makes no health claim. It does not diagnose, treat or prevent anything, and it does not promise an effect. The disclaimer below is the full version of that sentence.",
         "Platform: macOS. Licence: MIT — use it, change it, ship it.",

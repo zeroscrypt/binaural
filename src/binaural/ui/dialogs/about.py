@@ -143,7 +143,8 @@ _HEADPHONES_WHY_LINE = (
 _APP_DOES_LINE = (
     "The application itself does the plain part: two independent frequencies you set, "
     "play and stop, volume, a timer, presets, the frequency reference and a headphone "
-    "check. Nothing is added to the sound and nothing is sent anywhere."
+    "check. The tones are generated, not processed: there is no effect chain, nothing "
+    "is recorded, and nothing is sent anywhere."
 )
 
 # «Что это и зачем». Part 2 turns on the three words SPEC §6.13 turns on and then
