@@ -47,78 +47,98 @@ final class ChakraFigureView: NSView {
         /// two and a half times as tall as it is wide.
         static let aspect: CGFloat = 0.40
 
-        /// The head, the torso and the two arms, as one closed outline. The points run
-        /// clockwise from the crown of the head, down the right side to the hip, across
-        /// the crotch and back up the left. The x values are fractions of the body's own
-        /// width, with 0.5 on the centre line.
-        static let torso: [CGPoint] = [
+        /// The head and the neck. The head is a small oval, wider at the temples than at
+        /// the jaw, and the neck is a short column between the jaw and the shoulders.
+        static let head: [CGPoint] = [
             CGPoint(x: 0.500, y: 0.000),   // crown
-            CGPoint(x: 0.545, y: 0.008),   // right crown
-            CGPoint(x: 0.602, y: 0.030),   // right upper head
-            CGPoint(x: 0.650, y: 0.066),   // right temple
-            CGPoint(x: 0.672, y: 0.104),   // right ear
-            CGPoint(x: 0.638, y: 0.144),   // right jaw
-            CGPoint(x: 0.578, y: 0.171),   // right jaw corner
-            CGPoint(x: 0.560, y: 0.198),   // right neck
-            CGPoint(x: 0.760, y: 0.248),   // right shoulder
-            CGPoint(x: 0.800, y: 0.320),   // right upper arm
-            CGPoint(x: 0.812, y: 0.392),   // right elbow
-            CGPoint(x: 0.806, y: 0.452),   // right forearm
-            CGPoint(x: 0.792, y: 0.486),   // right wrist
-            CGPoint(x: 0.812, y: 0.522),   // right hand
-            CGPoint(x: 0.778, y: 0.548),   // right fingertips
-            CGPoint(x: 0.744, y: 0.522),   // right palm
-            CGPoint(x: 0.640, y: 0.560),   // right hip
-            CGPoint(x: 0.500, y: 0.572),   // crotch
-            CGPoint(x: 0.360, y: 0.560),   // left hip
-            CGPoint(x: 0.256, y: 0.522),   // left palm
-            CGPoint(x: 0.222, y: 0.548),   // left fingertips
-            CGPoint(x: 0.188, y: 0.522),   // left hand
-            CGPoint(x: 0.208, y: 0.486),   // left wrist
-            CGPoint(x: 0.194, y: 0.452),   // left forearm
-            CGPoint(x: 0.188, y: 0.392),   // left elbow
-            CGPoint(x: 0.200, y: 0.320),   // left upper arm
-            CGPoint(x: 0.240, y: 0.248),   // left shoulder
-            CGPoint(x: 0.440, y: 0.198),   // left neck
-            CGPoint(x: 0.422, y: 0.171),   // left jaw corner
-            CGPoint(x: 0.362, y: 0.144),   // left jaw
-            CGPoint(x: 0.328, y: 0.104),   // left ear
-            CGPoint(x: 0.350, y: 0.066),   // left temple
-            CGPoint(x: 0.398, y: 0.030),   // left upper head
-            CGPoint(x: 0.455, y: 0.008)    // left crown
+            CGPoint(x: 0.560, y: 0.014),
+            CGPoint(x: 0.606, y: 0.052),
+            CGPoint(x: 0.626, y: 0.090),   // temple
+            CGPoint(x: 0.606, y: 0.128),
+            CGPoint(x: 0.560, y: 0.152),
+            CGPoint(x: 0.530, y: 0.164),   // jaw corner
+            CGPoint(x: 0.524, y: 0.196),   // neck
+            CGPoint(x: 0.476, y: 0.196),
+            CGPoint(x: 0.470, y: 0.164),
+            CGPoint(x: 0.440, y: 0.152),
+            CGPoint(x: 0.394, y: 0.128),
+            CGPoint(x: 0.374, y: 0.090),
+            CGPoint(x: 0.394, y: 0.052),
+            CGPoint(x: 0.440, y: 0.014)
+        ]
+
+        /// The trunk: shoulders, ribs, waist, hips. Drawn on its own so the arms can
+        /// hang beside it with a gap between them, the way an arm actually does.
+        static let torso: [CGPoint] = [
+            CGPoint(x: 0.500, y: 0.190),   // where the neck meets the trunk
+            CGPoint(x: 0.590, y: 0.210),
+            CGPoint(x: 0.660, y: 0.236),   // shoulder
+            CGPoint(x: 0.672, y: 0.276),   // deltoid
+            CGPoint(x: 0.648, y: 0.350),   // ribs
+            CGPoint(x: 0.608, y: 0.430),   // waist
+            CGPoint(x: 0.618, y: 0.500),   // hip
+            CGPoint(x: 0.500, y: 0.520),   // crotch
+            CGPoint(x: 0.382, y: 0.500),
+            CGPoint(x: 0.392, y: 0.430),
+            CGPoint(x: 0.352, y: 0.350),
+            CGPoint(x: 0.328, y: 0.276),
+            CGPoint(x: 0.340, y: 0.236),
+            CGPoint(x: 0.410, y: 0.210)
+        ]
+
+        /// One arm, from the shoulder to the hand. The left arm is the mirror of it.
+        static let arm: [CGPoint] = [
+            CGPoint(x: 0.660, y: 0.240),
+            CGPoint(x: 0.706, y: 0.286),   // upper arm
+            CGPoint(x: 0.712, y: 0.360),   // elbow
+            CGPoint(x: 0.706, y: 0.440),   // forearm
+            CGPoint(x: 0.700, y: 0.492),   // wrist
+            CGPoint(x: 0.714, y: 0.526),   // hand
+            CGPoint(x: 0.704, y: 0.552),   // fingertips
+            CGPoint(x: 0.678, y: 0.542),
+            CGPoint(x: 0.674, y: 0.492),
+            CGPoint(x: 0.678, y: 0.436),
+            CGPoint(x: 0.672, y: 0.356),
+            CGPoint(x: 0.650, y: 0.284),
+            CGPoint(x: 0.646, y: 0.238)
         ]
 
         /// One leg, from the hip to the foot. The left leg is the mirror of it.
         ///
         /// The legs are **narrow and parallel**. An earlier version let them splay, and
         /// the splay read as a wide base under the body — a second, lower silhouette
-        /// that had nothing to do with the figure. A standing person's legs do not
-        /// spread out into a plinth.
+        /// that had nothing to do with the figure.
         static let leg: [CGPoint] = [
-            CGPoint(x: 0.498, y: 0.566),
-            CGPoint(x: 0.600, y: 0.560),
-            CGPoint(x: 0.606, y: 0.660),
-            CGPoint(x: 0.598, y: 0.770),
-            CGPoint(x: 0.606, y: 0.870),
-            CGPoint(x: 0.598, y: 0.938),
-            CGPoint(x: 0.618, y: 0.966),   // toe
-            CGPoint(x: 0.532, y: 0.970),   // heel
-            CGPoint(x: 0.518, y: 0.938),
-            CGPoint(x: 0.512, y: 0.870),
-            CGPoint(x: 0.506, y: 0.770),
-            CGPoint(x: 0.502, y: 0.660)
+            CGPoint(x: 0.506, y: 0.512),
+            CGPoint(x: 0.596, y: 0.502),
+            CGPoint(x: 0.606, y: 0.610),   // thigh
+            CGPoint(x: 0.590, y: 0.720),   // knee
+            CGPoint(x: 0.598, y: 0.840),   // calf
+            CGPoint(x: 0.590, y: 0.928),   // ankle
+            CGPoint(x: 0.612, y: 0.958),   // toe
+            CGPoint(x: 0.528, y: 0.962),   // heel
+            CGPoint(x: 0.514, y: 0.928),
+            CGPoint(x: 0.510, y: 0.840),
+            CGPoint(x: 0.504, y: 0.720),
+            CGPoint(x: 0.500, y: 0.610)
         ]
 
         /// The eight marks, crown first, on the spine. The visual order is the reverse
         /// of the sequence's — that one runs earth to crown.
+        ///
+        /// The heights are the traditional ones: the crown at the top of the head, the
+        /// third eye between the brows, the throat at the base of the throat, the heart
+        /// in the chest, the solar plexus between the navel and the bottom of the ribs,
+        /// the sacral four fingers below the navel, the root at the base of the spine,
+        /// and the earth below the feet.
         static let marks: [CGPoint] = [
-            CGPoint(x: 0.5, y: 0.040),   // crown
-            CGPoint(x: 0.5, y: 0.112),   // third eye
-            CGPoint(x: 0.5, y: 0.198),   // throat
-            CGPoint(x: 0.5, y: 0.307),   // heart
-            CGPoint(x: 0.5, y: 0.426),   // solar plexus
-            CGPoint(x: 0.5, y: 0.491),   // sacral
-            CGPoint(x: 0.5, y: 0.552),   // root
+            CGPoint(x: 0.5, y: 0.030),   // crown
+            CGPoint(x: 0.5, y: 0.100),   // third eye
+            CGPoint(x: 0.5, y: 0.200),   // throat
+            CGPoint(x: 0.5, y: 0.300),   // heart
+            CGPoint(x: 0.5, y: 0.420),   // solar plexus
+            CGPoint(x: 0.5, y: 0.490),   // sacral
+            CGPoint(x: 0.5, y: 0.550),   // root
             CGPoint(x: 0.5, y: 0.948)    // earth, at the feet
         ]
     }
@@ -138,15 +158,18 @@ final class ChakraFigureView: NSView {
     // MARK: - Drawing
 
     override func draw(_ dirtyRect: NSRect) {
-        let ink = NSColor.separatorColor
+        let ink = NSColor.secondaryLabelColor
         let line = NSBezierPath()
-        line.lineWidth = max(1.0, bounds.height * 0.008)
+        line.lineWidth = max(1.0, bounds.height * 0.007)
         line.lineJoinStyle = .round
         line.lineCapStyle = .round
 
-        line.append(closedPath(Body.torso))
-        line.append(closedPath(Body.leg))
-        line.append(closedPath(Body.leg.map { $0.mirrored() }))
+        line.append(smoothPath(Body.head))
+        line.append(smoothPath(Body.torso))
+        line.append(smoothPath(Body.arm))
+        line.append(smoothPath(Body.arm.map { $0.mirrored() }))
+        line.append(smoothPath(Body.leg))
+        line.append(smoothPath(Body.leg.map { $0.mirrored() }))
 
         ink.setStroke()
         line.stroke()
@@ -154,13 +177,36 @@ final class ChakraFigureView: NSView {
         drawMarks()
     }
 
-    /// A closed path through a list of points.
-    private func closedPath(_ points: [CGPoint]) -> NSBezierPath {
+    /// A closed path through the given points, smoothed.
+    ///
+    /// The curve passes **through** the points rather than through the midpoints between
+    /// them. Smoothing through the midpoints is the cheaper trick, but it pulls the shape
+    /// in towards its own centre and rounds the corners — a body drawn that way loses its
+    /// shoulders and its width. A spline through the points keeps the figure's extent and
+    /// only softens the corners.
+    private func smoothPath(_ points: [CGPoint]) -> NSBezierPath {
         let path = NSBezierPath()
-        guard let first = points.first else { return path }
-        path.move(to: point(first))
-        for next in points.dropFirst() {
-            path.line(to: point(next))
+        let p = points.map { point($0) }
+        let n = p.count
+        guard n > 2 else { return path }
+        // How much of the neighbouring segment the curve borrows. Below 1 it rounds the
+        // corners without the overshoot a full Catmull-Rom puts at a sharp turn.
+        let tension = 0.8
+        path.move(to: p[0])
+        for i in 0..<n {
+            let p0 = p[(i - 1 + n) % n]
+            let p1 = p[i]
+            let p2 = p[(i + 1) % n]
+            let p3 = p[(i + 2) % n]
+            let c1 = CGPoint(
+                x: p1.x + (p2.x - p0.x) * tension / 6,
+                y: p1.y + (p2.y - p0.y) * tension / 6
+            )
+            let c2 = CGPoint(
+                x: p2.x - (p3.x - p1.x) * tension / 6,
+                y: p2.y - (p3.y - p1.y) * tension / 6
+            )
+            path.curve(to: p2, controlPoint1: c1, controlPoint2: c2)
         }
         path.close()
         return path
@@ -185,7 +231,7 @@ final class ChakraFigureView: NSView {
                 // at the size of the figure a bigger halo swallowed the two marks below
                 // it, which is the opposite of what a highlight is for.
                 let halos: [(scale: CGFloat, alpha: CGFloat)] = [
-                    (1.9, 0.14), (1.4, 0.24)
+                    (1.7, 0.12), (1.3, 0.20)
                 ]
                 for halo in halos {
                     let grown = radius * halo.scale
