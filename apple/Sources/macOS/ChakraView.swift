@@ -37,11 +37,11 @@ final class ChakraFigureView: NSView {
     /// The mark nearest to a point, if it is close enough to be a click.
     private func mark(near location: CGPoint) -> Int? {
         var best: (index: Int, distance: CGFloat)?
-        for (visualIndex, normalised) in Body.marks.enumerated() {
+        for (visualIndex, normalised) in Figure.marks.enumerated() {
             let centre = point(normalised.x, normalised.y)
             let distance = hypot(centre.x - location.x, centre.y - location.y)
             if best == nil || distance < best!.distance {
-                best = (Body.marks.count - 1 - visualIndex, distance)
+                best = (Figure.marks.count - 1 - visualIndex, distance)
             }
         }
         guard let best, best.distance < radius(Self.pickRadius) else { return nil }
@@ -84,98 +84,104 @@ final class ChakraFigureView: NSView {
     /// The body, in normalised coordinates: 0…1 down, and 0…1 across the body's own
     /// width. The proportions are a standing figure seen from the front — a head, narrow
     /// shoulders, arms hanging clear of the torso, and two separate legs.
-    private enum Body {
-        /// The body's width as a fraction of its height. A figure in the lotus pose is
-        /// wider than it is tall at the knees, and the whole shape has to fit the panel.
-        static let aspect: CGFloat = 0.44
-
-        /// The head: an oval from the crown to the chin. A sixth of the seated height,
-        /// which is the proportion the chakra diagrams use — the head is read, not
-        /// measured.
-        static let headCentreY: CGFloat = 0.075
-        static let headHalfWidth: CGFloat = 0.050
-        static let headHalfHeight: CGFloat = 0.074
-
-        /// The trunk, upright: neck, shoulders, ribs, waist, hips.
-        static let neckTop: CGFloat = 0.135
-        static let neckBottom: CGFloat = 0.190
-        static let neckHalfWidth: CGFloat = 0.031
-        static let shoulderY: CGFloat = 0.200
-        static let shoulderHalfWidth: CGFloat = 0.124
-        static let armpitY: CGFloat = 0.265
-        static let waistY: CGFloat = 0.360
-        static let waistHalfWidth: CGFloat = 0.092
-        static let hipY: CGFloat = 0.430
-        static let hipHalfWidth: CGFloat = 0.107
-        static let lapY: CGFloat = 0.478
-
-        /// The crossed legs. The knees are the widest point and the feet are crossed in
-        /// front at the bottom centre, so the shape is a wide triangle with its point
-        /// down — which is what a lotus pose looks like from the front.
-        static let base: [(x: CGFloat, y: CGFloat)] = [
-            (0.000, 0.480),
-            (0.110, 0.495),
-            (0.186, 0.570),   // the knee, the widest point
-            (0.206, 0.650),
-            (0.176, 0.760),   // the shin angling in
-            (0.116, 0.856),
-            (0.056, 0.890),   // the foot
-            (0.000, 0.884),
-            (-0.056, 0.890),
-            (-0.116, 0.856),
-            (-0.176, 0.760),
-            (-0.206, 0.650),
-            (-0.186, 0.570),
-            (-0.110, 0.495)
-        ]
-
-        /// The feet, crossed in front of the lap.
-        static let feet: [(x: CGFloat, y: CGFloat)] = [
-            (0.000, 0.800),
-            (0.050, 0.822),
-            (0.044, 0.858),
-            (0.000, 0.864),
-            (-0.044, 0.858),
-            (-0.050, 0.822)
-        ]
-
-        /// The arm, from the shoulder joint to the hand resting on the knee. It is
-        /// stroked rather than outlined: an arm is a limb, not a plate, and two lines
-        /// round a thin shape read as a stick.
-        static let arm: [(x: CGFloat, y: CGFloat)] = [
-            (0.098, 0.212),   // the shoulder joint
-            (0.150, 0.360),   // the upper arm
-            (0.178, 0.500),   // the elbow
-            (0.188, 0.560)    // the hand, on the knee
-        ]
-        static let armWidth: CGFloat = 0.028
-
-        /// The seven chakras and the earth below them, as heights down the body.
+    /// The figure, in units of its own height — `H` from the crown to the soles.
         ///
-        /// The heights are the traditional ones: the crown at the top of the head, the
-        /// third eye between the brows, the throat at the base of the throat, the heart
-        /// in the centre of the chest, the solar plexus in the upper abdomen under the
-        /// ribcage, the sacral just below the navel, the root at the base of the spine.
-        /// The earth is below the body, not on it.
+        /// The proportions are Leonardo's: eight heads, the circle centred on the navel,
+        /// and the seven chakras where the tradition puts them. The numbers come from
+        /// measurements of the *Homo ad circulum* sheet rather than from a drawing
+        /// book, and the standing pose is not a stylistic choice — a seated figure is
+        /// 3.9 heads tall against the standing figure's 8, so the same seven marks
+        /// would be half as far apart and would run into each other.
+    private enum Figure {
+        /// The head: from the crown to the chin is an eighth of the height.
+        static let headCentreY: CGFloat = 0.062
+        static let headHalfWidth: CGFloat = 0.047
+        static let headHalfHeight: CGFloat = 0.062
+
+        /// The trunk: neck, shoulders, ribs, waist, hips.
+        static let neckTop: CGFloat = 0.112
+        static let neckBottom: CGFloat = 0.175
+        static let neckHalfWidth: CGFloat = 0.028
+        static let shoulderY: CGFloat = 0.1875
+        static let shoulderHalfWidth: CGFloat = 0.105
+        static let armpitY: CGFloat = 0.232
+        static let chestY: CGFloat = 0.250
+        static let chestHalfWidth: CGFloat = 0.080
+        static let waistY: CGFloat = 0.375
+        static let waistHalfWidth: CGFloat = 0.072
+        static let hipY: CGFloat = 0.500
+        static let hipHalfWidth: CGFloat = 0.088
+        static let crotchY: CGFloat = 0.530
+
+        /// The arms, raised in a V. Leonardo's *second* pose has them horizontal,
+        /// and they cross exactly where the third eye, the throat and the heart
+        /// are — the three marks that most need room.
+        static let arm: [(x: CGFloat, y: CGFloat)] = [
+            (0.100, 0.185),   // the shoulder joint
+            (0.255, 0.108),   // the elbow
+            (0.450, 0.015)    // the hand, level with the crown
+        ]
+        static let armWidth: CGFloat = 0.024
+
+        /// The legs, a little apart, the toes reaching for the circle.
+        static let leg: [(x: CGFloat, y: CGFloat)] = [
+            (0.078, 0.495),   // the hip
+            (0.215, 0.750),   // the knee
+            (0.258, 0.872),   // the ankle
+            (0.322, 0.902)    // the toe
+        ]
+        static let legWidth: CGFloat = 0.030
+        /// The foot, from the ankle down to the ground.
+        static let foot: [(x: CGFloat, y: CGFloat)] = [
+            (0.258, 0.872),
+            (0.286, 0.938)
+        ]
+
+        /// The seven chakras and the earth below the feet, as heights down the body.
+        ///
+        /// The heights are the traditional ones — the crown at the top of the head,
+        /// the third eye between the brows, the throat at the base of the throat, the
+        /// heart at the centre of the chest, the solar plexus in the upper abdomen
+        /// under the ribcage, the sacral just below the navel, the root at the base
+        /// of the spine — and they are Leonardo's own measurements of where those
+        /// points fall on a human body.
+        ///
+        /// The gaps are 0.055–0.102 of the height: the tight pairs are the crown
+        /// and the third eye, and the sacral and the root, and both are clear of a
+        /// marker 0.012 wide.
         static let marks: [(x: CGFloat, y: CGFloat)] = [
-            (0, 0.038),   // crown
-            (0, 0.098),   // third eye
-            (0, 0.175),   // throat
-            (0, 0.270),   // heart
-            (0, 0.365),   // solar plexus
-            (0, 0.430),   // sacral
-            (0, 0.478),   // root
-            (0, 0.965)    // earth, below the body
+            (0, 0.012),   // crown
+            (0, 0.055),   // third eye
+            (0, 0.157),   // throat
+            (0, 0.250),   // heart
+            (0, 0.341),   // solar plexus
+            (0, 0.420),   // sacral
+            (0, 0.470),   // root
+            (0, 1.075)    // earth, below the soles
         ]
     }
 
-    /// A point given as a half-width in units of the body's height and a height down
-    /// the body. The body's height is the view's height, and it is centred, so the
-    /// units are the same everywhere and the proportions are the drawing's.
+    /// The figure's height in points, and where its crown sits.
+    ///
+    /// The figure is eight heads tall and the hands reach to the width of the body, so
+    /// the width is what sizes it; the height follows, and the earth mark has room
+    /// below the soles.
+    private var figureHeight: CGFloat {
+        min(bounds.height * 0.74, bounds.width / 0.98)
+    }
+
+    /// Where the crown of the head sits, in points from the top of the view.
+    private var crownY: CGFloat {
+        (bounds.height - figureHeight * 1.16) / 2
+    }
+
+    /// A point given as a half-width in units of the figure's height and a height down
+    /// from its crown. The units are the same everywhere, so the proportions are the
+    /// drawing's.
     private func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
         CGPoint(
-            x: bounds.midX + x * bounds.height,
-            y: y * bounds.height
+            x: bounds.midX + x * figureHeight,
+            y: crownY + y * figureHeight
         )
     }
 
@@ -184,14 +190,14 @@ final class ChakraFigureView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         let ink = NSColor.secondaryLabelColor
         let line = NSBezierPath()
-        line.lineWidth = max(1.0, bounds.height * 0.006)
+        line.lineWidth = max(1.0, figureHeight * 0.006)
         line.lineJoinStyle = .round
         line.lineCapStyle = .round
 
         // The head.
-        let head = point(0, Body.headCentreY)
-        let headWidth = Body.headHalfWidth * bounds.height
-        let headHeight = Body.headHalfHeight * bounds.height
+        let head = point(0, Figure.headCentreY)
+        let headWidth = Figure.headHalfWidth * figureHeight
+        let headHeight = Figure.headHalfHeight * figureHeight
         line.appendOval(in: NSRect(
             x: head.x - headWidth,
             y: head.y - headHeight,
@@ -199,44 +205,42 @@ final class ChakraFigureView: NSView {
             height: headHeight * 2
         ))
 
-        // The trunk, upright.
+        // The trunk: neck, shoulders, ribs, waist, hips.
         line.append(smoothPath([
-            (0, Body.neckTop),
-            (Body.neckHalfWidth, Body.neckBottom),
-            (Body.shoulderHalfWidth, Body.shoulderY),
-            (Body.shoulderHalfWidth * 0.92, Body.armpitY),
-            (Body.waistHalfWidth, Body.waistY),
-            (Body.hipHalfWidth, Body.hipY),
-            (0, Body.lapY),
-            (-Body.hipHalfWidth, Body.hipY),
-            (-Body.waistHalfWidth, Body.waistY),
-            (-Body.shoulderHalfWidth * 0.92, Body.armpitY),
-            (-Body.shoulderHalfWidth, Body.shoulderY),
-            (-Body.neckHalfWidth, Body.neckBottom)
+            (0, Figure.neckTop),
+            (Figure.neckHalfWidth, Figure.neckBottom),
+            (Figure.shoulderHalfWidth, Figure.shoulderY),
+            (Figure.chestHalfWidth, Figure.chestY),
+            (Figure.waistHalfWidth, Figure.waistY),
+            (Figure.hipHalfWidth, Figure.hipY),
+            (0, Figure.crotchY),
+            (-Figure.hipHalfWidth, Figure.hipY),
+            (-Figure.waistHalfWidth, Figure.waistY),
+            (-Figure.chestHalfWidth, Figure.chestY),
+            (-Figure.shoulderHalfWidth, Figure.shoulderY),
+            (-Figure.neckHalfWidth, Figure.neckBottom)
         ]))
-
-        // The crossed legs and the feet in front of them.
-        line.append(smoothPath(Body.base))
-        line.append(smoothPath(Body.feet))
 
         ink.setStroke()
         line.stroke()
 
-        // The arms, drawn as strokes: an arm is a limb, and two lines round a thin
-        // shape read as a stick rather than an arm.
-        let arms = NSBezierPath()
+        // The arms and the legs, drawn as strokes. A limb is a limb; two lines round a
+        // thin shape read as a stick.
+        let limbs = NSBezierPath()
         for side in [1.0, -1.0] as [CGFloat] {
-            let points = Body.arm.map { CGPoint(x: side * $0.x, y: $0.y) }
-            arms.move(to: point(points[0].x, points[0].y))
-            for index in 1..<points.count {
-                arms.line(to: point(points[index].x, points[index].y))
+            for path in [Figure.arm, Figure.leg, Figure.foot] {
+                let points = path.map { CGPoint(x: side * $0.x, y: $0.y) }
+                limbs.move(to: point(points[0].x, points[0].y))
+                for index in 1..<points.count {
+                    limbs.line(to: point(points[index].x, points[index].y))
+                }
             }
         }
-        arms.lineWidth = Body.armWidth * bounds.height
-        arms.lineCapStyle = .round
-        arms.lineJoinStyle = .round
+        limbs.lineWidth = Figure.armWidth * figureHeight
+        limbs.lineCapStyle = .round
+        limbs.lineJoinStyle = .round
         ink.setStroke()
-        arms.stroke()
+        limbs.stroke()
 
         drawMarks()
     }
@@ -277,9 +281,9 @@ final class ChakraFigureView: NSView {
 
     /// The seven marks: a dot in each chakra's colour, on the spine.
     private func drawMarks() {
-        for (visualIndex, normalised) in Body.marks.enumerated() {
+        for (visualIndex, normalised) in Figure.marks.enumerated() {
             // The visual order is crown-first; the sequence runs earth-first.
-            let stepIndex = Body.marks.count - 1 - visualIndex
+            let stepIndex = Figure.marks.count - 1 - visualIndex
             let centre = point(normalised.x, normalised.y)
             let colour = ChakraPalette.color(forStepIndex: stepIndex)
             let isCurrent = currentIndex == stepIndex
@@ -290,8 +294,11 @@ final class ChakraFigureView: NSView {
                 ? ChakraPalette.brightColor(forStepIndex: stepIndex)
                 : colour
 
-            let base = bounds.height * 0.0135
-            let radius = isCurrent ? base * 1.35 : base
+            // The marker is sized against the *figure*, not the panel: the tightest pair
+            // is the crown and the third eye, five hundredths of the height apart, and a
+            // dot wider than that would run into its neighbour.
+            let base = figureHeight * 0.014
+            let radius = isCurrent ? base * 1.5 : base
 
             if isCurrent {
                 // A soft halo, drawn as a few concentric circles of falling alpha. It is
@@ -299,7 +306,7 @@ final class ChakraFigureView: NSView {
                 // at the size of the figure a bigger halo swallowed the two marks below
                 // it, which is the opposite of what a highlight is for.
                 let halos: [(scale: CGFloat, alpha: CGFloat)] = [
-                    (1.7, 0.12), (1.3, 0.20)
+                    (1.6, 0.14), (1.2, 0.22)
                 ]
                 for halo in halos {
                     let grown = radius * halo.scale
