@@ -215,14 +215,28 @@ final class MainWindowController: NSWindowController {
         chakraButton.setButtonType(.toggle)
 
         // The status line: what the app wants the reader to know right now, in the
-        // colour the state deserves. It has a row of its own at the very top because it
-        // is a statement, not a control — the row below it holds the buttons, and
-        // mixing the two made the message look like one more label between them.
+        // colour the state deserves.
+        //
+        // It sits at the **bottom**, in a strip of its own, the way a status bar does —
+        // and the way the Qt window already does it, where the indicator is a permanent
+        // widget of the `QStatusBar`. The top row is then only the mode's switch and the
+        // corner menu: what the app can be *asked* to do, with the top of the window
+        // given over to that, and the bottom to what it is *doing*.
         let statusLine = NSStackView(views: [indicator])
         statusLine.orientation = .horizontal
         statusLine.alignment = .centerY
         statusLine.spacing = 0
         statusLine.translatesAutoresizingMaskIntoConstraints = false
+
+        let statusBarSeparator = NSBox()
+        statusBarSeparator.boxType = .separator
+        statusBarSeparator.translatesAutoresizingMaskIntoConstraints = false
+
+        let statusBar = NSStackView(views: [statusBarSeparator, statusLine])
+        statusBar.orientation = .vertical
+        statusBar.alignment = .leading
+        statusBar.spacing = 0
+        statusBar.translatesAutoresizingMaskIntoConstraints = false
 
         let statusRow = NSStackView(views: [
             NSView(), chakraButton, menuButton
@@ -296,8 +310,8 @@ final class MainWindowController: NSWindowController {
         presetBlock.alignment = .leading
         presetBlock.spacing = 6
         let stack = NSStackView(views: [
-            statusLine, statusRow, ears, beatView, transport, timerRow,
-            presetBlock, chakraView, errorLabel
+            statusRow, ears, beatView, transport, timerRow,
+            presetBlock, chakraView, errorLabel, statusBar
         ])
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -316,14 +330,15 @@ final class MainWindowController: NSWindowController {
         ]
         // `.leading` alignment keeps each row at its natural width, so the rows that
         // should span the window are pinned to the stack's width by hand.
-        for row in [statusLine as NSView, statusRow as NSView, ears, beatView, transport,
-                    timerRow, presetBlock, chakraView, errorLabel] {
+        for row in [statusRow as NSView, ears, beatView, transport, timerRow,
+                    presetBlock, chakraView, errorLabel, statusBar] {
             row.translatesAutoresizingMaskIntoConstraints = false
             constraints.append(row.widthAnchor.constraint(equalTo: stack.widthAnchor))
         }
         constraints += [
             statusRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-            statusLine.heightAnchor.constraint(greaterThanOrEqualToConstant: 32),
+            statusBarSeparator.heightAnchor.constraint(equalToConstant: 1),
+            statusLine.heightAnchor.constraint(greaterThanOrEqualToConstant: 24),
             menuButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             menuButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
             ears.heightAnchor.constraint(greaterThanOrEqualToConstant: 200),
@@ -370,6 +385,19 @@ final class MainWindowController: NSWindowController {
         setChakraMode(!isChakraMode)
     }
 
+    /// The switch's own on-state is not enough on its own: a rounded toggle in the
+    /// modern macOS style differs by a hairline, and the mode changes the whole lower
+    /// half of the window — the switch has to keep up with that. The fill is drawn here,
+    /// the same way the preset chips carry their selection.
+    private func updateChakraButtonAppearance() {
+        let on = isChakraMode
+        chakraButton.wantsLayer = true
+        chakraButton.layer?.backgroundColor = on ? NSColor.controlAccentColor.cgColor : nil
+        chakraButton.layer?.cornerRadius = 6
+        chakraButton.contentTintColor = on ? .white : .labelColor
+        chakraButton.needsDisplay = true
+    }
+
     /// Turn the mode on or off.
     ///
     /// The two are alternatives, not additions: the mode sets both channels and keeps
@@ -379,6 +407,7 @@ final class MainWindowController: NSWindowController {
         guard enabled != isChakraMode else { return }
         isChakraMode = enabled
         chakraButton.state = enabled ? .on : .off
+        updateChakraButtonAppearance()
         chakraView.isHidden = !enabled
         presetBlock.isHidden = enabled
         if enabled {
@@ -970,6 +999,7 @@ final class MainWindowController: NSWindowController {
         chakraView.retranslate()
         chakraButton.title = L10n.tr("Chakras")
         chakraButton.setAccessibilityLabel(L10n.tr("Chakras"))
+        updateChakraButtonAppearance()
         menuButton.setAccessibilityLabel(L10n.tr("More"))
         rebuildOverflowMenu()
         // SPEC §7.4: the preset chips are data (F3's own EN/RU names), but the caption
