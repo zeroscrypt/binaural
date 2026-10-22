@@ -74,6 +74,32 @@ final class MainWindowController: NSWindowController {
     private var chakraStartIndex = 0
     /// The steps the journey visits, in order.
     private var chakraJourney: [Int] = []
+    /// When the current step began: the step's wave goes round the ring exactly once
+    /// per step, so the picture says how much of the step is left.
+    private var chakraStepStartedAt: Date?
+    /// The step the session settles on and holds, or nil when it walks as it always did.
+    ///
+    /// The timer's length decides it when the choice is automatic: the longer the
+    /// session, the higher up the body it settles. Without a timer there is no session
+    /// to hold, and the journey walks up and back as it always has.
+    private var heldStepIndex: Int? {
+        if let chosen = chakraView.selectedHoldIndex { return chosen }
+        let minutes = timerView.selectedMinutes
+        guard minutes > 0 else { return nil }
+        let choices = Session.timerChoices.filter { $0 > 0 }
+        guard let position = choices.firstIndex(of: minutes) else { return nil }
+        let count = ChakraSequence.steps.count
+        let step = Int(
+            (Double(position) / Double(max(1, choices.count - 1)) * Double(count - 1)).rounded()
+        )
+        return min(count - 1, max(0, step))
+    }
+
+    /// The user chose which step the session holds, or left it to the timer.
+    private func chakraHoldChanged() {
+        guard isChakraMode else { return }
+        startChakraJourney(from: chakraJourneyIndices.first ?? chakraStepIndex)
+    }
     /// How far along the journey we are.
     private var chakraJourneyPosition = 0
     /// Advances the sequence. `nil` whenever the mode is off, so an idle window
@@ -340,9 +366,12 @@ final class MainWindowController: NSWindowController {
         presetBlock.orientation = .vertical
         presetBlock.alignment = .leading
         presetBlock.spacing = 6
+        // The chips live in the panel's first tab: they set the frequencies, so they
+        // belong with what is playing.
+        chakraView.presetSlot.addArrangedSubview(presetBlock)
         let stack = NSStackView(views: [
             statusRow, ears, beatView, transport,
-            presetBlock, chakraView, errorLabel, statusBar
+            chakraView, errorLabel, statusBar
         ])
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -366,7 +395,7 @@ final class MainWindowController: NSWindowController {
         // `.leading` alignment keeps each row at its natural width, so the rows that
         // should span the window are pinned to the stack's width by hand.
         for row in [statusRow as NSView, ears, beatView, transport,
-                    presetBlock, chakraView, errorLabel, statusBar] {
+                    chakraView, errorLabel, statusBar] {
             row.translatesAutoresizingMaskIntoConstraints = false
             constraints.append(row.widthAnchor.constraint(equalTo: stack.widthAnchor))
         }
@@ -392,8 +421,8 @@ final class MainWindowController: NSWindowController {
             // SPEC §7.2: the preset chips keep their 44 px targets; the block itself only
             // has to be tall enough to hold both rows.
             presetBlock.heightAnchor.constraint(greaterThanOrEqualToConstant: 100),
-            // The figure is 192 pt tall; the block has to hold it.
-            chakraView.heightAnchor.constraint(greaterThanOrEqualToConstant: 192),
+            // The figure is 190 pt tall; the block has to hold it.
+            chakraView.heightAnchor.constraint(greaterThanOrEqualToConstant: 200),
             chakraButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             chakraModeCheckbox.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
         ]
@@ -422,6 +451,7 @@ final class MainWindowController: NSWindowController {
         }
         chakraView.onBeatChange = { [weak self] beatHz in self?.chakraBeatChanged(beatHz) }
         chakraView.onChakraPicked = { [weak self] index in self?.chakraPicked(index) }
+        chakraView.onHoldChange = { [weak self] _ in self?.chakraHoldChanged() }
     }
 
     // MARK: - The chakra mode
@@ -472,8 +502,13 @@ final class MainWindowController: NSWindowController {
         chakraModeCheckbox.state = enabled ? .on : .off
         isSyncingChakraCheckbox = false
         updateChakraButtonAppearance()
-        chakraView.isHidden = !enabled
+        // The panel is the app's face: the figure and its aura are always there, and
+        // the mode only changes what is written beside them. The presets are the one
+        // thing the mode takes away — it owns both frequencies while it runs.
         presetBlock.isHidden = enabled
+        // The tab follows the mode: the step being played while the journey runs, and
+        // the chips that choose a pair when it does not.
+        chakraView.selectTab(enabled ? 0 : 3)
         // The cocoon only exists while the mode does, so it is told about the sound
         // again here: turning the mode on while the sound is already running has to
         // bring it to life, and turning it off has to let it go quiet.
@@ -540,6 +575,12 @@ final class MainWindowController: NSWindowController {
             from: chakraStartIndex,
             direction: chakraView.selectedDirection
         )
+        if let held = heldStepIndex,
+           let position = chakraJourney.firstIndex(of: held) {
+            // The journey stops at the step it holds and stays there: the session's
+            // timer decides how long that is.
+            chakraJourney = Array(chakraJourney[0...position])
+        }
         chakraJourneyPosition = 0
         // The lit marks are the ones the journey has reached: they stay lit on the way
         // back down, because the body has been that high.
@@ -558,10 +599,17 @@ final class MainWindowController: NSWindowController {
         chakraJourneyPosition += 1
         if chakraJourneyPosition >= chakraJourney.count {
             // The journey is over. The mode switches itself off and the sound stops
-            // with it — the journey was the reason for the sound.
+            // with it — the journey was the reason for the sound — unless the session
+            // is holding a step, in which case it stays there and the session's timer
+            // ends it.
             stopChakraTimer()
-            setChakraMode(false)
-            stopPlayback()
+            if heldStepIndex == nil {
+                setChakraMode(false)
+                stopPlayback()
+                return
+            }
+            chakraJourneyPosition = chakraJourney.count - 1
+            applyChakraStep()
             return
         }
         applyChakraStep()
@@ -580,9 +628,12 @@ final class MainWindowController: NSWindowController {
 
         let step = ChakraSequence.steps[index]
         let (left, right) = ChakraSequence.pair(for: step, beatHz: chakraView.selectedBeatHz)
+        chakraStepStartedAt = Date()
         leftControl.setValue(left, notify: false)
         rightControl.setValue(right, notify: false)
         chakraView.show(step: step, index: index, reachedIndex: chakraReachedIndex)
+        chakraView.setWaveTint(ChakraPalette.brightColor(forStepIndex: index))
+        pushWaves()
         frequenciesChanged()
     }
 
@@ -612,6 +663,17 @@ final class MainWindowController: NSWindowController {
         chakraTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.advanceChakraStep() }
         }
+    }
+
+    /// Tell the panel what the waves are doing: the beat, the step, and when the step
+    /// began. The same three numbers drive the aura on the figure and the scheme of the
+    /// waves beside it, so the picture and its explanation cannot disagree.
+    private func pushWaves() {
+        chakraView.setWaves(
+            beatHz: chakraView.selectedBeatHz,
+            stepSeconds: chakraView.selectedStepSeconds,
+            startedAt: chakraStepStartedAt
+        )
     }
 
     private func stopChakraTimer() {
@@ -870,6 +932,12 @@ final class MainWindowController: NSWindowController {
     // MARK: - Frequencies
 
     private func frequenciesChanged(save: Bool = true) {
+        // The panel is always on screen, so it always has something to say: without the
+        // mode running, that is the pair that is on the wire.
+        if !isChakraMode {
+            let (left, right) = (leftControl.value, rightControl.value)
+            chakraView.showCurrentPair(carrierHz: (left + right) / 2)
+        }
         beatView.update(leftHz: leftControl.value, rightHz: rightControl.value)
         pushFrequencies()
         if save, !isRestoring { scheduleSave() }

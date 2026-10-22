@@ -70,6 +70,10 @@ final class L10nKeysTests: XCTestCase {
         "Step", "Beat", "%1 s",
         // the mode's own switch, beside the button that selects the mode
         "On",
+        // the step the session settles on and holds
+        "Hold", "Auto",
+        // the picture of the waves, as against the beat that makes them
+        "Pulse",
         "Direction", "Up, then back", "Down, then back",
         "The default 21 Hz sits in the alpha band.",
         // the language control in the main window (SPEC §7.4)

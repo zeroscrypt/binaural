@@ -28,6 +28,12 @@ enum RussianWindowAdditions {
         "Unmute": "Включить звук",
         // The mode's own switch, beside the button that selects it.
         "On": "Вкл.",
+        // The step the session settles on and holds, and the choice of leaving it to
+        // the timer.
+        "Hold": "Держать",
+        "Auto": "Авто",
+        // The picture of the waves, as against the beat that makes them.
+        "Pulse": "Пульс",
         "Silences the sound. The volume itself is not changed.": (
             "Выключает звук. Сама громкость не меняется."
         ),

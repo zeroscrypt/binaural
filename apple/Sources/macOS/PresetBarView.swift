@@ -182,7 +182,7 @@ final class PresetBarView: NSView {
             // SPEC §7.2: 44 px minimum click target — one chip row tall at the very least.
             categoryColumn.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             presetColumn.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-            stack.widthAnchor.constraint(greaterThanOrEqualToConstant: 520)
+            stack.widthAnchor.constraint(greaterThanOrEqualToConstant: 300)
         ])
 
         // The caption is set here as well as in `retranslate()`: a view built on its own
@@ -327,6 +327,9 @@ final class PresetBarView: NSView {
 
     /// Width the wrapping may use, from the Auto Layout pass already made against us.
     private func availableWidth() -> CGFloat {
+        // The bar's own width, not the window's: the bar sits in a column now, and the
+        // chips have to wrap for the column they are in.
+        if bounds.width > 0 { return max(240, bounds.width) }
         guard let window else { return 700 }
         return max(240, window.contentView?.bounds.width ?? 700) - 48
     }

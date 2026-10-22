@@ -96,14 +96,53 @@ final class ChakraModeTests: XCTestCase {
         )
     }
 
+    // MARK: - The step the session holds
+
+    /// The session can settle on one step and stay there, and the timer says which:
+    /// the longer the session, the higher up the body it settles. The journey then
+    /// stops at that step instead of coming back down.
+    func testTheTimerDecidesWhichStepTheSessionHolds() {
+        let controller = makeController()
+        controller.selectTimerMinutes(120)
+        controller.setChakraMode(true)
+
+        let journey = controller.chakraJourneyIndices
+        XCTAssertEqual(journey.first, 0, "it still starts at the earth")
+        XCTAssertEqual(
+            journey.last, ChakraSequence.steps.count - 1,
+            "the longest session settles on the crown"
+        )
+        XCTAssertEqual(
+            Set(journey), Set(0..<ChakraSequence.steps.count),
+            "and it gets there through every step"
+        )
+    }
+
+    /// A short session settles low, and the journey is shorter for it.
+    func testAShortSessionSettlesLower() {
+        let controller = makeController()
+        controller.selectTimerMinutes(5)
+        controller.setChakraMode(true)
+
+        let journey = controller.chakraJourneyIndices
+        XCTAssertLessThan(
+            journey.count, ChakraSequence.steps.count,
+            "a five-minute session does not walk the whole spine"
+        )
+        XCTAssertEqual(journey.last, journey.count - 1, "it settles at the step it reached")
+    }
+
     // MARK: - It is a mode, and it is off to begin with
 
     /// The mode is a program of its own. A user who has not asked for it should get the
     /// plain frequency controls and the preset bar.
+    ///
+    /// The panel itself — the figure and its aura — is always there: it is the app's
+    /// face, and the mode only changes what is written beside it.
     func testTheModeIsOffUntilItIsAskedFor() {
         let controller = makeController()
         XCTAssertFalse(controller.isChakraModeActive)
-        XCTAssertTrue(controller.chakraControl.isHidden, "the panel starts hidden")
+        XCTAssertFalse(controller.chakraControl.isHidden, "the panel is always on screen")
         XCTAssertFalse(controller.presetBlockControl.isHidden, "the presets are not hidden by it")
     }
 
@@ -125,7 +164,7 @@ final class ChakraModeTests: XCTestCase {
         controller.setChakraMode(false)
 
         XCTAssertFalse(controller.isChakraModeActive)
-        XCTAssertTrue(controller.chakraControl.isHidden)
+        XCTAssertFalse(controller.chakraControl.isHidden, "the panel stays")
         XCTAssertFalse(controller.presetBlockControl.isHidden)
     }
 
@@ -147,6 +186,10 @@ final class ChakraModeTests: XCTestCase {
     /// nowhere left to go.
     func testTheJourneyGoesUpAndBackAndThenStops() {
         let controller = makeController()
+        // With a session timer on, the journey settles on the step the timer points at
+        // and stays there — that is what the timer is for. Without one it walks the
+        // whole spine and comes back.
+        controller.selectTimerMinutes(0)
         controller.setChakraMode(true)
 
         let journey = controller.chakraJourneyIndices
@@ -164,6 +207,8 @@ final class ChakraModeTests: XCTestCase {
     /// The other direction starts at the crown and comes back down to the earth.
     func testTheDirectionCanBeTheOtherWayRound() {
         let controller = makeController()
+        // Without a session timer the journey walks the whole spine and comes back.
+        controller.selectTimerMinutes(0)
         controller.setChakraMode(true)
         controller.chakraControl.setDirection(.down)
         controller.chakraControl.onDirectionChange?(.down)

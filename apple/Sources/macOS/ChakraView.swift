@@ -32,6 +32,44 @@ final class ChakraFigureView: NSView {
         didSet { needsDisplay = true }
     }
 
+    /// Called on every frame, so that whatever else shows the same waves can be
+    /// redrawn with them.
+    var onFrame: (() -> Void)?
+
+    /// Where the beat's wave is on the ring right now, as a fraction of the way round.
+    var beatWavePhase: CGFloat { AuraWave.beatPhase(travel: streamTravel, beatHz: beatHz) }
+
+    /// The beat the aura pulses to, in hertz.
+    ///
+    /// The wave it makes is slowed down — the eye cannot follow twenty-one pulses a
+    /// second — but it is this beat and not some other number, so a faster beat makes
+    /// a faster wave.
+    var beatHz: Double = ChakraSequence.defaultBeatHz {
+        didSet { needsDisplay = true }
+    }
+
+    /// How long one step of the journey lasts, in seconds.
+    ///
+    /// The step's wave goes round the ring exactly once per step, so the picture says
+    /// how much of the step is left.
+    var stepSeconds: Int = ChakraSequence.defaultStepSeconds {
+        didSet { needsDisplay = true }
+    }
+
+    /// When the current step began.
+    ///
+    /// The figure keeps the clock rather than being told the time: the wave moves
+    /// every frame, and a number pushed thirty times a second is a number that can be
+    /// a frame out of step with the wave it belongs to.
+    var stepStartedAt: Date? {
+        didSet { needsDisplay = true }
+    }
+
+    /// How far the current step has gone, from 0 to 1.
+    var stepProgress: CGFloat = 0 {
+        didSet { needsDisplay = true }
+    }
+
     /// Whether the sound is playing. The cocoon comes alive with it.
     var isPlaying: Bool = false {
         didSet {
@@ -389,8 +427,10 @@ final class ChakraFigureView: NSView {
     /// chakra it is passing at the time, so the ring shows the rainbow climbing on the
     /// left and coming down again on the right.
     private struct Grain {
-        /// Where it was born, as a fraction of the way round the ring.
+        /// Where it was born, as a fraction of the way round its round.
         let birth: CGFloat
+        /// Which side it takes when it comes out of the top: 0 is the left, 1 the right.
+        let side: Int
         /// The way it wanders when there is no sound.
         let wander: CGPoint
     }
@@ -594,56 +634,81 @@ final class ChakraFigureView: NSView {
         return (points[0], CGPoint(x: 0, y: -1))
     }
 
-    /// The path the streams run along: the cocoon's outline, starting at the bottom.
+    /// The spine: the way up through every chakra, from the earth's mark to the top.
     ///
-    /// The parameter runs from below the feet, up the left side, over the crown, down
-    /// the right and back under the feet — so a grain travelling along it rises on the
-    /// left and falls on the right, and the wave that runs along the path goes round
-    /// the figure the way the water goes round a stone.
-    private static let streamPath: [CGPoint] = {
-        let outline = Figure.cocoon.map { CGPoint(x: $0.x, y: $0.y) }
-        guard outline.count > 3 else { return outline }
-        // The outline is written from the top and clockwise; the path is the same ring
-        // starting at its lowest point, so that the rising half is the left one.
-        let bottom = outline.indices.min { outline[$0].y > outline[$1].y } ?? 0
-        return (0..<outline.count).map { outline[(bottom + $0) % outline.count] }
+    /// The chakras are the source: the grains leave them, rise through all of them,
+    /// come out through the crown and spread to the sides, and the sides draw the aura
+    /// back down into the earth — where they are absorbed and the next ones take their
+    /// place. The round closes on itself.
+    private static let spine: [CGPoint] = {
+        var points: [CGPoint] = []
+        // The earth's mark first: the flow starts below the soles.
+        for mark in Figure.marks.reversed() {
+            points.append(CGPoint(x: mark.x, y: mark.y))
+        }
+        points.append(CGPoint(x: 0, y: Figure.cocoonTop))
+        return points
     }()
 
-    /// The lengths of the path's segments.
-    private static let pathLengths = lengths(of: streamPath)
-    private static let pathTotal = pathLengths.reduce(0, +)
+    /// The two sides: the way down from the top to the bottom point, on the left and on
+    /// the right. They are the cocoon's own sides, so the stream runs where the shell
+    /// is.
+    private static let sides: [[CGPoint]] = {
+        let outline = Figure.cocoon.map { CGPoint(x: $0.x, y: $0.y) }
+        guard outline.count > 3 else { return [outline, outline] }
+        let bottom = outline.indices.min { outline[$0].y > outline[$1].y } ?? 0
+        // The right half: the top, down the right side, to the bottom.
+        let right = Array(outline[0...bottom])
+        // The left half: the top, down the left side, to the bottom.
+        var left = [outline[0]]
+        left += outline[(bottom + 1)...].reversed()
+        left.append(outline[bottom])
+        return [left, right]
+    }()
 
-    /// A point on the path at the fraction `s` of the way round, and the way it is
-    /// heading there.
+    private static let spineLengths = lengths(of: spine)
+    private static let spineTotal = spineLengths.reduce(0, +)
+    private static let sideLengths = sides.map { lengths(of: $0) }
+    private static let sideTotals = sideLengths.map { $0.reduce(0, +) }
+
+    /// Where a grain is on its round, and which way it is going.
     ///
-    /// The wave and the ripple are applied here rather than baked into the path: they
-    /// move, and the path does not.
-    private static func pointOnPath(
-        _ s: CGFloat,
+    /// The round has two halves: up the spine, and down one side. The spine is shared
+    /// by every grain — they all rise through the same chakras — and the side a grain
+    /// takes is the one it chose when it came out of the top.
+    private static func pointOnFlow(
+        _ fraction: CGFloat,
+        side: Int,
         travel: CGFloat,
         wave: CGFloat,
         ripple: CGFloat,
         reach: (CGFloat) -> CGFloat
     ) -> (point: CGPoint, tangent: CGPoint) {
-        let spot = along(streamPath, pathLengths, pathTotal, s)
+        let sideIndex = side % max(1, sides.count)
+        let sideTotal = sideTotals[sideIndex]
+        let round = spineTotal + sideTotal
+        guard round > 0 else { return (CGPoint.zero, CGPoint(x: 0, y: -1)) }
+        let travelled = (fraction - fraction.rounded(.down)) * round
+        let spot: (point: CGPoint, tangent: CGPoint)
+        if travelled <= spineTotal {
+            spot = along(spine, spineLengths, spineTotal, travelled / spineTotal)
+        } else {
+            let onSide = (travelled - spineTotal) / max(1, sideTotal)
+            spot = along(sides[sideIndex], sideLengths[sideIndex], sideTotal, onSide)
+        }
         var point = spot.point
-        let dx = spot.tangent.x
-        let dy = spot.tangent.y
-        var normal = CGPoint(x: dy, y: -dx)
+        var normal = CGPoint(x: spot.tangent.y, y: -spot.tangent.x)
         // Point the normal away from the spine: the path turns round twice, so the
         // perpendicular alone is not enough to say which way is out.
         if normal.x * point.x + normal.y * (point.y - Figure.cocoonCentreY) < 0 {
             normal = CGPoint(x: -normal.x, y: -normal.y)
         }
-
         // The path reaches in toward the spine where the chakras are: the aura goes
         // into each of them and comes back out.
         point.x *= 1 - reach(point.y)
-
-        // The wave: a slow swell running round the ring. The ripple: a finer shiver
-        // along it.
-        let offset = wave * sin(2 * .pi * (3 * s - 4 * travel))
-            + ripple * sin(2 * .pi * (26 * s - 9 * travel))
+        // The wave: a slow swell running round. The ripple: a finer shiver along it.
+        let offset = wave * sin(2 * .pi * (3 * fraction - 4 * travel))
+            + ripple * sin(2 * .pi * (26 * fraction - 9 * travel))
         point.x += normal.x * offset
         point.y += normal.y * offset
         return (point, spot.tangent)
@@ -730,9 +795,10 @@ final class ChakraFigureView: NSView {
         for index in 0..<streamGrainCount {
             let hash = mix(index)
             let birth = CGFloat(Double(hash % 4096) / 4096.0)
+            let side = Int((hash >> 13) & 1)
             let angle = CGFloat(Double((hash >> 24) % 4096) / 4096.0) * 2 * .pi
             let wander = CGPoint(x: cos(angle), y: sin(angle))
-            grains.append(Grain(birth: birth, wander: wander))
+            grains.append(Grain(birth: birth, side: side, wander: wander))
         }
         return grains
     }()
@@ -939,11 +1005,16 @@ final class ChakraFigureView: NSView {
                     * (self.isReducedMotion ? Self.reducedMotionScale : 1)
                 self.streamTravel = (self.streamTravel + step)
                     .truncatingRemainder(dividingBy: 1)
+                if let started = self.stepStartedAt {
+                    let length = Double(max(1, self.stepSeconds))
+                    self.stepProgress = min(1, Date().timeIntervalSince(started) / length)
+                }
                 let formationStep: CGFloat = self.isPlaying ? 0.08 : -0.08
                 if self.formation > 0 || self.isPlaying {
                     self.formation = min(max(self.formation + formationStep, 0), 1)
                 }
                 self.needsDisplay = true
+                self.onFrame?()
             }
         }
     }
@@ -1038,7 +1109,13 @@ final class ChakraFigureView: NSView {
         let active = activeMarkY
         for grain in Self.streamGrains {
             let t = (grain.birth + travel).truncatingRemainder(dividingBy: 1)
-            let spot = Self.pointOnPath(t, travel: travel, wave: 0.030, ripple: 0.007) { y in
+            let spot = Self.pointOnFlow(
+                t,
+                side: grain.side,
+                travel: travel,
+                wave: 0.030,
+                ripple: 0.007
+            ) { y in
                 Figure.reachIn(at: y, activeY: active)
             }
 
@@ -1052,17 +1129,24 @@ final class ChakraFigureView: NSView {
                 spot.point.y + grain.wander.y * chaos
             )
 
-            // The band of light travelling round the ring. It moves faster than the
-            // grains, so the aura shimmers rather than merely travelling.
+            // The waves, summed: the beat's pulse, the step's swell, and the idle
+            // shimmer under both. They do not argue with each other — what the eye
+            // sees is the sum, in the colour of the step being played.
             //
-            // Every rate here is a whole number of cycles per round, and so is the
-            // number of crests along the ring. That is what makes the round close:
-            // after one round the wave's phase has moved by a whole number of
-            // cycles, so the last frame of a round is the first frame of the next. A
-            // rate that is not a whole number leaves the wave a fraction of a turn
-            // out of place at the seam, and the animation looks like a loop whose
-            // ends do not meet.
-            let band = 0.5 + 0.5 * sin(2 * .pi * (3 * t - 4 * travel))
+            // The idle shimmer's rate is a whole number of cycles per round, and so is
+            // the number of crests along the path. That is what makes the round close:
+            // after one round the wave's phase has moved by a whole number of cycles,
+            // so the last frame of a round is the first frame of the next. A rate that
+            // is not a whole number leaves the wave a fraction of a turn out of place
+            // at the seam, and the animation looks like a loop whose ends do not meet.
+            let shimmer = 0.5 + 0.5 * sin(2 * .pi * (3 * t - 4 * travel))
+            let beatBump = AuraWave.bump(
+                at: t,
+                phase: AuraWave.beatPhase(travel: travel, beatHz: beatHz),
+                sharpness: 8
+            )
+            let stepBump = AuraWave.bump(at: t, phase: stepProgress, sharpness: 2)
+            let band = min(1, shimmer * 0.5 + beatBump * 0.35 + stepBump * 0.35)
             // Where the flow reaches into a chakra it is brighter, and brightest of
             // all at the one being played.
             let reach = Figure.reachIn(at: spot.point.y, activeY: active)
@@ -1073,12 +1157,32 @@ final class ChakraFigureView: NSView {
                 * (1 + reach * 1.8)
             let size = figureHeight * (alive ? 0.0056 : 0.0048 + 0.0020 * weight)
                 * (0.85 + 0.3 * band)
-            Self.colour(forHeight: spot.point.y).withAlphaComponent(alpha).setFill()
-            NSBezierPath(ovalIn: NSRect(
-                x: centre.x - size, y: centre.y - size,
-                width: size * 2, height: size * 2
-            )).fill()
+
+            // The waves push the path itself, so the beat's pulse is something the
+            // grain of light carries with it, not only a change of brightness.
+            let radial = CGPoint(x: spot.point.x, y: spot.point.y - Figure.cocoonCentreY)
+            let radialLength = hypot(radial.x, radial.y)
+            var moved = centre
+            if radialLength > 0 {
+                let push = (beatBump * 0.010 + stepBump * 0.016) * figureHeight
+                moved = point(
+                    spot.point.x + radial.x / radialLength * push
+                        + grain.wander.x * chaos,
+                    spot.point.y + radial.y / radialLength * push
+                        + grain.wander.y * chaos
+                )
+            }
+            drawGrain(at: moved, colour: Self.colour(forHeight: spot.point.y), alpha: alpha, size: size)
         }
+    }
+
+    /// One grain of the aura.
+    private func drawGrain(at centre: CGPoint, colour: NSColor, alpha: CGFloat, size: CGFloat) {
+        colour.withAlphaComponent(alpha).setFill()
+        NSBezierPath(ovalIn: NSRect(
+            x: centre.x - size, y: centre.y - size,
+            width: size * 2, height: size * 2
+        )).fill()
     }
 }
 
@@ -1110,6 +1214,30 @@ final class ChakraView: NSView {
     var onChakraPicked: ((Int) -> Void)?
 
     private let figure = ChakraFigureView()
+
+    // The tabs on the right of the figure: what is playing, how the journey goes, the
+    // waves themselves, and the preset chips. The figure and its aura are never
+    // covered by them — the panel is the app's face, and the tabs only change what is
+    // written beside it.
+    private let tabSelector = NSSegmentedControl()
+    private let tabContent = NSStackView()
+    private let chakraTab = NSView()
+    private let stepTab = NSView()
+    private let pulseTab = NSView()
+    private let presetTab = NSView()
+    /// Where the preset chips go.
+    private let presetSlotView = NSStackView()
+    /// The slot the preset chips go in — the panel's last tab.
+    var presetSlot: NSStackView { presetSlotView }
+    /// The scheme of the waves, and what they are doing.
+    private let schemeView = WaveSchemeView()
+    private let holdCaptionLabel = NSTextField(labelWithString: "")
+    private let holdPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let beatWaveCaption = NSTextField(labelWithString: "")
+    private let beatWaveValue = NSTextField(labelWithString: "")
+    private let stepWaveCaption = NSTextField(labelWithString: "")
+    private let stepWaveValue = NSTextField(labelWithString: "")
+
     private let frequencyLabel = NSTextField(labelWithString: "")
     private let nameLabel = NSTextField(labelWithString: "")
     private let descriptionLabel = NSTextField(labelWithString: "")
@@ -1122,6 +1250,8 @@ final class ChakraView: NSView {
     private let noteLabel = NSTextField(labelWithString: "")
 
     private var stepSeconds: Int = ChakraSequence.defaultStepSeconds
+    /// Which step the session settles on and holds, or nil for the automatic choice.
+    private var holdIndex: Int?
     private var direction: ChakraSequence.Direction = .up
     private var beatHz: Double = ChakraSequence.defaultBeatHz
     private var isSyncing = false
@@ -1129,10 +1259,9 @@ final class ChakraView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         translatesAutoresizingMaskIntoConstraints = false
-        // The mode is off until the user asks for it, and the block is hidden until
-        // then — but a hidden view still lays out, so it has to start hidden rather
-        // than be hidden after the first pass.
-        isHidden = true
+        // The panel is always on screen: the figure and its aura are the app's face,
+        // and the mode only changes what is written beside them.
+        isHidden = false
         setUp()
     }
 
@@ -1229,20 +1358,107 @@ final class ChakraView: NSView {
         // lowest-priority child, and a plain view has a far lower content-hugging
         // priority than a row of controls. Without it the slack went to the beat row
         // and pushed the caption to the far edge of the window.
-        let controls = NSStackView(views: [durationRow, beatRow, NSView()])
-        controls.orientation = .horizontal
-        controls.alignment = .centerY
-        controls.spacing = 16
+        holdCaptionLabel.font = .systemFont(ofSize: 13)
+        holdCaptionLabel.textColor = .secondaryLabelColor
 
-        let text = NSStackView(views: [
-            frequencyLabel, nameLabel, descriptionLabel, controls,
-            directionCheckbox, noteLabel
+        holdPopup.controlSize = .regular
+        holdPopup.font = .systemFont(ofSize: 13)
+        holdPopup.target = self
+        holdPopup.action = #selector(holdChanged)
+        holdPopup.setAccessibilityLabel(L10n.tr("Hold"))
+        rebuildHoldItems()
+
+        beatWaveCaption.font = .systemFont(ofSize: 12)
+        beatWaveCaption.textColor = .secondaryLabelColor
+        beatWaveValue.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+        beatWaveValue.textColor = .secondaryLabelColor
+        stepWaveCaption.font = .systemFont(ofSize: 12)
+        stepWaveCaption.textColor = .secondaryLabelColor
+        stepWaveValue.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+        stepWaveValue.textColor = .secondaryLabelColor
+
+        // The tabs.
+        tabSelector.segmentStyle = .rounded
+        tabSelector.trackingMode = .selectOne
+        tabSelector.target = self
+        tabSelector.action = #selector(tabChanged)
+        tabSelector.segmentCount = 4
+        for (index, title) in [
+            L10n.tr("Chakras"), L10n.tr("Step"), L10n.tr("Pulse"), L10n.tr("Presets")
+        ].enumerated() {
+            tabSelector.setLabel(title, forSegment: index)
+        }
+        tabSelector.selectedSegment = 0
+
+        // "Чакра": what is playing now — and the beat, which is the sound itself.
+        //
+        // The beat and the pulse are two different things and they are not confused
+        // here: the beat is the difference between the two channels, the thing the ear
+        // hears as a pulse, and it is a setting; the pulse is the picture of it, and it
+        // is on the next tab.
+        let chakraStack = NSStackView(views: [
+            frequencyLabel, nameLabel, descriptionLabel, beatRow
         ])
-        text.orientation = .vertical
-        text.alignment = .leading
-        text.spacing = 4
+        chakraStack.orientation = .vertical
+        chakraStack.alignment = .leading
+        chakraStack.spacing = 4
+        chakraStack.translatesAutoresizingMaskIntoConstraints = false
+        chakraTab.addSubview(chakraStack)
 
-        let row = NSStackView(views: [figure, text])
+        // "Шаг": how the journey goes.
+        let holdRow = NSStackView(views: [holdCaptionLabel, holdPopup])
+        holdRow.orientation = .horizontal
+        holdRow.alignment = .centerY
+        holdRow.spacing = 8
+        let stepStack = NSStackView(views: [
+            durationRow, directionCheckbox, holdRow, noteLabel
+        ])
+        stepStack.orientation = .vertical
+        stepStack.alignment = .leading
+        stepStack.spacing = 6
+        stepStack.translatesAutoresizingMaskIntoConstraints = false
+        stepTab.addSubview(stepStack)
+
+        // "Пульс": the picture of the waves, and what they are doing. Nothing here is a
+        // setting — the pulse is what the waves look like, not a thing to choose.
+        let waveNumbers = NSStackView(views: [
+            beatWaveCaption, beatWaveValue, NSView(),
+            stepWaveCaption, stepWaveValue
+        ])
+        waveNumbers.orientation = .horizontal
+        waveNumbers.alignment = .centerY
+        waveNumbers.spacing = 6
+        let pulseStack = NSStackView(views: [schemeView, waveNumbers])
+        pulseStack.orientation = .vertical
+        pulseStack.alignment = .leading
+        pulseStack.spacing = 8
+        pulseStack.translatesAutoresizingMaskIntoConstraints = false
+        pulseTab.addSubview(pulseStack)
+
+        // "Пресеты": the chips that choose a pair of frequencies.
+        presetSlotView.orientation = .vertical
+        presetSlotView.alignment = .leading
+        presetSlotView.spacing = 6
+        let presetStack = NSStackView(views: [presetSlotView])
+        presetStack.orientation = .vertical
+        presetStack.alignment = .leading
+        presetStack.translatesAutoresizingMaskIntoConstraints = false
+        presetTab.addSubview(presetStack)
+
+        tabContent.orientation = .vertical
+        tabContent.alignment = .leading
+        tabContent.spacing = 8
+        tabContent.addArrangedSubview(chakraTab)
+        tabContent.addArrangedSubview(stepTab)
+        tabContent.addArrangedSubview(pulseTab)
+        tabContent.addArrangedSubview(presetTab)
+
+        let rightColumn = NSStackView(views: [tabSelector, tabContent])
+        rightColumn.orientation = .vertical
+        rightColumn.alignment = .leading
+        rightColumn.spacing = 8
+
+        let row = NSStackView(views: [figure, rightColumn])
         row.orientation = .horizontal
         row.alignment = .top
         row.spacing = 16
@@ -1254,11 +1470,30 @@ final class ChakraView: NSView {
             row.trailingAnchor.constraint(equalTo: trailingAnchor),
             row.topAnchor.constraint(equalTo: topAnchor),
             row.bottomAnchor.constraint(equalTo: bottomAnchor),
-            figure.widthAnchor.constraint(equalToConstant: 170),
-            figure.heightAnchor.constraint(equalToConstant: 192),
+            figure.widthAnchor.constraint(equalToConstant: 190),
+            figure.heightAnchor.constraint(equalToConstant: 200),
+            chakraStack.leadingAnchor.constraint(equalTo: chakraTab.leadingAnchor),
+            chakraStack.trailingAnchor.constraint(equalTo: chakraTab.trailingAnchor),
+            chakraStack.topAnchor.constraint(equalTo: chakraTab.topAnchor),
+            stepStack.leadingAnchor.constraint(equalTo: stepTab.leadingAnchor),
+            stepStack.trailingAnchor.constraint(equalTo: stepTab.trailingAnchor),
+            stepStack.topAnchor.constraint(equalTo: stepTab.topAnchor),
+            pulseStack.leadingAnchor.constraint(equalTo: pulseTab.leadingAnchor),
+            pulseStack.trailingAnchor.constraint(equalTo: pulseTab.trailingAnchor),
+            pulseStack.topAnchor.constraint(equalTo: pulseTab.topAnchor),
+            presetStack.leadingAnchor.constraint(equalTo: presetTab.leadingAnchor),
+            presetStack.trailingAnchor.constraint(equalTo: presetTab.trailingAnchor),
+            presetStack.topAnchor.constraint(equalTo: presetTab.topAnchor),
+            schemeView.widthAnchor.constraint(equalToConstant: 200),
+            schemeView.heightAnchor.constraint(equalToConstant: 70),
+            // The description is a sentence, and a sentence's natural width is the whole
+            // sentence on one line. Without a ceiling the column would ask for that
+            // width and the window would grow to fit it.
+            descriptionLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 380),
             // SPEC §7.2: 44 px minimum click target. The field is the height of its own
             // text, and `TallTargetTextField` adds the missing band back as hit slop.
             durationPopup.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            holdPopup.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             // As wide as the widest beat the mode accepts — `40.0` — and no wider.
             beatField.widthAnchor.constraint(
                 equalToConstant: FieldMetrics.width(
@@ -1270,6 +1505,8 @@ final class ChakraView: NSView {
 
         setAccessibilityLabel(ChakraSequence.modeName)
         rebuildDurationItems()
+        showTab(0)
+        linkSchemeToFigure()
         setStepSeconds(stepSeconds)
         setDirection(direction)
         setBeatHz(beatHz)
@@ -1292,6 +1529,34 @@ final class ChakraView: NSView {
         return formatter
     }
 
+    /// The steps on offer to hold, and the automatic choice.
+    ///
+    /// The list is rebuilt rather than patched: the captions are translated, and a
+    /// translated list that is patched in place keeps the language of the day it was
+    /// built.
+    private func rebuildHoldItems() {
+        holdPopup.removeAllItems()
+        holdPopup.addItem(withTitle: L10n.tr("Auto"))
+        holdPopup.item(at: 0)?.representedObject = -1
+        for (index, step) in ChakraSequence.steps.enumerated() {
+            holdPopup.addItem(withTitle: ChakraSequence.name(of: step))
+            holdPopup.lastItem?.representedObject = index
+        }
+        holdPopup.selectItem(at: 0)
+    }
+
+    /// The step the session settles on and holds, or nil for the automatic choice.
+    var selectedHoldIndex: Int? { holdIndex }
+
+    @objc private func holdChanged() {
+        let raw = holdPopup.selectedItem?.representedObject as? Int ?? -1
+        holdIndex = raw >= 0 ? raw : nil
+        onHoldChange?(holdIndex)
+    }
+
+    /// The user chose which step the session holds.
+    var onHoldChange: ((Int?) -> Void)?
+
     /// The offered lengths are data, and translating them changes every caption, so the
     /// list is rebuilt rather than patched.
     private func rebuildDurationItems() {
@@ -1308,6 +1573,77 @@ final class ChakraView: NSView {
     /// alive with it and goes quiet with it.
     func setPlaying(_ playing: Bool) {
         figure.isPlaying = playing
+    }
+
+    /// Tell the panel what the waves are doing: the beat, the step, and when the step
+    /// began.
+    ///
+    /// The same three numbers drive the aura on the figure and the scheme of the waves
+    /// beside it, so the picture and its explanation cannot disagree.
+    func setWaves(beatHz: Double, stepSeconds: Int, startedAt: Date?) {
+        figure.beatHz = beatHz
+        figure.stepSeconds = stepSeconds
+        figure.stepStartedAt = startedAt
+        updateWaveLabels()
+    }
+
+    /// The colour the waves wear: the colour of the chakra being played.
+    func setWaveTint(_ colour: NSColor) {
+        schemeView.tint = colour
+    }
+
+    /// The tab the user picked.
+    var selectedTab: Int { tabSelector.selectedSegment }
+
+    /// Show one of the tabs: the chakra being played, the journey, the waves, or the
+    /// preset chips.
+    func selectTab(_ index: Int) {
+        tabSelector.selectedSegment = min(max(0, index), max(0, tabSelector.segmentCount - 1))
+        showTab(tabSelector.selectedSegment)
+    }
+
+    /// Show one of the tabs and hide the others.
+    private func showTab(_ index: Int) {
+        for (position, view) in [chakraTab, stepTab, pulseTab, presetTab].enumerated() {
+            view.isHidden = position != index
+        }
+    }
+
+    @objc private func tabChanged() {
+        showTab(tabSelector.selectedSegment)
+    }
+
+    /// The scheme of the waves reads everything from the figure, so that the picture and
+    /// its explanation are the same waves and not two clocks that drift apart.
+    private func linkSchemeToFigure() {
+        schemeView.source = figure
+        figure.onFrame = { [weak self] in
+            self?.schemeView.needsDisplay = true
+        }
+    }
+
+    /// The numbers under the scheme: how long each of the waves takes to go round.
+    private func updateWaveLabels() {
+        let beatPeriod = AuraWave.beatPeriod(beatHz: figure.beatHz)
+        // `L10n.tr` substitutes the positional placeholder itself. `String(format:)`
+        // would not: "%1 s" is not a C format, and handing a Swift string to `%s`
+        // crashes the process.
+        beatWaveValue.stringValue = L10n.tr("%1 s", FrequencyGrid.text(beatPeriod))
+        stepWaveValue.stringValue = L10n.tr(
+            "%1 s",
+            FrequencyGrid.text(AuraWave.stepPeriod(stepSeconds: figure.stepSeconds))
+        )
+    }
+
+    /// Show the pair that is playing, for the times when the mode is not running.
+    ///
+    /// The tab is there whatever the mode is doing, so it has something to say in the
+    /// ordinary case as well: the carrier that is on the wire.
+    func showCurrentPair(carrierHz: Double) {
+        frequencyLabel.stringValue = FrequencyGrid.text(carrierHz)
+        frequencyLabel.textColor = .controlAccentColor
+        nameLabel.stringValue = ""
+        descriptionLabel.stringValue = ""
     }
 
     /// Show a step: its frequency, its name, what it is about, and how far the sequence
@@ -1443,6 +1779,17 @@ final class ChakraView: NSView {
 
     /// Re-read every caption after a language switch (SPEC §7.4), keeping the values.
     func retranslate() {
+        let titles = [
+            L10n.tr("Chakras"), L10n.tr("Step"), L10n.tr("Pulse"), L10n.tr("Presets")
+        ]
+        for (index, title) in titles.enumerated() where index < tabSelector.segmentCount {
+            tabSelector.setLabel(title, forSegment: index)
+        }
+        beatWaveCaption.stringValue = L10n.tr("BEAT")
+        stepWaveCaption.stringValue = L10n.tr("Step")
+        holdCaptionLabel.stringValue = L10n.tr("Hold")
+        holdPopup.setAccessibilityLabel(L10n.tr("Hold"))
+        rebuildHoldItems()
         durationCaptionLabel.stringValue = L10n.tr("Step")
         durationPopup.setAccessibilityLabel(L10n.tr("Step"))
         directionCheckbox.title = direction.name(for: L10n.language)
