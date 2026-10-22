@@ -67,8 +67,9 @@ final class WindowLanguageTests: XCTestCase {
         let row = try XCTUnwrap(controller.statusRow)
         let titles = row.arrangedSubviews.compactMap { ($0 as? NSButton)?.title }
         XCTAssertEqual(
-            titles, ["Chakras", ""],
-            "the mode's switch, then the corner menu (an icon, so no title): \(titles)"
+            titles, ["Chakras", "On", ""],
+            "the mode's trigger, its own switch, then the corner menu (an icon, so no "
+                + "title): \(titles)"
         )
 
         let rowFrame = row.convert(row.bounds, to: window.contentView)

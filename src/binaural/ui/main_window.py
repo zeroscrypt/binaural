@@ -211,11 +211,8 @@ class MainWindow(QMainWindow):
         self._beat.lockToggled.connect(self.set_difference_locked)
         central_layout.addWidget(self._beat)
 
-        # --- transport ----------------------------------------------------
+        # --- transport (with the playback timer, SPEC §5 F5) ----------------
         central_layout.addLayout(self._build_transport())
-
-        # --- playback timer (SPEC §5 F5) -----------------------------------
-        central_layout.addLayout(self._build_timer())
 
         # --- presets ------------------------------------------------------
         central_layout.addStretch(1)
@@ -252,6 +249,12 @@ class MainWindow(QMainWindow):
         self._play_button.setShortcut("Space")
         self._play_button.clicked.connect(self.toggle_playback)
         row.addWidget(self._play_button)
+
+        row.addSpacing(theme.SPACE_LG)
+
+        # The timer sits with the volume: it is one more control of the same kind, and
+        # a row of its own underneath put the window's controls in two places.
+        row.addLayout(self._build_timer())
 
         row.addSpacing(theme.SPACE_LG)
 
@@ -326,7 +329,6 @@ class MainWindow(QMainWindow):
         self._countdown.setVisible(False)
         row.addWidget(self._countdown)
 
-        row.addStretch(1)
         return row
 
     def _rebuild_timer_choices(self, *, select: int | None = None) -> None:

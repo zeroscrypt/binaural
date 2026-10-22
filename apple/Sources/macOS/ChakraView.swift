@@ -249,6 +249,24 @@ final class ChakraFigureView: NSView {
         /// How far the cocoon reaches above the crown and below the soles.
         static let cocoonTop: CGFloat = -0.080
         static let cocoonBottom: CGFloat = 1.115
+        /// The point the shells close in on: the middle of the body.
+        static let cocoonCentreY: CGFloat = 0.500
+
+        /// How far the aura reaches in toward the spine at a height.
+        ///
+        /// The dents are at the chakras: the aura goes into each of them and comes back
+        /// out, and the one being played reaches in deepest.
+        static func reachIn(at y: CGFloat, activeY: CGFloat?) -> CGFloat {
+            var deepest: CGFloat = 0
+            for mark in marks {
+                let distance = abs(mark.y - y)
+                guard distance < 0.030 else { continue }
+                let depth = 1 - distance / 0.030
+                let weight: CGFloat = mark.y == activeY ? 2.0 : 1.0
+                deepest = max(deepest, depth * depth * weight)
+            }
+            return min(deepest, 0.26)
+        }
     }
 
     /// The figure's height in points.
@@ -417,45 +435,187 @@ final class ChakraFigureView: NSView {
         }
     }
 
-    // MARK: - The cocoon
+    // MARK: - The aura
 
-    /// Roughly thirty frames a second. The cocoon shivers; it does not animate.
-    private static let vibrationInterval: TimeInterval = 1.0 / 30.0
-
-    /// How many particles the shell is made of.
-    private static let particleCount = 132
-
-    /// The cocoon's clock, in a box of its own.
+    /// A grain of the streams.
     ///
-    /// A `@MainActor` type's `deinit` is not isolated, and it may not reach the actor's
-    /// own properties — so the one thing that has to be switched off on the way out
-    /// lives in plain `Sendable` state.
-    private final class Clock: @unchecked Sendable {
-        var timer: Timer?
+    /// A grain is born at a chakra — the earth under the feet included — carries that
+    /// chakra's colour, and travels the path until it fades. The colour is the grain's
+    /// own: a grain that left the root stays red all the way round, which is how you
+    /// can tell where it came from.
+    private struct Grain {
+        /// Where it was born, as a fraction of the way round the path.
+        let birth: CGFloat
+        /// The colour it carries.
+        let colour: NSColor
+        /// Where it lies when there is no sound.
+        let dust: CGPoint
     }
 
-    /// The clock that makes the cocoon breathe.
-    private let clock = Clock()
+    /// How many grains the streams are made of.
+    private static let streamGrainCount = 360
 
-    /// Whether the system asks for reduced motion (SPEC §7.2).
+    /// How long the path takes to go round, in seconds: the middle of the twelve to
+    /// twenty the aura was asked for. Slow enough to watch, fast enough to see.
+    private static let streamPeriod: CGFloat = 16
+
+    /// How far the grains travel in one frame at thirty frames a second.
+    private static let streamStep: CGFloat = 1 / (streamPeriod * 30)
+
+    /// How much slower everything moves when the system asks for reduced motion.
     ///
-    /// The tests answer for themselves: the setting belongs to the machine the suite
-    /// runs on, and a test that depended on it would pass on one machine and fail on
-    /// another.
-    var reducedMotionOverride: Bool?
+    /// The streams do not stop: they crawl. A still picture would say the same thing
+    /// more clearly, but the user asked for the movement to be there, only slower.
+    private static let reducedMotionScale: CGFloat = 0.25
 
-    private var isReducedMotion: Bool {
-        reducedMotionOverride ?? NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    /// The path the streams run along: the cocoon's outline, starting at the bottom.
+    ///
+    /// The parameter runs from below the feet, up the left side, over the crown, down
+    /// the right and back under the feet — so a grain travelling along it rises on the
+    /// left and falls on the right. Those are the two streams the aura is made of, and
+    /// the reason the colours climb the left and come down the right.
+    private static let streamPath: [CGPoint] = {
+        let outline = Figure.cocoon.map { CGPoint(x: $0.x, y: $0.y) }
+        guard outline.count > 3 else { return outline }
+        // The outline is written from the top and clockwise; the path is the same ring
+        // starting at its lowest point, so that the rising half is the left one.
+        let bottom = outline.indices.min { outline[$0].y > outline[$1].y } ?? 0
+        return (0..<outline.count).map { outline[(bottom + $0) % outline.count] }
+    }()
+
+    /// A well-mixed number for a grain's index.
+    ///
+    /// The dust has to look random and be the same every run: a picture that changed
+    /// from frame to frame would be a flicker, and one that changed from launch to
+    /// launch would be a different picture each time.
+    private static func mix(_ value: Int) -> UInt64 {
+        var h = UInt64(truncatingIfNeeded: value) &* 0x9E37_79B9_7F4A_7C15
+        h ^= h >> 29
+        h &*= 0xBF58_476D_1CE4_E5B9
+        h ^= h >> 32
+        return h
     }
 
-    /// The grains' two places: where they belong in the cocoon, and where they lie when
-    /// there is no sound.
+    /// A point on the path at the fraction `s` of the way round, and the outward
+    /// normal there.
     ///
-    /// The outline does not move, so the places are worked out once: the vibration is a
-    /// small displacement of a position that is already known. The grains are spread by
-    /// arc length rather than by index, so they cannot bunch wherever the outline's
-    /// points happen to be close together.
-    private static let particles: [(home: CGPoint, normal: CGPoint, dust: CGPoint)] = {
+    /// The wave and the ripple are applied here rather than baked into the path: they
+    /// move, and the path does not.
+    private static func pointOnPath(
+        _ s: CGFloat,
+        travel: CGFloat,
+        wave: CGFloat,
+        ripple: CGFloat,
+        reach: (CGFloat) -> CGFloat
+    ) -> (point: CGPoint, normal: CGPoint) {
+        let count = streamPath.count
+        let scaled = s * CGFloat(count)
+        let index = Int(scaled) % count
+        let t = scaled - CGFloat(index)
+        let a = streamPath[index]
+        let b = streamPath[(index + 1) % count]
+        var point = CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
+
+        let dx = b.x - a.x
+        let dy = b.y - a.y
+        let norm = hypot(dx, dy)
+        guard norm > 0 else { return (point, CGPoint(x: 0, y: -1)) }
+        var normal = CGPoint(x: dy / norm, y: -dx / norm)
+        // Point the normal away from the spine: the path turns round twice, so the
+        // perpendicular alone is not enough to say which way is out.
+        if normal.x * point.x + normal.y * (point.y - Figure.cocoonCentreY) < 0 {
+            normal = CGPoint(x: -normal.x, y: -normal.y)
+        }
+
+        // The path reaches in toward the spine where the chakras are: the aura goes
+        // into each of them and comes back out.
+        point.x *= 1 - reach(point.y)
+
+        // The wave: a slow swell running round the ring. The ripple: a finer shiver
+        // along it. Neither of them is the movement of the grains — the grains ride on
+        // the path, and the path moves under them.
+        let offset = wave * sin(2 * .pi * (3 * s - 2.4 * travel))
+            + ripple * sin(2 * .pi * (26 * s - 9 * travel))
+        point.x += normal.x * offset
+        point.y += normal.y * offset
+        return (point, normal)
+    }
+
+    /// The colour of the chakra at a height: the nearest mark's.
+    private static func colour(forHeight y: CGFloat) -> NSColor {
+        var best = 0
+        var bestDistance = CGFloat.greatestFiniteMagnitude
+        for (visualIndex, mark) in Figure.marks.enumerated() {
+            let distance = abs(mark.y - y)
+            if distance < bestDistance {
+                bestDistance = distance
+                best = Figure.marks.count - 1 - visualIndex
+            }
+        }
+        return ChakraPalette.color(forStepIndex: best)
+    }
+
+    /// The grains of the streams, worked out once.
+    private static let streamGrains: [Grain] = {
+        var grains: [Grain] = []
+        for index in 0..<streamGrainCount {
+            let hash = mix(index)
+            let birth = CGFloat(Double(hash % 4096) / 4096.0)
+            // The colour is decided by where the grain was born: the chakra it was
+            // born at, and it keeps it for the whole way round.
+            let spot = pointOnPath(birth, travel: 0, wave: 0, ripple: 0) { _ in 0 }
+            let colour = colour(forHeight: spot.point.y)
+
+            // The dust: half the grains hug the outline, half float as a cloud. The
+            // user asked for both — the aura always has a shape, but never a clear
+            // one.
+            let angle = CGFloat(Double((hash >> 12) % 4096) / 4096.0) * 2 * .pi
+            let radius = 0.22 + CGFloat(Double((hash >> 24) % 4096) / 4096.0) * 0.82
+            let cloud = CGPoint(
+                x: cos(angle) * radius * 0.64,
+                y: 0.44 + sin(angle) * radius * 0.78
+            )
+            let jitter = CGFloat(Double((hash >> 36) % 1024) / 1024.0 - 0.5) * 0.10
+            let hugging = CGPoint(x: spot.point.x * (1 + jitter), y: spot.point.y)
+            let dust = hash & 1 == 0 ? hugging : cloud
+            grains.append(Grain(birth: birth, colour: colour, dust: dust))
+        }
+        return grains
+    }()
+
+    /// The shells of the cocoon, worked out once: the outline scaled down, each with
+    /// its own colour and its own wave.
+    ///
+    /// They are the quiet background the streams run over — seven of them, one for
+    /// each chakra, the rainbow from the root outside to the crown in.
+    private struct Shell {
+        /// The grains on it, in the order they go round.
+        let grains: [(home: CGPoint, normal: CGPoint, around: CGFloat, dust: CGPoint)]
+        /// The colour it wears.
+        let colour: NSColor
+        /// How fast its wave goes round, in turns per second.
+        let speed: Double
+        /// Where its wave starts.
+        let phase: Double
+    }
+
+    /// How many shells the cocoon has: one for each of the seven chakras.
+    private static let layerCount = 7
+
+    /// How far apart the shells sit, as a fraction of the outer one.
+    private static let layerStep: CGFloat = (1 - 0.48) / CGFloat(layerCount - 1)
+
+    /// How many grains a shell is made of.
+    private static let grainsPerShell = 52
+
+    /// The shells of the cocoon.
+    ///
+    /// Each is the same outline scaled down, and each has its own wave. The wave is
+    /// what makes the aura look alive: each shell's light travels round it at its own
+    /// speed, so the shells never beat together. One pulse running through all of
+    /// them at once would be a rhythm, and this is meant to look like a living thing
+    /// rather than a metronome.
+    private static let shells: [Shell] = {
         let outline = Figure.cocoon.map { CGPoint(x: $0.x, y: $0.y) }
         guard outline.count > 2 else { return [] }
         var lengths: [CGFloat] = []
@@ -468,50 +628,107 @@ final class ChakraFigureView: NSView {
         }
         guard total > 0 else { return [] }
 
-        var particles: [(home: CGPoint, normal: CGPoint, dust: CGPoint)] = []
-        for step in 0..<particleCount {
-            let target = total * CGFloat(step) / CGFloat(particleCount)
-            var walked: CGFloat = 0
-            var home = outline[0]
-            var normal = CGPoint(x: 0, y: -1)
-            for index in outline.indices {
-                let length = lengths[index]
-                if walked + length >= target {
-                    let t = (target - walked) / length
-                    let next = outline[(index + 1) % outline.count]
-                    home = CGPoint(
-                        x: outline[index].x + (next.x - outline[index].x) * t,
-                        y: outline[index].y + (next.y - outline[index].y) * t
-                    )
-                    let dx = next.x - outline[index].x
-                    let dy = next.y - outline[index].y
-                    let norm = hypot(dx, dy)
-                    // The outline runs clockwise on screen, so the outward normal is the
-                    // direction turned the other way.
-                    normal = norm > 0 ? CGPoint(x: dy / norm, y: -dx / norm) : .zero
-                    break
+        var shells: [Shell] = []
+        for layer in 0..<layerCount {
+            let scale = 1 - CGFloat(layer) * layerStep
+            var grains: [(home: CGPoint, normal: CGPoint, around: CGFloat, dust: CGPoint)] = []
+            for step in 0..<grainsPerShell {
+                let target = total * CGFloat(step) / CGFloat(grainsPerShell)
+                var walked: CGFloat = 0
+                var home = outline[0]
+                var normal = CGPoint(x: 0, y: -1)
+                for index in outline.indices {
+                    let length = lengths[index]
+                    if walked + length >= target {
+                        let t = (target - walked) / length
+                        let next = outline[(index + 1) % outline.count]
+                        let raw = CGPoint(
+                            x: outline[index].x + (next.x - outline[index].x) * t,
+                            y: outline[index].y + (next.y - outline[index].y) * t
+                        )
+                        home = CGPoint(
+                            x: raw.x * scale,
+                            y: Figure.cocoonCentreY + (raw.y - Figure.cocoonCentreY) * scale
+                        )
+                        let dx = next.x - outline[index].x
+                        let dy = next.y - outline[index].y
+                        let norm = hypot(dx, dy)
+                        // The outline runs clockwise on screen, so the outward normal is
+                        // the direction turned the other way.
+                        normal = norm > 0 ? CGPoint(x: dy / norm, y: -dx / norm) : .zero
+                        break
+                    }
+                    walked += length
                 }
-                walked += length
+                let hash = mix(layer * grainsPerShell + step + 91_237)
+                let angle = CGFloat(Double(hash % 4096) / 4096.0) * 2 * .pi
+                let radius = 0.22 + CGFloat(Double((hash >> 12) % 4096) / 4096.0) * 0.82
+                let dust = CGPoint(
+                    x: cos(angle) * radius * 0.64,
+                    y: 0.44 + sin(angle) * radius * 0.78
+                )
+                grains.append((home, normal, CGFloat(step) / CGFloat(grainsPerShell), dust))
             }
-            // The dust: a cloud around the figure, in no particular shape. The number
-            // is derived from the grain's own index, so every run of the app scatters
-            // the same way — a picture that changed every frame would be a flicker.
-            let hash = UInt64(truncatingIfNeeded: step &* 2_654_435_761)
-            let angle = CGFloat(Double(hash % 1024) / 1024.0) * 2 * .pi
-            let radius = 0.22 + CGFloat(Double((hash >> 10) % 1024) / 1024.0) * 0.85
-            let dust = CGPoint(
-                x: cos(angle) * radius * 0.66,
-                y: 0.42 + sin(angle) * radius * 0.80
-            )
-            particles.append((home, normal, dust))
+            shells.append(Shell(
+                grains: grains,
+                // The earth is the ground the seven stand on, not one of them, so the
+                // shells start at the root: the rainbow, from the outside in.
+                colour: ChakraPalette.color(forStepIndex: layer + 1),
+                speed: 0.045 + Double(layer) * 0.011,
+                phase: Double(layer) * 0.37
+            ))
         }
-        return particles
+        return shells
     }()
 
-    /// How far the grains have assembled into the cocoon: 0 is scattered dust, 1 is the
-    /// shape. It moves a step at a time while the sound plays, so the cocoon *forms*
-    /// rather than appearing.
+    /// How far the grains have travelled round the path, as a fraction of it.
+    ///
+    /// Accumulated rather than read from the clock, so that changing the speed — which
+    /// is what the reduced-motion setting does — does not teleport the aura.
+    fileprivate var streamTravel: CGFloat = 0
+
+    /// How far the grains have assembled into the aura: 0 is dust, 1 is the streams.
     fileprivate var formation: CGFloat = 0
+
+    /// Roughly thirty frames a second. The cocoon shivers; it does not animate.
+    private static let vibrationInterval: TimeInterval = 1.0 / 30.0
+
+    /// The cocoon's clock, in a box of its own.
+    ///
+    /// A `@MainActor` type's `deinit` is not isolated, and it may not reach the actor's
+    /// own properties — so the one thing that has to be switched off on the way out
+    /// lives in plain `Sendable` state.
+    private final class Clock: @unchecked Sendable {
+        var timer: Timer?
+    }
+
+    /// The clock that makes the cocoon form and shiver.
+    private let clock = Clock()
+
+    /// Whether the figure is on screen.
+    ///
+    /// The aura only moves where it can be seen, and the clock that moves it stops
+    /// when the panel is hidden — so the figure has to be told when it comes back,
+    /// or the aura would stay as dust for the rest of the session.
+    private var isVisible: Bool = true
+
+    /// Tell the figure that it has come on screen or gone off it.
+    func setVisible(_ visible: Bool) {
+        guard visible != isVisible else { return }
+        isVisible = visible
+        updateVibration()
+    }
+
+    /// Whether the system asks for reduced motion (SPEC §7.2).
+    ///
+    /// The tests answer for themselves: the setting belongs to the machine the suite
+    /// runs on, and a test that depended on it would pass on one machine and fail on
+    /// another.
+    var reducedMotionOverride: Bool?
+
+    private var isReducedMotion: Bool {
+        reducedMotionOverride ?? NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
 
     /// Start or stop the shiver, according to the state and the system's setting.
     private func updateVibration() {
@@ -520,6 +737,13 @@ final class ChakraFigureView: NSView {
             clock.timer?.invalidate()
             clock.timer = nil
             formation = isPlaying ? 1 : 0
+            return
+        }
+        guard isVisible else {
+            // Off screen there is nothing to animate. The aura forms when the figure
+            // comes back — which it says so by telling the figure.
+            clock.timer?.invalidate()
+            clock.timer = nil
             return
         }
         if clock.timer == nil { startVibration() }
@@ -546,9 +770,12 @@ final class ChakraFigureView: NSView {
                     self.clock.timer = nil
                     return
                 }
-                let step: CGFloat = self.isPlaying ? 0.05 : -0.05
+                let step = Self.streamStep * (self.isReducedMotion ? Self.reducedMotionScale : 1)
+                self.streamTravel = (self.streamTravel + step)
+                    .truncatingRemainder(dividingBy: 1)
+                let formationStep: CGFloat = self.isPlaying ? 0.08 : -0.08
                 if self.formation > 0 || self.isPlaying {
-                    self.formation = min(max(self.formation + step, 0), 1)
+                    self.formation = min(max(self.formation + formationStep, 0), 1)
                 }
                 if !self.isPlaying, self.formation == 0 {
                     self.clock.timer?.invalidate()
@@ -560,43 +787,85 @@ final class ChakraFigureView: NSView {
         }
     }
 
-    /// The shell of grains around the figure.
-    ///
-    /// Silent, they are dust: scattered, faint, and in no shape at all, so a switched-off
-    /// cocoon cannot be mistaken for a live one. Playing, they assemble into the
-    /// cocoon's outline, in the colour of the chakra being played, and shiver.
-    private func drawCocoon() {
-        let alive = isPlaying
-        // The clock only runs while the sound does. With reduced motion the shell is
-        // drawn in its still state — the brightness still says the sound is on.
-        let time = alive && !isReducedMotion ? CACurrentMediaTime() : 0
-        // The cocoon wears the colour of the step being played: the shell and the mark
-        // on the spine are the same thing, said twice.
-        let tint = currentIndex.map { ChakraPalette.brightColor(forStepIndex: $0) }
-            ?? NSColor.controlAccentColor
-        let colour = alive ? tint : NSColor.secondaryLabelColor
+    /// The height of the chakra being played, if there is one.
+    private var activeMarkY: CGFloat? {
+        guard let current = currentIndex else { return nil }
+        let visual = Figure.marks.count - 1 - current
+        return Figure.marks[visual].y
+    }
 
-        for (index, particle) in Self.particles.enumerated() {
-            // Each grain has its own phase, so the shell shimmers instead of breathing
-            // as one piece.
-            let phase = CGFloat(index) * 0.618
-            // The shiver, in the figure's own units: a hundredth of the height is about
-            // a point and a half — enough to see, too little to move the figure.
-            let shake = alive
-                ? CGFloat(sin(time * 2.3 + phase)) * 0.010
-                : 0
-            let homeX = particle.home.x + particle.normal.x * shake
-            let homeY = particle.home.y + particle.normal.y * shake
+    /// Draw the aura: the shells underneath, the streams over them.
+    private func drawCocoon() {
+        drawShells()
+        drawStreams()
+    }
+
+    /// The shells: the quiet background the streams run over.
+    private func drawShells() {
+        let alive = isPlaying
+        let time = alive && !isReducedMotion ? CACurrentMediaTime() : 0
+        for shell in Self.shells {
+            for (index, grain) in shell.grains.enumerated() {
+                let lit = alive
+                    ? pow(0.5 + 0.5 * sin(
+                        2 * .pi * (grain.around - shell.speed * time + shell.phase)
+                    ), 1.4)
+                    : 0.30
+                let shake = alive
+                    ? CGFloat(sin(time * 2.3 + shell.phase * 3.1 + CGFloat(index) * 0.37))
+                        * 0.006
+                    : 0
+                let homeX = grain.home.x + grain.normal.x * shake
+                let homeY = grain.home.y + grain.normal.y * shake
+                let centre = point(
+                    grain.dust.x + (homeX - grain.dust.x) * formation,
+                    grain.dust.y + (homeY - grain.dust.y) * formation
+                )
+                let size = figureHeight * (alive ? 0.0046 : 0.0034) * (0.8 + 0.4 * lit)
+                // The shells are a background: they are quiet even when the sound is
+                // on, and the streams are what the eye is meant to follow.
+                let alpha = (alive ? 0.30 : 0.12) * (0.40 + 0.60 * lit)
+                shell.colour.withAlphaComponent(alpha).setFill()
+                NSBezierPath(ovalIn: NSRect(
+                    x: centre.x - size, y: centre.y - size,
+                    width: size * 2, height: size * 2
+                )).fill()
+            }
+        }
+    }
+
+    /// The streams: the two flows of grains, one rising on the left and one falling on
+    /// the right.
+    ///
+    /// A grain is born at a chakra, carries that chakra's colour, passes through the
+    /// place it was born and travels on: up the left, over the crown, down the right
+    /// and under the feet. The path itself breathes — a slow wave runs round it and a
+    /// finer ripple shivers along it — and the aura reaches in toward the spine where
+    /// the chakras are, deepest at the one being played.
+    private func drawStreams() {
+        let alive = isPlaying
+        let travel = streamTravel
+        let active = activeMarkY
+        for grain in Self.streamGrains {
+            let s = (grain.birth + travel).truncatingRemainder(dividingBy: 1)
+            let spot = Self.pointOnPath(s, travel: travel, wave: 0.030, ripple: 0.006) { y in
+                Figure.reachIn(at: y, activeY: active)
+            }
             let centre = point(
-                particle.dust.x + (homeX - particle.dust.x) * formation,
-                particle.dust.y + (homeY - particle.dust.y) * formation
+                grain.dust.x + (spot.point.x - grain.dust.x) * formation,
+                grain.dust.y + (spot.point.y - grain.dust.y) * formation
             )
-            let pulse = alive
-                ? 1 + CGFloat(sin(time * 3.1 + phase * 1.7)) * 0.28
-                : 1
-            let size = figureHeight * (alive ? 0.0062 : 0.0040) * pulse
-            let alpha = 0.10 + 0.42 * formation
-            colour.withAlphaComponent(alpha).setFill()
+            // The band of light travelling round the path. It moves faster than the
+            // grains, so the aura shimmers rather than merely travelling.
+            let band = 0.5 + 0.5 * sin(2 * .pi * (3 * s - 2.4 * travel))
+            // Where the aura reaches into a chakra it is brighter, and brightest of all
+            // at the one being played.
+            let reach = Figure.reachIn(at: spot.point.y, activeY: active)
+            let alpha = (alive ? 0.62 : 0.17)
+                * (0.30 + 0.70 * band)
+                * (1 + reach * 1.8)
+            let size = figureHeight * (alive ? 0.0060 : 0.0042) * (0.85 + 0.3 * band)
+            grain.colour.withAlphaComponent(alpha).setFill()
             NSBezierPath(ovalIn: NSRect(
                 x: centre.x - size, y: centre.y - size,
                 width: size * 2, height: size * 2
@@ -662,6 +931,12 @@ final class ChakraView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not used: the window is built in code")
+    }
+
+    /// The panel is the mode's whole face: when it is hidden the figure is off screen
+    /// with it, and the aura stops moving until it is back.
+    override var isHidden: Bool {
+        didSet { figure.setVisible(!isHidden) }
     }
 
     // MARK: - Building

@@ -80,7 +80,15 @@ final class MainWindowController: NSWindowController {
     /// schedules nothing at all.
     private var chakraTimer: Timer?
     /// The mode's switch, on the status row next to the headphone check.
+    /// The mode's trigger: a button that selects the mode.
+    ///
+    /// It was a checkbox, and a box you untick to leave a mode is not an obvious way
+    /// to say "off" — unticking is a gesture to be guessed. So the button is a button:
+    /// pressing it turns the mode on and pressing it again turns it off.
     private let chakraButton = NSButton()
+    /// The mode's own switch: ticked while the mode is on, and unticking it is the
+    /// explicit way out.
+    private let chakraModeCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
 
     /// The overflow menu in the top corner.
     ///
@@ -226,7 +234,13 @@ final class MainWindowController: NSWindowController {
         chakraButton.target = self
         chakraButton.action = #selector(toggleChakraMode)
         chakraButton.bezelStyle = .rounded
-        chakraButton.setButtonType(.toggle)
+        // A trigger, not a latch: the button does not hold a state of its own, and the
+        // checkbox beside it is what says which way round the mode is.
+        chakraButton.setButtonType(.momentaryPushIn)
+
+        chakraModeCheckbox.target = self
+        chakraModeCheckbox.action = #selector(chakraModeSwitched)
+        chakraModeCheckbox.font = .systemFont(ofSize: 13)
 
         // The status line: what the app wants the reader to know right now, in the
         // colour the state deserves.
@@ -253,7 +267,7 @@ final class MainWindowController: NSWindowController {
         statusBar.translatesAutoresizingMaskIntoConstraints = false
 
         let statusRow = NSStackView(views: [
-            NSView(), chakraButton, menuButton
+            NSView(), chakraButton, chakraModeCheckbox, menuButton
         ])
         statusRowView = statusRow
         statusRow.orientation = .horizontal
@@ -292,10 +306,14 @@ final class MainWindowController: NSWindowController {
         volumeLabel.textColor = .secondaryLabelColor
         volumeLabel.alignment = .right
 
+        // The timer sits in the transport row, to the left of the volume: it is one
+        // more control of the same kind, and a row of its own underneath put the
+        // window's controls in two places for no reason.
+        //
         // `NSView()` at the end is the `addStretch` of the Python transport row: the
         // controls sit at the left and the row's slack goes to the right.
         let transport = NSStackView(views: [
-            playButton, volumeIcon, volumeSlider, volumeLabel, NSView()
+            playButton, timerView, volumeIcon, volumeSlider, volumeLabel, NSView()
         ])
         transport.orientation = .horizontal
         transport.alignment = .centerY
@@ -304,14 +322,6 @@ final class MainWindowController: NSWindowController {
         errorLabel.font = .systemFont(ofSize: 11)
         errorLabel.textColor = .systemRed
         errorLabel.isHidden = true
-
-        // The timer sits under the transport rather than inside it: it has its own
-        // caption, a popup and a countdown, and SPEC §7 gives the transport row Play,
-        // volume and mute.
-        let timerRow = NSStackView(views: [timerView, NSView()])
-        timerRow.orientation = .horizontal
-        timerRow.alignment = .centerY
-        timerRow.spacing = 12
 
         // SPEC §7's layout: presets are the last row of the window, below a stretch —
         // Python's `addStretch(1)` then `_build_presets()`. F3's chips are their own block
@@ -331,7 +341,7 @@ final class MainWindowController: NSWindowController {
         presetBlock.alignment = .leading
         presetBlock.spacing = 6
         let stack = NSStackView(views: [
-            statusRow, ears, beatView, transport, timerRow,
+            statusRow, ears, beatView, transport,
             presetBlock, chakraView, errorLabel, statusBar
         ])
         stack.orientation = .vertical
@@ -355,7 +365,7 @@ final class MainWindowController: NSWindowController {
         ]
         // `.leading` alignment keeps each row at its natural width, so the rows that
         // should span the window are pinned to the stack's width by hand.
-        for row in [statusRow as NSView, ears, beatView, transport, timerRow,
+        for row in [statusRow as NSView, ears, beatView, transport,
                     presetBlock, chakraView, errorLabel, statusBar] {
             row.translatesAutoresizingMaskIntoConstraints = false
             constraints.append(row.widthAnchor.constraint(equalTo: stack.widthAnchor))
@@ -379,13 +389,13 @@ final class MainWindowController: NSWindowController {
             // is SPEC 7.2's 44 px on both sides.
             volumeIcon.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
             volumeIcon.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-            timerRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             // SPEC §7.2: the preset chips keep their 44 px targets; the block itself only
             // has to be tall enough to hold both rows.
             presetBlock.heightAnchor.constraint(greaterThanOrEqualToConstant: 100),
             // The figure is 192 pt tall; the block has to hold it.
             chakraView.heightAnchor.constraint(greaterThanOrEqualToConstant: 192),
-            chakraButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
+            chakraButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            chakraModeCheckbox.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
         ]
         NSLayoutConstraint.activate(constraints)
 
@@ -420,6 +430,16 @@ final class MainWindowController: NSWindowController {
         setChakraMode(!isChakraMode)
     }
 
+    /// The user ticked or unticked the mode's switch.
+    @objc private func chakraModeSwitched() {
+        guard !isSyncingChakraCheckbox else { return }
+        setChakraMode(chakraModeCheckbox.state == .on)
+    }
+
+    /// Set while the code writes the checkbox, so the write is not read back as the
+    /// user's own change and answered with another write.
+    private var isSyncingChakraCheckbox = false
+
     /// The switch's own on-state is not enough on its own: a rounded toggle in the
     /// modern macOS style differs by a hairline, and the mode changes the whole lower
     /// half of the window — the switch has to keep up with that. The fill is drawn here,
@@ -447,7 +467,10 @@ final class MainWindowController: NSWindowController {
     func setChakraMode(_ enabled: Bool, startSound: Bool = false) {
         guard enabled != isChakraMode else { return }
         isChakraMode = enabled
-        chakraButton.state = enabled ? .on : .off
+        // The checkbox is the mode's state; the button is only the way in and out.
+        isSyncingChakraCheckbox = true
+        chakraModeCheckbox.state = enabled ? .on : .off
+        isSyncingChakraCheckbox = false
         updateChakraButtonAppearance()
         chakraView.isHidden = !enabled
         presetBlock.isHidden = enabled
@@ -1178,6 +1201,8 @@ final class MainWindowController: NSWindowController {
         chakraView.retranslate()
         chakraButton.title = L10n.tr("Chakras")
         chakraButton.setAccessibilityLabel(L10n.tr("Chakras"))
+        chakraModeCheckbox.title = L10n.tr("On")
+        chakraModeCheckbox.setAccessibilityLabel(L10n.tr("Chakras"))
         updateChakraButtonAppearance()
         menuButton.setAccessibilityLabel(L10n.tr("More"))
         rebuildOverflowMenu()

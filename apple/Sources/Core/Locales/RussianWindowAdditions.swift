@@ -26,6 +26,8 @@ enum RussianWindowAdditions {
         // ways round: silence it, and stop silencing it.
         "Mute": "Без звука",
         "Unmute": "Включить звук",
+        // The mode's own switch, beside the button that selects it.
+        "On": "Вкл.",
         "Silences the sound. The volume itself is not changed.": (
             "Выключает звук. Сама громкость не меняется."
         ),

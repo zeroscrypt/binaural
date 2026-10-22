@@ -68,6 +68,8 @@ final class L10nKeysTests: XCTestCase {
         "Seeing clearly before you decide.",
         "Unity and presence, to feel whole.",
         "Step", "Beat", "%1 s",
+        // the mode's own switch, beside the button that selects the mode
+        "On",
         "Direction", "Up, then back", "Down, then back",
         "The default 21 Hz sits in the alpha band.",
         // the language control in the main window (SPEC §7.4)
