@@ -199,6 +199,24 @@ final class ChakraFigureView: NSView {
             (0.014, 0.520)    // the crotch
         ]
 
+        /// The trunk's outline: neck, shoulders, ribs, waist, hips, and back up.
+        static let trunk: [(x: CGFloat, y: CGFloat)] = [
+            (0, neckTop),
+            (neckHalfWidth, neckBottom),
+            (slopeHalfWidth, slopeY),
+            (shoulderHalfWidth, shoulderY),
+            (chestHalfWidth, chestY),
+            (waistHalfWidth, waistY),
+            (hipHalfWidth, hipY),
+            (0, crotchY),
+            (-hipHalfWidth, hipY),
+            (-waistHalfWidth, waistY),
+            (-chestHalfWidth, chestY),
+            (-shoulderHalfWidth, shoulderY),
+            (-slopeHalfWidth, slopeY),
+            (-neckHalfWidth, neckBottom)
+        ]
+
         /// The seven chakras and the earth below the feet, as heights down the body.
         ///
         /// The heights are the traditional ones — the crown at the top of the head,
@@ -235,7 +253,7 @@ final class ChakraFigureView: NSView {
             (0.272, 0.705),
             (0.215, 0.875),
             (0.120, 1.020),
-            (0.000, 1.115),
+            (0.000, 1.075),
             (-0.120, 1.020),
             (-0.215, 0.875),
             (-0.272, 0.705),
@@ -248,7 +266,7 @@ final class ChakraFigureView: NSView {
 
         /// How far the cocoon reaches above the crown and below the soles.
         static let cocoonTop: CGFloat = -0.080
-        static let cocoonBottom: CGFloat = 1.115
+        static let cocoonBottom: CGFloat = 1.075
         /// The point the shells close in on: the middle of the body.
         static let cocoonCentreY: CGFloat = 0.500
 
@@ -305,8 +323,11 @@ final class ChakraFigureView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         drawCocoon()
+        drawBodyGrains()
 
-        let ink = NSColor.secondaryLabelColor
+        // The drawn outline is the guide the grains gather onto, so it fades as they
+        // gather: what is left is the figure itself.
+        let ink = NSColor.secondaryLabelColor.withAlphaComponent(0.30 * (1 - formation))
         let line = NSBezierPath()
         line.lineWidth = max(1.0, figureHeight * 0.006)
         line.lineJoinStyle = .round
@@ -324,22 +345,7 @@ final class ChakraFigureView: NSView {
         ))
 
         // The trunk: neck, shoulders, ribs, waist, hips.
-        line.append(smoothPath([
-            (0, Figure.neckTop),
-            (Figure.neckHalfWidth, Figure.neckBottom),
-            (Figure.slopeHalfWidth, Figure.slopeY),
-            (Figure.shoulderHalfWidth, Figure.shoulderY),
-            (Figure.chestHalfWidth, Figure.chestY),
-            (Figure.waistHalfWidth, Figure.waistY),
-            (Figure.hipHalfWidth, Figure.hipY),
-            (0, Figure.crotchY),
-            (-Figure.hipHalfWidth, Figure.hipY),
-            (-Figure.waistHalfWidth, Figure.waistY),
-            (-Figure.chestHalfWidth, Figure.chestY),
-            (-Figure.shoulderHalfWidth, Figure.shoulderY),
-            (-Figure.slopeHalfWidth, Figure.slopeY),
-            (-Figure.neckHalfWidth, Figure.neckBottom)
-        ]))
+        line.append(smoothPath(Figure.trunk))
 
         // The arms and the legs: shapes, like the trunk. A limb is thicker at the top
         // than at the wrist, and one line round it cannot say that.
@@ -439,24 +445,96 @@ final class ChakraFigureView: NSView {
 
     /// A grain of the streams.
     ///
-    /// A grain is born at a chakra — the earth under the feet included — carries that
-    /// chakra's colour, and travels the path until it fades. The colour is the grain's
-    /// own: a grain that left the root stays red all the way round, which is how you
-    /// can tell where it came from.
+    /// A grain is born on the ring and travels round it, in the wave: up the left side,
+    /// out through the crown, down the right and into the earth under the feet, where
+    /// it is absorbed and another takes its place. Its colour is the colour of the
+    /// chakra it is passing at the time, so the ring shows the rainbow climbing on the
+    /// left and coming down again on the right.
     private struct Grain {
-        /// Where it was born, as a fraction of the way round the path.
+        /// Where it was born, as a fraction of the way round the ring.
         let birth: CGFloat
-        /// The colour it carries.
-        let colour: NSColor
-        /// Where it lies when there is no sound.
-        let dust: CGPoint
+        /// The way it wanders when there is no sound.
+        let wander: CGPoint
     }
 
-    /// How many grains the streams are made of.
-    private static let streamGrainCount = 360
+    /// A grain of the body.
+    ///
+    /// The figure is drawn with grains and not with a line: they float around the
+    /// contour while there is no sound, and they assemble onto it when the sound
+    /// comes, so the body gathers itself out of the dust and holds an edge.
+    private struct BodyGrain {
+        /// Where it sits on the contour.
+        let home: CGPoint
+        /// The way it wanders while the sound is off.
+        let wander: CGPoint
+    }
 
-    /// How long the path takes to go round, in seconds: the middle of the twelve to
-    /// twenty the aura was asked for. Slow enough to watch, fast enough to see.
+    /// Points along a polyline, one every `spacing` units.
+    private static func sample(
+        _ points: [(x: CGFloat, y: CGFloat)],
+        spacing: CGFloat
+    ) -> [CGPoint] {
+        guard points.count > 1 else { return [] }
+        var out: [CGPoint] = []
+        for index in points.indices {
+            let a = points[index]
+            let b = points[(index + 1) % points.count]
+            let length = hypot(b.x - a.x, b.y - a.y)
+            let steps = max(1, Int((length / spacing).rounded()))
+            for step in 0..<steps {
+                let t = CGFloat(step) / CGFloat(steps)
+                out.append(CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t))
+            }
+        }
+        return out
+    }
+
+    /// The figure's contour, sampled: the places the grains sit when the body is
+    /// assembled.
+    private static let contour: [CGPoint] = {
+        var points: [CGPoint] = []
+        for step in 0..<30 {
+            let angle = CGFloat(step) / 30 * 2 * .pi
+            points.append(CGPoint(
+                x: cos(angle) * Figure.headHalfWidth,
+                y: Figure.headCentreY + sin(angle) * Figure.headHalfHeight
+            ))
+        }
+        points += sample(Figure.trunk, spacing: 0.015)
+        for side in [1.0, -1.0] as [CGFloat] {
+            points += sample(Figure.arm.map { (x: side * $0.x, y: $0.y) }, spacing: 0.015)
+            points += sample(Figure.leg.map { (x: side * $0.x, y: $0.y) }, spacing: 0.015)
+        }
+        return points
+    }()
+
+    /// The grains the body is made of.
+    ///
+    /// A fixed set, like the streams': the body gathers itself out of the same grains
+    /// every time, and nothing is created when the sound comes.
+    private static let bodyGrains: [BodyGrain] = {
+        contour.enumerated().map { index, home in
+            let hash = mix(index &+ 7_001)
+            let angle = CGFloat(Double(hash % 4096) / 4096.0) * 2 * .pi
+            let reach = 0.35 + CGFloat(Double((hash >> 13) % 1024) / 1024.0) * 0.9
+            return BodyGrain(home: home, wander: CGPoint(x: cos(angle) * reach, y: sin(angle) * reach))
+        }
+    }()
+
+    /// How far the body's grains float when there is no sound.
+    private static let bodyFloat: CGFloat = 0.045
+
+    /// How many grains the streams are made of.
+    ///
+    /// A fixed pool, worked out once and never grown: the grains do not appear out of
+    /// nothing as the aura plays, they are the same few hundred grains going round for
+    /// ever. A chakra's grain is absorbed into the earth at the bottom of the ring and
+    /// the next one takes its place, so the number never changes and the memory never
+    /// grows.
+    private static let streamGrainCount = 420
+
+    /// How long the round takes, in seconds: the middle of the twelve to twenty the
+    /// aura was asked for. Slow enough to watch, fast enough to see.
     private static let streamPeriod: CGFloat = 16
 
     /// How far the grains travel in one frame at thirty frames a second.
@@ -465,23 +543,14 @@ final class ChakraFigureView: NSView {
     /// How much slower everything moves when the system asks for reduced motion.
     ///
     /// The streams do not stop: they crawl. A still picture would say the same thing
-    /// more clearly, but the user asked for the movement to be there, only slower.
+    /// more clearly, but the movement was asked for, only slower.
     private static let reducedMotionScale: CGFloat = 0.25
 
-    /// The path the streams run along: the cocoon's outline, starting at the bottom.
+    /// How far the grains wander when there is no sound, in the figure's own units.
     ///
-    /// The parameter runs from below the feet, up the left side, over the crown, down
-    /// the right and back under the feet — so a grain travelling along it rises on the
-    /// left and falls on the right. Those are the two streams the aura is made of, and
-    /// the reason the colours climb the left and come down the right.
-    private static let streamPath: [CGPoint] = {
-        let outline = Figure.cocoon.map { CGPoint(x: $0.x, y: $0.y) }
-        guard outline.count > 3 else { return outline }
-        // The outline is written from the top and clockwise; the path is the same ring
-        // starting at its lowest point, so that the rising half is the left one.
-        let bottom = outline.indices.min { outline[$0].y > outline[$1].y } ?? 0
-        return (0..<outline.count).map { outline[(bottom + $0) % outline.count] }
-    }()
+    /// Enough to break the outline of the flow: the streams are still there, but they
+    /// are not a shape yet.
+    private static let chaos: CGFloat = 0.140
 
     /// A well-mixed number for a grain's index.
     ///
@@ -496,8 +565,68 @@ final class ChakraFigureView: NSView {
         return h
     }
 
-    /// A point on the path at the fraction `s` of the way round, and the outward
-    /// normal there.
+    /// The lengths of a polyline's segments.
+    private static func lengths(of points: [CGPoint]) -> [CGFloat] {
+        var lengths: [CGFloat] = []
+        for index in points.indices {
+            let next = points[(index + 1) % points.count]
+            lengths.append(hypot(next.x - points[index].x, next.y - points[index].y))
+        }
+        return lengths
+    }
+
+    /// A point a fraction of the way along a polyline, and the way it is heading there.
+    private static func along(
+        _ points: [CGPoint],
+        _ lengths: [CGFloat],
+        _ total: CGFloat,
+        _ fraction: CGFloat
+    ) -> (point: CGPoint, tangent: CGPoint) {
+        guard !points.isEmpty, total > 0 else { return (CGPoint.zero, CGPoint(x: 0, y: -1)) }
+        let target = max(0, min(1, fraction)) * total
+        var walked: CGFloat = 0
+        for index in points.indices {
+            let length = lengths[index]
+            if walked + length >= target {
+                let t = length > 0 ? (target - walked) / length : 0
+                let next = points[(index + 1) % points.count]
+                let dx = next.x - points[index].x
+                let dy = next.y - points[index].y
+                let norm = hypot(dx, dy)
+                return (
+                    CGPoint(
+                        x: points[index].x + dx * t,
+                        y: points[index].y + dy * t
+                    ),
+                    norm > 0 ? CGPoint(x: dx / norm, y: dy / norm) : CGPoint(x: 0, y: -1)
+                )
+            }
+            walked += length
+        }
+        return (points[0], CGPoint(x: 0, y: -1))
+    }
+
+    /// The path the streams run along: the cocoon's outline, starting at the bottom.
+    ///
+    /// The parameter runs from below the feet, up the left side, over the crown, down
+    /// the right and back under the feet — so a grain travelling along it rises on the
+    /// left and falls on the right, and the wave that runs along the path goes round
+    /// the figure the way the water goes round a stone.
+    private static let streamPath: [CGPoint] = {
+        let outline = Figure.cocoon.map { CGPoint(x: $0.x, y: $0.y) }
+        guard outline.count > 3 else { return outline }
+        // The outline is written from the top and clockwise; the path is the same ring
+        // starting at its lowest point, so that the rising half is the left one.
+        let bottom = outline.indices.min { outline[$0].y > outline[$1].y } ?? 0
+        return (0..<outline.count).map { outline[(bottom + $0) % outline.count] }
+    }()
+
+    /// The lengths of the path's segments.
+    private static let pathLengths = lengths(of: streamPath)
+    private static let pathTotal = pathLengths.reduce(0, +)
+
+    /// A point on the path at the fraction `s` of the way round, and the way it is
+    /// heading there.
     ///
     /// The wave and the ripple are applied here rather than baked into the path: they
     /// move, and the path does not.
@@ -507,20 +636,12 @@ final class ChakraFigureView: NSView {
         wave: CGFloat,
         ripple: CGFloat,
         reach: (CGFloat) -> CGFloat
-    ) -> (point: CGPoint, normal: CGPoint) {
-        let count = streamPath.count
-        let scaled = s * CGFloat(count)
-        let index = Int(scaled) % count
-        let t = scaled - CGFloat(index)
-        let a = streamPath[index]
-        let b = streamPath[(index + 1) % count]
-        var point = CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
-
-        let dx = b.x - a.x
-        let dy = b.y - a.y
-        let norm = hypot(dx, dy)
-        guard norm > 0 else { return (point, CGPoint(x: 0, y: -1)) }
-        var normal = CGPoint(x: dy / norm, y: -dx / norm)
+    ) -> (point: CGPoint, tangent: CGPoint) {
+        let spot = along(streamPath, pathLengths, pathTotal, s)
+        var point = spot.point
+        let dx = spot.tangent.x
+        let dy = spot.tangent.y
+        var normal = CGPoint(x: dy, y: -dx)
         // Point the normal away from the spine: the path turns round twice, so the
         // perpendicular alone is not enough to say which way is out.
         if normal.x * point.x + normal.y * (point.y - Figure.cocoonCentreY) < 0 {
@@ -532,27 +653,87 @@ final class ChakraFigureView: NSView {
         point.x *= 1 - reach(point.y)
 
         // The wave: a slow swell running round the ring. The ripple: a finer shiver
-        // along it. Neither of them is the movement of the grains — the grains ride on
-        // the path, and the path moves under them.
-        let offset = wave * sin(2 * .pi * (3 * s - 2.4 * travel))
+        // along it.
+        let offset = wave * sin(2 * .pi * (3 * s - 4 * travel))
             + ripple * sin(2 * .pi * (26 * s - 9 * travel))
         point.x += normal.x * offset
         point.y += normal.y * offset
-        return (point, normal)
+        return (point, spot.tangent)
     }
 
-    /// The colour of the chakra at a height: the nearest mark's.
-    private static func colour(forHeight y: CGFloat) -> NSColor {
-        var best = 0
-        var bestDistance = CGFloat.greatestFiniteMagnitude
+    /// The colour at a height, in bands.
+    ///
+    /// The blend of the two marks the height is between, worked out once per band. A
+    /// hard switch would flicker as a grain crossed the boundary; a blend does not,
+    /// and the marks are neighbours in the rainbow, so the mix is between neighbours in
+    /// hue as well.
+    private static let colourBands: [NSColor] = {
+        let heights = Figure.marks.map(\.y)
+        let bottom = heights.min() ?? 0
+        let top = heights.max() ?? 1
+        return (0...48).map { step in
+            blendedColour(forHeight: bottom + (top - bottom) * CGFloat(step) / 48)
+        }
+    }()
+
+    /// Two colours mixed in the space the screen has.
+    private static func blend(_ from: NSColor, _ to: NSColor, _ amount: CGFloat) -> NSColor {
+        guard amount > 0 else { return from }
+        guard amount < 1 else { return to }
+        guard let a = from.usingColorSpace(.sRGB), let b = to.usingColorSpace(.sRGB) else { return to }
+        return NSColor(
+            srgbRed: a.redComponent + (b.redComponent - a.redComponent) * amount,
+            green: a.greenComponent + (b.greenComponent - a.greenComponent) * amount,
+            blue: a.blueComponent + (b.blueComponent - a.blueComponent) * amount,
+            alpha: a.alphaComponent + (b.alphaComponent - a.alphaComponent) * amount
+        )
+    }
+
+    /// The colour of the height: the two marks it is between, mixed.
+    private static func blendedColour(forHeight y: CGFloat) -> NSColor {
+        var lower: (index: Int, y: CGFloat)?
+        var upper: (index: Int, y: CGFloat)?
         for (visualIndex, mark) in Figure.marks.enumerated() {
-            let distance = abs(mark.y - y)
-            if distance < bestDistance {
-                bestDistance = distance
-                best = Figure.marks.count - 1 - visualIndex
+            let step = Figure.marks.count - 1 - visualIndex
+            if mark.y <= y, lower == nil || mark.y > lower!.y {
+                lower = (step, mark.y)
+            }
+            if mark.y >= y, upper == nil || mark.y < upper!.y {
+                upper = (step, mark.y)
             }
         }
-        return ChakraPalette.color(forStepIndex: best)
+        guard let lower, let upper else { return .secondaryLabelColor }
+        guard lower.y != upper.y else { return ChakraPalette.color(forStepIndex: lower.index) }
+        let amount = (y - lower.y) / (upper.y - lower.y)
+        return blend(
+            ChakraPalette.color(forStepIndex: lower.index),
+            ChakraPalette.color(forStepIndex: upper.index),
+            amount
+        )
+    }
+
+    /// The colour at a height, from the bands.
+    private static func colour(forHeight y: CGFloat) -> NSColor {
+        let heights = Figure.marks.map(\.y)
+        let bottom = heights.min() ?? 0
+        let top = heights.max() ?? 1
+        let span = max(0.0001, top - bottom)
+        let step = Int(((y - bottom) / span * 48).rounded())
+        let index = min(48, max(0, step))
+        return colourBands[index]
+    }
+
+    /// How much of the aura stays in the lower part of the body when there is no sound.
+    ///
+    /// From the earth up to the root, through the legs: the flow starts there, and the
+    /// body's weight is there too. The upper part of the figure keeps less of it — the
+    /// aura is still everywhere, but the ground holds most of it.
+    private static func lowBodyWeight(y: CGFloat) -> CGFloat {
+        let bottom: CGFloat = 0.470   // the root
+        let top: CGFloat = 1.075      // the earth
+        guard y > bottom else { return 0 }
+        let t = min(1, (y - bottom) / (top - bottom))
+        return t * t
     }
 
     /// The grains of the streams, worked out once.
@@ -561,24 +742,9 @@ final class ChakraFigureView: NSView {
         for index in 0..<streamGrainCount {
             let hash = mix(index)
             let birth = CGFloat(Double(hash % 4096) / 4096.0)
-            // The colour is decided by where the grain was born: the chakra it was
-            // born at, and it keeps it for the whole way round.
-            let spot = pointOnPath(birth, travel: 0, wave: 0, ripple: 0) { _ in 0 }
-            let colour = colour(forHeight: spot.point.y)
-
-            // The dust: half the grains hug the outline, half float as a cloud. The
-            // user asked for both — the aura always has a shape, but never a clear
-            // one.
-            let angle = CGFloat(Double((hash >> 12) % 4096) / 4096.0) * 2 * .pi
-            let radius = 0.22 + CGFloat(Double((hash >> 24) % 4096) / 4096.0) * 0.82
-            let cloud = CGPoint(
-                x: cos(angle) * radius * 0.64,
-                y: 0.44 + sin(angle) * radius * 0.78
-            )
-            let jitter = CGFloat(Double((hash >> 36) % 1024) / 1024.0 - 0.5) * 0.10
-            let hugging = CGPoint(x: spot.point.x * (1 + jitter), y: spot.point.y)
-            let dust = hash & 1 == 0 ? hugging : cloud
-            grains.append(Grain(birth: birth, colour: colour, dust: dust))
+            let angle = CGFloat(Double((hash >> 24) % 4096) / 4096.0) * 2 * .pi
+            let wander = CGPoint(x: cos(angle), y: sin(angle))
+            grains.append(Grain(birth: birth, wander: wander))
         }
         return grains
     }()
@@ -593,8 +759,11 @@ final class ChakraFigureView: NSView {
         let grains: [(home: CGPoint, normal: CGPoint, around: CGFloat, dust: CGPoint)]
         /// The colour it wears.
         let colour: NSColor
-        /// How fast its wave goes round, in turns per second.
-        let speed: Double
+        /// How fast its wave goes round, in cycles per round of the flow.
+        ///
+        /// A whole number, like every other rate in the aura: the round has to close
+        /// on itself, or the animation is a loop whose ends do not meet.
+        let speed: Int
         /// Where its wave starts.
         let phase: Double
     }
@@ -606,7 +775,7 @@ final class ChakraFigureView: NSView {
     private static let layerStep: CGFloat = (1 - 0.48) / CGFloat(layerCount - 1)
 
     /// How many grains a shell is made of.
-    private static let grainsPerShell = 52
+    private static let grainsPerShell = 40
 
     /// The shells of the cocoon.
     ///
@@ -674,7 +843,7 @@ final class ChakraFigureView: NSView {
                 // The earth is the ground the seven stand on, not one of them, so the
                 // shells start at the root: the rainbow, from the outside in.
                 colour: ChakraPalette.color(forStepIndex: layer + 1),
-                speed: 0.045 + Double(layer) * 0.011,
+                speed: 4 + layer,
                 phase: Double(layer) * 0.37
             ))
         }
@@ -692,6 +861,13 @@ final class ChakraFigureView: NSView {
 
     /// Roughly thirty frames a second. The cocoon shivers; it does not animate.
     private static let vibrationInterval: TimeInterval = 1.0 / 30.0
+
+    /// The rate while there is no sound.
+    ///
+    /// The streams are there with or without it — only weaker and wandering — so they
+    /// keep moving. Slower, though: there is no beat to follow and no reason to spend
+    /// the machine on it.
+    private static let idleInterval: TimeInterval = 1.0 / 10.0
 
     /// The cocoon's clock, in a box of its own.
     ///
@@ -746,41 +922,38 @@ final class ChakraFigureView: NSView {
             clock.timer = nil
             return
         }
-        if clock.timer == nil { startVibration() }
-        if !isPlaying, formation == 0 {
-            // The dust has settled; there is nothing left to animate.
-            clock.timer?.invalidate()
-            clock.timer = nil
-        }
+        // The clock runs for as long as the aura is on screen: the streams are there
+        // with or without the sound, only weaker, and they keep drifting either way.
+        startVibration()
     }
 
     /// The clock that makes the cocoon form and shiver.
     private func startVibration() {
         clock.timer?.invalidate()
+        let interval = isPlaying ? Self.vibrationInterval : Self.idleInterval
         clock.timer = Timer.scheduledTimer(
-            withTimeInterval: Self.vibrationInterval,
+            withTimeInterval: interval,
             repeats: true
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
                 guard !self.isHiddenOrHasHiddenAncestor else {
-                    // The cocoon is off screen with the rest of the panel, and waking
+                    // The aura is off screen with the rest of the panel, and waking
                     // the app for it thirty times a second is waste.
                     self.clock.timer?.invalidate()
                     self.clock.timer = nil
                     return
                 }
-                let step = Self.streamStep * (self.isReducedMotion ? Self.reducedMotionScale : 1)
+                // The step is scaled by the rate, so the streams travel at the same
+                // speed whatever the clock's rate is.
+                let step = Self.streamStep
+                    * (Self.vibrationInterval / interval)
+                    * (self.isReducedMotion ? Self.reducedMotionScale : 1)
                 self.streamTravel = (self.streamTravel + step)
                     .truncatingRemainder(dividingBy: 1)
                 let formationStep: CGFloat = self.isPlaying ? 0.08 : -0.08
                 if self.formation > 0 || self.isPlaying {
                     self.formation = min(max(self.formation + formationStep, 0), 1)
-                }
-                if !self.isPlaying, self.formation == 0 {
-                    self.clock.timer?.invalidate()
-                    self.clock.timer = nil
-                    return
                 }
                 self.needsDisplay = true
             }
@@ -794,6 +967,32 @@ final class ChakraFigureView: NSView {
         return Figure.marks[visual].y
     }
 
+    /// The body, made of grains.
+    ///
+    /// Without the sound they float around the contour and the figure is only a
+    /// suggestion of one; with it they settle onto it, and the body holds an edge and
+    /// takes the colour of the chakras it passes.
+    private func drawBodyGrains() {
+        let alive = isPlaying
+        let active = activeMarkY
+        let float = (1 - formation) * Self.bodyFloat
+        for grain in Self.bodyGrains {
+            let centre = point(
+                grain.home.x + grain.wander.x * float,
+                grain.home.y + grain.wander.y * float
+            )
+            // Where the body is near the chakra being played, it is brighter.
+            let reach = Figure.reachIn(at: grain.home.y, activeY: active)
+            let alpha = (alive ? 0.85 : 0.50) * (0.45 + 0.55 * reach)
+            let size = figureHeight * (alive ? 0.0046 : 0.0045)
+            Self.colour(forHeight: grain.home.y).withAlphaComponent(alpha).setFill()
+            NSBezierPath(ovalIn: NSRect(
+                x: centre.x - size, y: centre.y - size,
+                width: size * 2, height: size * 2
+            )).fill()
+        }
+    }
+
     /// Draw the aura: the shells underneath, the streams over them.
     private func drawCocoon() {
         drawShells()
@@ -803,17 +1002,20 @@ final class ChakraFigureView: NSView {
     /// The shells: the quiet background the streams run over.
     private func drawShells() {
         let alive = isPlaying
-        let time = alive && !isReducedMotion ? CACurrentMediaTime() : 0
-        for shell in Self.shells {
+        // The shells are driven by the same clock as the streams, so the whole aura
+        // comes back to where it started after one round.
+        let travel = streamTravel
+        for (layer, shell) in Self.shells.enumerated() {
             for (index, grain) in shell.grains.enumerated() {
                 let lit = alive
                     ? pow(0.5 + 0.5 * sin(
-                        2 * .pi * (grain.around - shell.speed * time + shell.phase)
+                        2 * .pi * (3 * grain.around - Double(shell.speed) * travel + shell.phase)
                     ), 1.4)
                     : 0.30
                 let shake = alive
-                    ? CGFloat(sin(time * 2.3 + shell.phase * 3.1 + CGFloat(index) * 0.37))
-                        * 0.006
+                    ? CGFloat(sin(
+                        2 * .pi * (3 * travel + shell.phase + CGFloat(index) * 0.013)
+                    )) * 0.006
                     : 0
                 let homeX = grain.home.x + grain.normal.x * shake
                 let homeY = grain.home.y + grain.normal.y * shake
@@ -834,38 +1036,56 @@ final class ChakraFigureView: NSView {
         }
     }
 
-    /// The streams: the two flows of grains, one rising on the left and one falling on
-    /// the right.
+    /// The streams: the grains that travel round the figure in a wave.
     ///
-    /// A grain is born at a chakra, carries that chakra's colour, passes through the
-    /// place it was born and travels on: up the left, over the crown, down the right
-    /// and under the feet. The path itself breathes — a slow wave runs round it and a
-    /// finer ripple shivers along it — and the aura reaches in toward the spine where
-    /// the chakras are, deepest at the one being played.
+    /// The colour is the colour of the chakra the grain is passing, so the ring shows
+    /// the rainbow climbing on the left and coming down again on the right, and the
+    /// path reaches in toward the spine where the chakras are.
+    ///
+    /// Without the sound the streams are still there, but weak and wandering — enough
+    /// of them to see, not enough to call a shape.
     private func drawStreams() {
         let alive = isPlaying
         let travel = streamTravel
         let active = activeMarkY
         for grain in Self.streamGrains {
-            let s = (grain.birth + travel).truncatingRemainder(dividingBy: 1)
-            let spot = Self.pointOnPath(s, travel: travel, wave: 0.030, ripple: 0.006) { y in
+            let t = (grain.birth + travel).truncatingRemainder(dividingBy: 1)
+            let spot = Self.pointOnPath(t, travel: travel, wave: 0.030, ripple: 0.007) { y in
                 Figure.reachIn(at: y, activeY: active)
             }
+
+            // Without the sound the grains wander: the streams are there, but there is
+            // no outline to them. The lower body keeps more of the movement and more
+            // of the light — the flow starts at the earth and the ground holds it.
+            let weight = Self.lowBodyWeight(y: spot.point.y)
+            let chaos = (1 - formation) * Self.chaos * (1 + weight)
             let centre = point(
-                grain.dust.x + (spot.point.x - grain.dust.x) * formation,
-                grain.dust.y + (spot.point.y - grain.dust.y) * formation
+                spot.point.x + grain.wander.x * chaos,
+                spot.point.y + grain.wander.y * chaos
             )
-            // The band of light travelling round the path. It moves faster than the
+
+            // The band of light travelling round the ring. It moves faster than the
             // grains, so the aura shimmers rather than merely travelling.
-            let band = 0.5 + 0.5 * sin(2 * .pi * (3 * s - 2.4 * travel))
-            // Where the aura reaches into a chakra it is brighter, and brightest of all
-            // at the one being played.
+            //
+            // Every rate here is a whole number of cycles per round, and so is the
+            // number of crests along the ring. That is what makes the round close:
+            // after one round the wave's phase has moved by a whole number of
+            // cycles, so the last frame of a round is the first frame of the next. A
+            // rate that is not a whole number leaves the wave a fraction of a turn
+            // out of place at the seam, and the animation looks like a loop whose
+            // ends do not meet.
+            let band = 0.5 + 0.5 * sin(2 * .pi * (3 * t - 4 * travel))
+            // Where the flow reaches into a chakra it is brighter, and brightest of
+            // all at the one being played.
             let reach = Figure.reachIn(at: spot.point.y, activeY: active)
-            let alpha = (alive ? 0.62 : 0.17)
+            // Without the sound the aura is weak — but it is there. It was too weak to
+            // see at all, and an aura that cannot be seen is not an aura.
+            let alpha = (alive ? 0.60 : 0.34 + 0.30 * weight)
                 * (0.30 + 0.70 * band)
                 * (1 + reach * 1.8)
-            let size = figureHeight * (alive ? 0.0060 : 0.0042) * (0.85 + 0.3 * band)
-            grain.colour.withAlphaComponent(alpha).setFill()
+            let size = figureHeight * (alive ? 0.0056 : 0.0048 + 0.0020 * weight)
+                * (0.85 + 0.3 * band)
+            Self.colour(forHeight: spot.point.y).withAlphaComponent(alpha).setFill()
             NSBezierPath(ovalIn: NSRect(
                 x: centre.x - size, y: centre.y - size,
                 width: size * 2, height: size * 2

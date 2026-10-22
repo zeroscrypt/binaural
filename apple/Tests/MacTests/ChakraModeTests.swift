@@ -61,19 +61,21 @@ final class ChakraModeTests: XCTestCase {
         )
     }
 
-    /// The grains do not jump into the shape: they assemble into it, over about half a
-    /// second, which is the difference between a shell and a picture of one.
-    func testTheCocoonAssemblesRatherThanAppearing() {
+    /// The streams are there with or without the sound — only weaker and wandering
+    /// without it. They do not jump into shape when the sound comes: they take about
+    /// half a second to settle, which is the difference between a living shell and a
+    /// picture of one.
+    func testTheAuraSettlesAsTheSoundComes() {
         let controller = makeController(playing: true)
         controller.chakraControl.reducedMotionOverride = false
         controller.setChakraMode(true)
 
         XCTAssertLessThan(
             controller.chakraControl.cocoonFormation, 1,
-            "the shape forms over time, not in one step"
+            "the streams settle over time, not in one step"
         )
 
-        let formed = expectation(description: "the cocoon assembles")
+        let formed = expectation(description: "the streams settle")
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             if controller.chakraControl.cocoonFormation >= 1 { formed.fulfill() }
         }
