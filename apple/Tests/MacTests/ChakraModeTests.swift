@@ -65,6 +65,7 @@ final class ChakraModeTests: XCTestCase {
     /// second, which is the difference between a shell and a picture of one.
     func testTheCocoonAssemblesRatherThanAppearing() {
         let controller = makeController(playing: true)
+        controller.chakraControl.reducedMotionOverride = false
         controller.setChakraMode(true)
 
         XCTAssertLessThan(
@@ -77,6 +78,20 @@ final class ChakraModeTests: XCTestCase {
             if controller.chakraControl.cocoonFormation >= 1 { formed.fulfill() }
         }
         wait(for: [formed], timeout: 5)
+    }
+
+    /// SPEC §7.2: reduced motion is honoured. The grains are simply in place — no
+    /// assembling, no shivering — and the cocoon is still there, because the brightness
+    /// says whether the sound is on whether it moves or not.
+    func testReducedMotionPutsTheCocoonInPlaceWithoutAnimatingIt() {
+        let controller = makeController(playing: true)
+        controller.chakraControl.reducedMotionOverride = true
+        controller.setChakraMode(true)
+
+        XCTAssertEqual(
+            controller.chakraControl.cocoonFormation, 1,
+            "with reduced motion the grains are in place at once, and stay there"
+        )
     }
 
     // MARK: - It is a mode, and it is off to begin with

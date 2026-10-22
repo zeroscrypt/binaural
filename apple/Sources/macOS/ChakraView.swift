@@ -438,8 +438,14 @@ final class ChakraFigureView: NSView {
     private let clock = Clock()
 
     /// Whether the system asks for reduced motion (SPEC §7.2).
+    ///
+    /// The tests answer for themselves: the setting belongs to the machine the suite
+    /// runs on, and a test that depended on it would pass on one machine and fail on
+    /// another.
+    var reducedMotionOverride: Bool?
+
     private var isReducedMotion: Bool {
-        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        reducedMotionOverride ?? NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
 
     /// The grains' two places: where they belong in the cocoon, and where they lie when
@@ -900,6 +906,11 @@ final class ChakraView: NSView {
     var figureIsPlaying: Bool { figure.isPlaying }
     /// How far the grains have assembled into the cocoon: 0 is dust, 1 is the shape.
     var cocoonFormation: CGFloat { figure.formation }
+    /// The same seam the figure has: the tests reach the figure through the panel.
+    var reducedMotionOverride: Bool? {
+        get { figure.reducedMotionOverride }
+        set { figure.reducedMotionOverride = newValue }
+    }
 
     // MARK: - Actions
 
