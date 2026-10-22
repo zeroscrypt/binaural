@@ -1231,6 +1231,7 @@ final class ChakraView: NSView {
     var presetSlot: NSStackView { presetSlotView }
     /// The scheme of the waves, and what they are doing.
     private let schemeView = WaveSchemeView()
+    private let sumCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let holdCaptionLabel = NSTextField(labelWithString: "")
     private let holdPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let beatWaveCaption = NSTextField(labelWithString: "")
@@ -1252,6 +1253,9 @@ final class ChakraView: NSView {
     private var stepSeconds: Int = ChakraSequence.defaultStepSeconds
     /// Which step the session settles on and holds, or nil for the automatic choice.
     private var holdIndex: Int?
+    /// Whether the tones of the steps below the one being played keep sounding under
+    /// it, the way the set of tones accumulated in the reference app.
+    private var sumsTones = false
     private var direction: ChakraSequence.Direction = .up
     private var beatHz: Double = ChakraSequence.defaultBeatHz
     private var isSyncing = false
@@ -1358,6 +1362,11 @@ final class ChakraView: NSView {
         // lowest-priority child, and a plain view has a far lower content-hugging
         // priority than a row of controls. Without it the slack went to the beat row
         // and pushed the caption to the far edge of the window.
+        sumCheckbox.target = self
+        sumCheckbox.action = #selector(sumToggled)
+        sumCheckbox.font = .systemFont(ofSize: 13)
+        sumCheckbox.setAccessibilityLabel(L10n.tr("Sum"))
+
         holdCaptionLabel.font = .systemFont(ofSize: 13)
         holdCaptionLabel.textColor = .secondaryLabelColor
 
@@ -1411,7 +1420,7 @@ final class ChakraView: NSView {
         holdRow.alignment = .centerY
         holdRow.spacing = 8
         let stepStack = NSStackView(views: [
-            durationRow, directionCheckbox, holdRow, noteLabel
+            durationRow, directionCheckbox, holdRow, sumCheckbox, noteLabel
         ])
         stepStack.orientation = .vertical
         stepStack.alignment = .leading
@@ -1556,6 +1565,18 @@ final class ChakraView: NSView {
 
     /// The user chose which step the session holds.
     var onHoldChange: ((Int?) -> Void)?
+
+    /// The user turned the accumulating tones on or off.
+    var onSumChange: ((Bool) -> Void)?
+
+    /// Whether the tones of the steps below the one being played keep sounding under
+    /// it, the way the set of tones accumulated in the reference app.
+    var isSummingTones: Bool { sumsTones }
+
+    @objc private func sumToggled() {
+        sumsTones = sumCheckbox.state == .on
+        onSumChange?(sumsTones)
+    }
 
     /// The offered lengths are data, and translating them changes every caption, so the
     /// list is rebuilt rather than patched.
@@ -1787,6 +1808,8 @@ final class ChakraView: NSView {
         }
         beatWaveCaption.stringValue = L10n.tr("BEAT")
         stepWaveCaption.stringValue = L10n.tr("Step")
+        sumCheckbox.title = L10n.tr("Sum")
+        sumCheckbox.setAccessibilityLabel(L10n.tr("Sum"))
         holdCaptionLabel.stringValue = L10n.tr("Hold")
         holdPopup.setAccessibilityLabel(L10n.tr("Hold"))
         rebuildHoldItems()

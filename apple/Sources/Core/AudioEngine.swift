@@ -6,6 +6,19 @@ import Foundation
 /// `Sendable` on purpose: this is the *only* thing that crosses the thread boundary,
 /// and crossing it as a value type means there is no shared mutable state to protect.
 /// Frequencies, gain, pan and the sample rate are `Double`/`Int`, so a copy is a copy.
+/// One tone of the drone: the extra frequencies under the main pair.
+public struct DroneTone: Sendable, Equatable {
+    /// The frequency, in Hz.
+    public var hz: Double
+    /// The amplitude it should have, 0...1.
+    public var gain: Double
+
+    public init(hz: Double, gain: Double) {
+        self.hz = hz
+        self.gain = gain
+    }
+}
+
 public struct RenderParameters: Sendable, Equatable {
 
     /// Left channel frequency in Hz.
@@ -22,6 +35,11 @@ public struct RenderParameters: Sendable, Equatable {
     public var panRight: Double
     /// Sample rate of the device the engine is feeding.
     public var sampleRate: Int
+    /// The tones under the main pair: extra frequencies rendered in both channels.
+    ///
+    /// Each is a frequency and the amplitude it should have. They are centred, so the
+    /// beat — the difference between the two channels — is untouched by them.
+    public var drone: [DroneTone]
 
     public init(
         leftHz: Double = BeatMath.defaultCarrierHz,
@@ -30,7 +48,8 @@ public struct RenderParameters: Sendable, Equatable {
         rampSeconds: Double = BeatMath.defaultRampSeconds,
         panLeft: Double = 1,
         panRight: Double = 1,
-        sampleRate: Int = BeatMath.defaultSampleRate
+        sampleRate: Int = BeatMath.defaultSampleRate,
+        drone: [DroneTone] = []
     ) {
         self.leftHz = leftHz
         self.rightHz = rightHz
@@ -39,6 +58,7 @@ public struct RenderParameters: Sendable, Equatable {
         self.panLeft = panLeft
         self.panRight = panRight
         self.sampleRate = sampleRate
+        self.drone = drone
     }
 
     /// ``gain`` and ``rampSeconds`` together — what `StereoOscillator.setFade` takes.
@@ -210,6 +230,9 @@ final class AudioRenderContext: @unchecked Sendable {
         if oscillator.targetGain != fade.gain || oscillator.gain != fade.gain {
             oscillator.setFade(fade.gain, rampSeconds: fade.rampSeconds)
         }
+        if oscillator.droneTones != parameters.drone {
+            oscillator.setDrone(parameters.drone)
+        }
         let pan = oscillator.pan
         if pan.left != parameters.panLeft || pan.right != parameters.panRight {
             oscillator.setPan(left: parameters.panLeft, right: parameters.panRight)
@@ -308,6 +331,15 @@ public final class AudioEngine {
         didSet { updateParameters() }
     }
 
+    /// The tones under the main pair: the drone of the chakra mode.
+    ///
+    /// The tones of the steps below the one being played keep sounding under it, the
+    /// way the set of tones accumulated in the reference app. They are centred, so the
+    /// beat stays exactly what it was.
+    public var drone: [DroneTone] = [] {
+        didSet { updateParameters() }
+    }
+
     /// Sample rate the engine actually runs at — the device's, never an assumption.
     public private(set) var sampleRate = 0
 
@@ -385,7 +417,8 @@ public final class AudioEngine {
             rampSeconds: fadeSeconds,
             panLeft: pan.left,
             panRight: pan.right,
-            sampleRate: sampleRate > 0 ? sampleRate : BeatMath.defaultSampleRate
+            sampleRate: sampleRate > 0 ? sampleRate : BeatMath.defaultSampleRate,
+            drone: drone
         )
     }
 

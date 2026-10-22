@@ -81,6 +81,8 @@ class StereoOscillator:
         # Per-channel amplitude, used to hard-pan the L/R headphone test.
         self._pan_l = 1.0
         self._pan_r = 1.0
+        # The tones under the main pair: (hz, phase, gain, target gain).
+        self._drone: list[list[float]] = []
         self.set_fade(0.0, DEFAULT_RAMP_SECONDS)
 
     # ------------------------------------------------------------------ state
@@ -160,6 +162,40 @@ class StereoOscillator:
         self._pan_l = min(1.0, max(0.0, float(left)))
         self._pan_r = min(1.0, max(0.0, float(right)))
 
+    # ------------------------------------------------------------------ drone
+
+    def set_drone(self, tones: list[tuple[float, float]]) -> None:
+        """Set the tones under the main pair, each with the amplitude it should have.
+
+        The drone of the chakra mode: the tones of the steps below the one being
+        played keep sounding under it, the way the set of tones accumulated in the
+        reference app. They are centred, so the beat -- a difference between the two
+        channels -- stays exactly what it was.
+
+        A tone that stays keeps its phase, so a change cannot click. A tone that
+        arrives fades in and a tone that leaves fades out, for the same reason.
+        """
+        updated: list[list[float]] = []
+        for hz, gain in tones:
+            hz = max(0.0, float(hz))
+            gain = min(1.0, max(0.0, float(gain)))
+            existing = next((t for t in self._drone if abs(t[0] - hz) < 0.01), None)
+            if existing is None:
+                updated.append([hz, 0.0, 0.0, gain])
+            else:
+                updated.append([hz, existing[1], existing[2], gain])
+        # A tone that is leaving keeps its place until its amplitude has fallen to
+        # nothing, so the fade is a fade and not a step.
+        for existing in self._drone:
+            if not any(abs(t[0] - existing[0]) < 0.01 for t in updated) and existing[2] > 1e-4:
+                updated.append([existing[0], existing[1], existing[2], 0.0])
+        self._drone = updated
+
+    @property
+    def drone_tones(self) -> list[tuple[float, float]]:
+        """The drone's tones as (hz, gain), for tests and diagnostics."""
+        return [(tone[0], tone[2]) for tone in self._drone]
+
     # ----------------------------------------------------------------- render
 
     def render(self, frames: int) -> tuple[list[float], list[float]]:
@@ -202,6 +238,30 @@ class StereoOscillator:
                 gain += (target - gain) * alpha
                 if abs(target - gain) < 1e-6:
                     gain = target
+
+        # The drone: the extra tones, centred in both channels. They are added on top
+        # of the main pair, so the beat -- the difference between the channels -- is
+        # untouched by them.
+        for tone in self._drone:
+            step = tone[0] * inv_rate
+            phase = tone[1]
+            tone_gain = tone[2]
+            tone_target = tone[3]
+            for i in range(count):
+                value = tone_gain * math.sin(tau * phase)
+                left[i] += value
+                right[i] += value
+                phase += step
+                if phase >= 1.0:
+                    phase %= 1.0
+                if tone_gain != tone_target:
+                    tone_gain += (tone_target - tone_gain) * alpha
+                    if abs(tone_target - tone_gain) < 1e-6:
+                        tone_gain = tone_target
+            tone[1] = phase
+            tone[2] = tone_gain
+        # A tone that has faded away is forgotten.
+        self._drone = [t for t in self._drone if not (t[3] == 0 and t[2] < 1e-4)]
 
         self._phase_l = phase_l
         self._phase_r = phase_r

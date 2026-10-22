@@ -74,6 +74,8 @@ final class L10nKeysTests: XCTestCase {
         "Hold", "Auto",
         // the picture of the waves, as against the beat that makes them
         "Pulse",
+        // the tones of the steps below the one being played keep sounding under it
+        "Sum",
         "Direction", "Up, then back", "Down, then back",
         "The default 21 Hz sits in the alpha band.",
         // the language control in the main window (SPEC §7.4)

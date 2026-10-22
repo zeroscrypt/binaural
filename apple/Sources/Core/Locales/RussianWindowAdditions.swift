@@ -34,6 +34,8 @@ enum RussianWindowAdditions {
         "Auto": "Авто",
         // The picture of the waves, as against the beat that makes them.
         "Pulse": "Пульс",
+        // The tones of the steps below the one being played keep sounding under it.
+        "Sum": "Суммировать",
         "Silences the sound. The volume itself is not changed.": (
             "Выключает звук. Сама громкость не меняется."
         ),

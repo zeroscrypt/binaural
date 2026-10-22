@@ -226,3 +226,46 @@ def test_invalid_pair_from_beat_raises():
 def test_invalid_sample_rate_raises():
     with pytest.raises(ValueError):
         StereoOscillator(0)
+
+# ----------------------------------------------------------------- the drone
+def test_the_drone_is_centred():
+    """The drone's tones are centred: the same value in both channels."""
+    osc = StereoOscillator(RATE)
+    osc.set_frequencies(200.0, 200.0)
+    osc.set_fade(1.0, 0.001)
+    osc.set_drone([(174.0, 0.5)])
+    left, right = osc.render(480)
+    assert left == pytest.approx(right)
+
+
+def test_the_drone_does_not_touch_the_beat():
+    """The beat is the difference between the channels; the drone is centred."""
+    plain = StereoOscillator(RATE)
+    plain.set_frequencies(200.0, 220.0)
+    plain.set_fade(1.0, 0.001)
+    plain_left, plain_right = plain.render(480)
+
+    with_drone = StereoOscillator(RATE)
+    with_drone.set_frequencies(200.0, 220.0)
+    with_drone.set_fade(1.0, 0.001)
+    with_drone.set_drone([(174.0, 0.5)])
+    drone_left, drone_right = with_drone.render(480)
+
+    for index in range(480):
+        plain_beat = plain_left[index] - plain_right[index]
+        drone_beat = drone_left[index] - drone_right[index]
+        assert plain_beat == pytest.approx(drone_beat)
+
+
+def test_a_drone_tone_that_leaves_fades_away():
+    """A tone that leaves fades out rather than cutting."""
+    osc = StereoOscillator(RATE)
+    osc.set_fade(1.0, 0.001)
+    osc.set_drone([(174.0, 0.5)])
+    osc.render(480)
+    assert osc.drone_tones
+
+    osc.set_drone([])
+    for _ in range(200):
+        osc.render(480)
+    assert osc.drone_tones == []

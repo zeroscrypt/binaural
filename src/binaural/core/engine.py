@@ -167,6 +167,14 @@ class AudioEngine(QObject):
     def oscillator(self) -> StereoOscillator:
         return self._oscillator
 
+    def set_drone(self, tones: list[tuple[float, float]]) -> None:
+        """The tones under the main pair: the drone of the chakra mode.
+
+        Each tone is a frequency and the amplitude it should have. They are centred, so
+        the beat -- the difference between the two channels -- is untouched by them.
+        """
+        self._oscillator.set_drone(tones)
+
     # ------------------------------------------------------------ life cycle
 
     def start(self) -> bool:

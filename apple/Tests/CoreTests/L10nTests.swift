@@ -326,7 +326,7 @@ final class L10nTests: XCTestCase {
         // Python app has no call site for either. The tabbed panel and the step the
         // session holds add three more. The ceiling is 10.
         XCTAssertLessThanOrEqual(
-            additions.count, 11,
+            additions.count, 12,
             "the additions are a documented superset, not a second catalogue"
         )
         for (key, value) in additions {

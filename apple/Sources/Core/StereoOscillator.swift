@@ -38,6 +38,26 @@ public final class StereoOscillator {
     private var _alpha: Double = 0.0
     private var _rampSeconds: Double = BeatMath.defaultRampSeconds
 
+    /// One tone of the drone as the oscillator remembers it: the frequency, the phase
+    /// and the amplitude on its way to the target.
+    private struct DroneState {
+        var hz: Double
+        /// The phase, as a fraction of a cycle.
+        var phase: Double
+        /// The amplitude now.
+        var gain: Double
+        /// The amplitude it is heading for.
+        var targetGain: Double
+    }
+
+    /// The tones under the main pair: extra frequencies rendered in both channels.
+    ///
+    /// The drone of the chakra mode: the tones of the steps below the one being played
+    /// keep sounding under it, the way the set of tones accumulated in the reference
+    /// app. They are centred, so the beat — a difference between the two channels —
+    /// stays exactly what it was.
+    private var drone: [DroneState] = []
+
     /// Per-channel amplitude, used to hard-pan the L/R headphone test (SPEC §4.2).
     private var _panLeft: Double = 1.0
     private var _panRight: Double = 1.0
@@ -120,6 +140,42 @@ public final class StereoOscillator {
         _alpha = 1.0 - exp(-1.0 / (_rampSeconds * Double(_sampleRate)))
     }
 
+    /// Set the drone: the tones under the main pair, each with the amplitude it should
+    /// have.
+    ///
+    /// A tone that stays keeps its phase, so a change cannot click. A tone that arrives
+    /// fades in and a tone that leaves fades out, for the same reason.
+    public func setDrone(_ tones: [DroneTone]) {
+        var updated: [DroneState] = []
+        updated.reserveCapacity(tones.count)
+        for tone in tones {
+            let hz = max(0, tone.hz)
+            let gain = min(1, max(0, tone.gain))
+            if let existing = drone.first(where: { abs($0.hz - hz) < 0.01 }) {
+                updated.append(DroneState(
+                    hz: hz, phase: existing.phase, gain: existing.gain, targetGain: gain
+                ))
+            } else {
+                updated.append(DroneState(hz: hz, phase: 0, gain: 0, targetGain: gain))
+            }
+        }
+        // A tone that is leaving keeps its place until its amplitude has fallen to
+        // nothing, so the fade is a fade and not a step.
+        for existing in drone where !updated.contains(where: { abs($0.hz - existing.hz) < 0.01 }) {
+            if existing.gain > 1e-4 {
+                updated.append(DroneState(
+                    hz: existing.hz, phase: existing.phase, gain: existing.gain, targetGain: 0
+                ))
+            }
+        }
+        drone = updated
+    }
+
+    /// The drone's tones, for tests and diagnostics.
+    public var droneTones: [DroneTone] {
+        drone.map { DroneTone(hz: $0.hz, gain: $0.gain) }
+    }
+
     // MARK: - Render
 
     /// Render `frames` samples per channel and advance both phases.
@@ -191,6 +247,36 @@ public final class StereoOscillator {
                 }
             }
         }
+
+        // The drone: the extra tones, centred in both channels. They are added on top
+        // of the main pair, so the beat — the difference between the channels — is
+        // untouched by them.
+        for index in drone.indices {
+            let tone = drone[index]
+            let step = tone.hz * inverseRate
+            var phase = tone.phase
+            var toneGain = tone.gain
+            let target = tone.targetGain
+            for sample in 0..<count {
+                let value = Float(toneGain * sin(2 * Double.pi * phase))
+                left[sample] += value
+                right[sample] += value
+                phase += step
+                if phase >= 1.0 {
+                    phase = phase.truncatingRemainder(dividingBy: 1.0)
+                }
+                if toneGain != target {
+                    toneGain += (target - toneGain) * alpha
+                    if abs(target - toneGain) < 1e-6 {
+                        toneGain = target
+                    }
+                }
+            }
+            drone[index].phase = phase
+            drone[index].gain = toneGain
+        }
+        // A tone that has faded away is forgotten.
+        drone.removeAll { $0.targetGain == 0 && $0.gain < 1e-4 }
 
         _phaseLeft = phaseLeft
         _phaseRight = phaseRight

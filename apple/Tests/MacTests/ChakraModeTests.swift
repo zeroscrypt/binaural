@@ -132,6 +132,42 @@ final class ChakraModeTests: XCTestCase {
         XCTAssertEqual(journey.last, journey.count - 1, "it settles at the step it reached")
     }
 
+    // MARK: - The tones that accumulate
+
+    /// The tones of the steps below the one being played keep sounding under it, the
+    /// way the set of tones accumulated in the reference app: by the crown all of them
+    /// sound at once.
+    func testTheTonesAccumulateUnderTheStep() {
+        let controller = makeController()
+        controller.setChakraMode(true)
+        controller.chakraControl.onSumChange?(true)
+
+        XCTAssertTrue(
+            controller.droneTones.isEmpty,
+            "the earth is the first step: nothing is under it yet"
+        )
+
+        controller.advanceChakraStepForTests()
+        XCTAssertEqual(
+            controller.droneTones.map(\.hz), [174.0],
+            "the earth's tone stays under the next step"
+        )
+
+        controller.advanceChakraStepForTests()
+        XCTAssertEqual(
+            controller.droneTones.map(\.hz), [174.0, 396.0],
+            "and the next one joins it"
+        )
+    }
+
+    /// Without the setting, the mode plays one step at a time, as it always did.
+    func testTheTonesDoNotAccumulateUnlessAsked() {
+        let controller = makeController()
+        controller.setChakraMode(true)
+        controller.advanceChakraStepForTests()
+        XCTAssertTrue(controller.droneTones.isEmpty)
+    }
+
     // MARK: - It is a mode, and it is off to begin with
 
     /// The mode is a program of its own. A user who has not asked for it should get the

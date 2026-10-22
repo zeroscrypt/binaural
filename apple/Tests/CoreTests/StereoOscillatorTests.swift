@@ -193,4 +193,98 @@ final class StereoOscillatorTests: XCTestCase {
         XCTAssertEqual(SignalAnalysis.peak(block.left) > 0.5, true)
         XCTAssertEqual(block.right, [Float](repeating: 0, count: 256))
     }
+
+
+    // MARK: - The drone
+
+    /// The drone's tones are centred: the same value in both channels, so a pair with
+    /// no beat in it stays a pair with no beat in it.
+    func testTheDroneIsCentred() throws {
+        let oscillator = try StereoOscillator(sampleRate: 48000)
+        try oscillator.setFrequencies(leftHz: 200, rightHz: 200)
+        oscillator.setFade(1.0, rampSeconds: 0.001)
+        oscillator.setDrone([DroneTone(hz: 174, gain: 0.5)])
+
+        let block = oscillator.render(frames: 480)
+        XCTAssertEqual(block.left.count, 480)
+        for index in 0..<480 {
+            XCTAssertEqual(
+                block.left[index], block.right[index], accuracy: 1e-6,
+                "sample " + String(index)
+            )
+        }
+    }
+
+    /// The drone does not touch the beat. The beat is the difference between the two
+    /// channels, and the drone is centred, so the difference is the same with the drone
+    /// and without it.
+    func testTheDroneDoesNotTouchTheBeat() throws {
+        let plain = try StereoOscillator(sampleRate: 48000)
+        try plain.setFrequencies(leftHz: 200, rightHz: 220)
+        plain.setFade(1.0, rampSeconds: 0.001)
+        let plainBlock = plain.render(frames: 480)
+
+        let withDrone = try StereoOscillator(sampleRate: 48000)
+        try withDrone.setFrequencies(leftHz: 200, rightHz: 220)
+        withDrone.setFade(1.0, rampSeconds: 0.001)
+        withDrone.setDrone([DroneTone(hz: 174, gain: 0.5)])
+        let droneBlock = withDrone.render(frames: 480)
+
+        for index in 0..<480 {
+            let beatPlain = plainBlock.left[index] - plainBlock.right[index]
+            let beatDrone = droneBlock.left[index] - droneBlock.right[index]
+            XCTAssertEqual(
+                beatPlain, beatDrone, accuracy: 1e-6, "sample " + String(index)
+            )
+        }
+    }
+
+    /// A tone that stays keeps its phase: the change cannot click.
+    func testADroneToneKeepsItsPhase() throws {
+        let oscillator = try StereoOscillator(sampleRate: 48000)
+        oscillator.setFade(1.0, rampSeconds: 0.001)
+        oscillator.setDrone([DroneTone(hz: 174, gain: 0.5)])
+        _ = oscillator.render(frames: 480)
+        let before = oscillator.droneTones
+
+        oscillator.setDrone([DroneTone(hz: 174, gain: 0.5), DroneTone(hz: 396, gain: 0.5)])
+        let after = oscillator.droneTones
+        XCTAssertEqual(after.count, 2)
+        XCTAssertEqual(before.first?.hz, after.first?.hz)
+    }
+
+    /// A tone that leaves fades out rather than cutting: the amplitude falls to
+    /// nothing over a few blocks and the tone is then forgotten.
+    func testADroneToneFadesOutWhenItLeaves() throws {
+        let oscillator = try StereoOscillator(sampleRate: 48000)
+        oscillator.setFade(1.0, rampSeconds: 0.001)
+        oscillator.setDrone([DroneTone(hz: 174, gain: 0.5)])
+        _ = oscillator.render(frames: 480)
+
+        oscillator.setDrone([])
+        for _ in 0..<200 { _ = oscillator.render(frames: 480) }
+        XCTAssertTrue(oscillator.droneTones.isEmpty, "a tone that has faded away is forgotten")
+    }
+
+    /// The drone adds to the main pair rather than replacing it: the pair is still
+    /// there, under the drone.
+    func testTheDroneIsAddedToTheMainPair() throws {
+        let plain = try StereoOscillator(sampleRate: 48000)
+        try plain.setFrequencies(leftHz: 200, rightHz: 200)
+        plain.setFade(1.0, rampSeconds: 0.001)
+        let plainBlock = plain.render(frames: 480)
+
+        let withDrone = try StereoOscillator(sampleRate: 48000)
+        try withDrone.setFrequencies(leftHz: 200, rightHz: 200)
+        withDrone.setFade(1.0, rampSeconds: 0.001)
+        withDrone.setDrone([DroneTone(hz: 174, gain: 0.5)])
+        let droneBlock = withDrone.render(frames: 480)
+
+        var differs = false
+        for index in 0..<480 where abs(droneBlock.left[index] - plainBlock.left[index]) > 1e-4 {
+            differs = true
+            break
+        }
+        XCTAssertTrue(differs, "the drone is added on top of the pair")
+    }
 }

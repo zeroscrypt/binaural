@@ -77,6 +77,9 @@ final class MainWindowController: NSWindowController {
     /// When the current step began: the step's wave goes round the ring exactly once
     /// per step, so the picture says how much of the step is left.
     private var chakraStepStartedAt: Date?
+    /// Whether the tones of the steps below the one being played keep sounding under
+    /// it.
+    private var sumsTones = false
     /// The step the session settles on and holds, or nil when it walks as it always did.
     ///
     /// The timer's length decides it when the choice is automatic: the longer the
@@ -93,6 +96,35 @@ final class MainWindowController: NSWindowController {
             (Double(position) / Double(max(1, choices.count - 1)) * Double(count - 1)).rounded()
         )
         return min(count - 1, max(0, step))
+    }
+
+    /// The user turned the accumulating tones on or off.
+    private func chakraSumChanged(_ summing: Bool) {
+        sumsTones = summing
+        applyDrone()
+    }
+
+    /// The tones under the current step, when the mode sums them.
+    ///
+    /// The reference app accumulated the set: every step added its tone to the ones
+    /// below it, and by the crown all of them sounded at once. Here the tones of the
+    /// steps below the one being played stay under it — centred, so the beat, which is
+    /// a difference between the two channels, is untouched by them.
+    ///
+    /// The amplitudes are scaled by the square root of the count, so the drone does not
+    /// get louder as it grows: eight tones at half the amplitude sound like one tone.
+    private func applyDrone() {
+        guard sumsTones, isChakraMode else {
+            engine.drone = []
+            return
+        }
+        let tones = ChakraSequence.steps.prefix(chakraStepIndex).map(\.hz)
+        guard !tones.isEmpty else {
+            engine.drone = []
+            return
+        }
+        let weight = 1.0 / Double(tones.count).squareRoot()
+        engine.drone = tones.map { DroneTone(hz: $0, gain: weight) }
     }
 
     /// The user chose which step the session holds, or left it to the timer.
@@ -452,6 +484,7 @@ final class MainWindowController: NSWindowController {
         chakraView.onBeatChange = { [weak self] beatHz in self?.chakraBeatChanged(beatHz) }
         chakraView.onChakraPicked = { [weak self] index in self?.chakraPicked(index) }
         chakraView.onHoldChange = { [weak self] _ in self?.chakraHoldChanged() }
+        chakraView.onSumChange = { [weak self] summing in self?.chakraSumChanged(summing) }
     }
 
     // MARK: - The chakra mode
@@ -506,6 +539,7 @@ final class MainWindowController: NSWindowController {
         // the mode only changes what is written beside them. The presets are the one
         // thing the mode takes away — it owns both frequencies while it runs.
         presetBlock.isHidden = enabled
+        applyDrone()
         // The tab follows the mode: the step being played while the journey runs, and
         // the chips that choose a pair when it does not.
         chakraView.selectTab(enabled ? 0 : 3)
@@ -633,6 +667,7 @@ final class MainWindowController: NSWindowController {
         rightControl.setValue(right, notify: false)
         chakraView.show(step: step, index: index, reachedIndex: chakraReachedIndex)
         chakraView.setWaveTint(ChakraPalette.brightColor(forStepIndex: index))
+        applyDrone()
         pushWaves()
         frequenciesChanged()
     }
@@ -1713,6 +1748,9 @@ final class MainWindowController: NSWindowController {
     var countdownText: String { timerView.countdownText }
     var isShowingCountdown: Bool { timerView.isShowingCountdown }
     var timerCaptionTitle: String { timerView.captionTitle }
+
+    /// The tones under the current step, for the tests.
+    var droneTones: [DroneTone] { engine.drone }
 
     /// Pick a duration as the popup would, so the rest of the timer reacts.
     func selectTimerMinutes(_ minutes: Int) {
