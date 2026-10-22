@@ -602,6 +602,54 @@ def test_window_swallows_a_headphone_report(qapp):
     win.deleteLater()
 
 
+def test_a_report_without_an_lr_answer_leaves_the_swap_alone(qapp):
+    """A report that says nothing about the channels must not un-swap a pair.
+
+    The session remembers the swap as a plain flag, so on the next launch the fresh
+    report has no L/R answer to repeat. Applying its "not swapped" at face value
+    wiped the swap every time the app was reopened — which is the one time it must
+    survive.
+    """
+    from binaural.audio.headphones import HeadphoneReport, LrTestResult
+    from binaural.audio.platform.base import DeviceClass
+
+    win = MainWindow(FakeEngine(StereoOscillator()), session=Session())
+    win.set_channels_swapped(True)
+    assert win.channels_swapped() is True
+
+    # The test never ran.
+    win.set_headphone_report(
+        HeadphoneReport(
+            verdict=DeviceClass.SPEAKERS, device=None, confidence="high", lr_test=None
+        )
+    )
+    assert win.channels_swapped() is True, "no answer is not an answer of 'not swapped'"
+
+    # The test ran and could not tell — speakers, or a mono mixer.
+    win.set_headphone_report(
+        HeadphoneReport(
+            verdict=DeviceClass.SPEAKERS,
+            device=None,
+            confidence="high",
+            lr_test=LrTestResult.INDETERMINATE,
+        )
+    )
+    assert win.channels_swapped() is True, "indeterminate says nothing about the channels"
+
+    # A decisive answer does change it.
+    win.set_headphone_report(
+        HeadphoneReport(
+            verdict=DeviceClass.HEADPHONES,
+            device=None,
+            confidence="high",
+            lr_test=LrTestResult.LEFT_THEN_RIGHT,
+        )
+    )
+    assert win.channels_swapped() is False, "a decisive answer is obeyed"
+    win.close()
+    win.deleteLater()
+
+
 # ------------------------------------------------------------- FreqControl
 
 

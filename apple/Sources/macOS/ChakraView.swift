@@ -25,6 +25,48 @@ final class ChakraFigureView: NSView {
         didSet { needsDisplay = true }
     }
 
+    /// The user clicked a chakra, and wants the journey to start there. Reported as a
+    /// step index in the sequence's order — root first, not crown first.
+    var onPick: ((Int) -> Void)?
+
+    /// How close a click has to be to count, as a fraction of the figure's height. The
+    /// marks are small, and a click that lands between two of them should not pick the
+    /// nearer one by accident.
+    private static let pickRadius: CGFloat = 0.05
+
+    /// The mark nearest to a point, if it is close enough to be a click.
+    private func mark(near point: CGPoint) -> Int? {
+        var best: (index: Int, distance: CGFloat)?
+        for (visualIndex, normalised) in Body.marks.enumerated() {
+            let centre = self.point(normalised)
+            let distance = hypot(centre.x - point.x, centre.y - point.y)
+            if best == nil || distance < best!.distance {
+                best = (Body.marks.count - 1 - visualIndex, distance)
+            }
+        }
+        guard let best, best.distance < radius(Self.pickRadius) else { return nil }
+        return best.index
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard let index = mark(near: convert(event.locationInWindow, from: nil)) else { return }
+        onPick?(index)
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .arrow)
+    }
+
+    override func cursorUpdate(with event: NSEvent) {
+        let overAMark = mark(near: convert(event.locationInWindow, from: nil)) != nil
+        (overAMark ? NSCursor.pointingHand : NSCursor.arrow).set()
+    }
+
+    /// A length as a fraction of the figure's height.
+    private func radius(_ fraction: CGFloat) -> CGFloat {
+        bounds.height * fraction
+    }
+
     override var isFlipped: Bool { true }
 
     override init(frame frameRect: NSRect) {
@@ -274,18 +316,26 @@ final class ChakraView: NSView {
     var onStepSecondsChange: ((Double) -> Void)?
     /// The user typed a new beat, in Hz.
     var onBeatChange: ((Double) -> Void)?
+    /// The user picked a new length for the whole journey, in minutes.
+    var onDurationMinutesChange: ((Int) -> Void)?
+    /// The user chose which way the journey walks first.
+    var onDirectionChange: ((ChakraSequence.Direction) -> Void)?
+    /// The user clicked a chakra on the figure, and wants the journey to start there.
+    var onChakraPicked: ((Int) -> Void)?
 
     private let figure = ChakraFigureView()
     private let frequencyLabel = NSTextField(labelWithString: "")
     private let nameLabel = NSTextField(labelWithString: "")
     private let descriptionLabel = NSTextField(labelWithString: "")
-    private let stepCaptionLabel = NSTextField(labelWithString: "")
-    private let stepPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let durationCaptionLabel = NSTextField(labelWithString: "")
+    private let durationPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let directionCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let beatCaptionLabel = NSTextField(labelWithString: "")
     private let beatField = TallTargetTextField()
     private let noteLabel = NSTextField(labelWithString: "")
 
-    private var stepSeconds: Double = ChakraSequence.defaultStepSeconds
+    private var durationMinutes: Int = ChakraSequence.defaultDurationMinutes
+    private var direction: ChakraSequence.Direction = .up
     private var beatHz: Double = ChakraSequence.defaultBeatHz
     private var isSyncing = false
 
@@ -317,14 +367,18 @@ final class ChakraView: NSView {
         descriptionLabel.lineBreakMode = .byWordWrapping
         descriptionLabel.maximumNumberOfLines = 2
 
-        stepCaptionLabel.font = .systemFont(ofSize: 13)
-        stepCaptionLabel.textColor = .secondaryLabelColor
+        durationCaptionLabel.font = .systemFont(ofSize: 13)
+        durationCaptionLabel.textColor = .secondaryLabelColor
 
-        stepPopup.controlSize = .regular
-        stepPopup.font = .systemFont(ofSize: 13)
-        stepPopup.target = self
-        stepPopup.action = #selector(stepChanged)
-        stepPopup.setAccessibilityLabel(ChakraSequence.stepCaption)
+        durationPopup.controlSize = .regular
+        durationPopup.font = .systemFont(ofSize: 13)
+        durationPopup.target = self
+        durationPopup.action = #selector(durationChanged)
+        durationPopup.setAccessibilityLabel(L10n.tr("Duration"))
+
+        directionCheckbox.target = self
+        directionCheckbox.action = #selector(directionToggled)
+        directionCheckbox.setAccessibilityLabel(L10n.tr("Direction"))
 
         beatCaptionLabel.font = .systemFont(ofSize: 13)
         beatCaptionLabel.textColor = .secondaryLabelColor
@@ -352,17 +406,17 @@ final class ChakraView: NSView {
         noteLabel.maximumNumberOfLines = 2
         noteLabel.stringValue = ChakraSequence.defaultBeatNote
 
-        let stepRow = NSStackView(views: [stepCaptionLabel, stepPopup])
-        stepRow.orientation = .horizontal
-        stepRow.alignment = .centerY
-        stepRow.spacing = 8
+        let durationRow = NSStackView(views: [durationCaptionLabel, durationPopup])
+        durationRow.orientation = .horizontal
+        durationRow.alignment = .centerY
+        durationRow.spacing = 8
 
         let beatRow = NSStackView(views: [beatCaptionLabel, beatField])
         beatRow.orientation = .horizontal
         beatRow.alignment = .centerY
         beatRow.spacing = 8
 
-        // Both controls share one row. The panel has to fit between the timer and the
+        // The controls share one row. The panel has to fit between the timer and the
         // bottom of the window, and two rows of controls was what pushed the note off
         // the screen.
         //
@@ -370,13 +424,13 @@ final class ChakraView: NSView {
         // lowest-priority child, and a plain view has a far lower content-hugging
         // priority than a row of controls. Without it the slack went to the beat row
         // and pushed the caption to the far edge of the window.
-        let controls = NSStackView(views: [stepRow, beatRow, NSView()])
+        let controls = NSStackView(views: [durationRow, beatRow, NSView()])
         controls.orientation = .horizontal
         controls.alignment = .centerY
         controls.spacing = 16
 
         let text = NSStackView(views: [
-            frequencyLabel, nameLabel, descriptionLabel, controls, noteLabel
+            frequencyLabel, nameLabel, descriptionLabel, controls, directionCheckbox, noteLabel
         ])
         text.orientation = .vertical
         text.alignment = .leading
@@ -398,13 +452,14 @@ final class ChakraView: NSView {
             figure.heightAnchor.constraint(equalToConstant: 176),
             // SPEC §7.2: 44 px minimum click target. The field is the height of its own
             // text, and `TallTargetTextField` adds the missing band back as hit slop.
-            stepPopup.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            durationPopup.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             beatField.widthAnchor.constraint(equalToConstant: 76)
         ])
 
         setAccessibilityLabel(ChakraSequence.modeName)
-        rebuildStepItems()
-        setStepSeconds(stepSeconds)
+        rebuildDurationItems()
+        setDurationMinutes(durationMinutes)
+        setDirection(direction)
         setBeatHz(beatHz)
     }
 
@@ -425,13 +480,13 @@ final class ChakraView: NSView {
         return formatter
     }
 
-    /// The offered step durations are data, and translating them changes every caption,
-    /// so the list is rebuilt rather than patched.
-    private func rebuildStepItems() {
-        stepPopup.removeAllItems()
-        for choice in ChakraSequence.stepSecondsChoices {
-            stepPopup.addItem(withTitle: ChakraSequence.stepSecondsText(choice))
-            stepPopup.lastItem?.representedObject = choice
+    /// The offered lengths are data, and translating them changes every caption, so the
+    /// list is rebuilt rather than patched.
+    private func rebuildDurationItems() {
+        durationPopup.removeAllItems()
+        for choice in ChakraSequence.durationMinutesChoices {
+            durationPopup.addItem(withTitle: L10n.tr("%1 min", String(choice)))
+            durationPopup.lastItem?.representedObject = choice
         }
     }
 
@@ -451,20 +506,20 @@ final class ChakraView: NSView {
         setAccessibilityValue("\(ChakraSequence.name(of: step)), \(FrequencyGrid.text(step.hz)) Hz")
     }
 
-    /// Select a step duration without telling anyone — used while restoring.
-    func setStepSeconds(_ value: Double) {
-        stepSeconds = value
-        let index = ChakraSequence.stepSecondsChoices.firstIndex(of: value)
+    /// Select a length without telling anyone — used while restoring.
+    func setDurationMinutes(_ value: Int) {
+        durationMinutes = value
+        let index = ChakraSequence.durationMinutesChoices.firstIndex(of: value)
             ?? Self.closestChoice(to: value)
         isSyncing = true
-        stepPopup.selectItem(at: index)
+        durationPopup.selectItem(at: index)
         isSyncing = false
     }
 
-    private static func closestChoice(to value: Double) -> Int {
+    private static func closestChoice(to value: Int) -> Int {
         var best = 0
-        var bestDistance = Double.greatestFiniteMagnitude
-        for (index, choice) in ChakraSequence.stepSecondsChoices.enumerated() {
+        var bestDistance = Int.max
+        for (index, choice) in ChakraSequence.durationMinutesChoices.enumerated() {
             let distance = abs(choice - value)
             if distance < bestDistance {
                 bestDistance = distance
@@ -472,6 +527,14 @@ final class ChakraView: NSView {
             }
         }
         return best
+    }
+
+    /// Show which way the journey walks first.
+    func setDirection(_ value: ChakraSequence.Direction) {
+        direction = value
+        isSyncing = true
+        directionCheckbox.state = value == .up ? .on : .off
+        isSyncing = false
     }
 
     /// Show a beat without telling anyone.
@@ -482,15 +545,18 @@ final class ChakraView: NSView {
         isSyncing = false
     }
 
-    /// The step duration currently selected, in seconds.
-    var selectedStepSeconds: Double { stepSeconds }
+    /// The length of the whole journey, in minutes.
+    var selectedDurationMinutes: Int { durationMinutes }
+
+    /// Which way the journey walks first.
+    var selectedDirection: ChakraSequence.Direction { direction }
 
     /// The beat currently shown, in Hz.
     var selectedBeatHz: Double { beatHz }
 
     // MARK: - State the tests read
 
-    var stepChoiceTitles: [String] { stepPopup.itemArray.map(\.title) }
+    var durationChoiceTitles: [String] { durationPopup.itemArray.map(\.title) }
     var frequencyText: String { frequencyLabel.stringValue }
     /// The colour of the number on screen, so a test can check that it wears its
     /// chakra's colour.
@@ -503,13 +569,19 @@ final class ChakraView: NSView {
 
     // MARK: - Actions
 
-    @objc private func stepChanged() {
+    @objc private func durationChanged() {
         guard !isSyncing,
-              let raw = stepPopup.selectedItem?.representedObject as? Double,
-              raw != stepSeconds
+              let raw = durationPopup.selectedItem?.representedObject as? Int,
+              raw != durationMinutes
         else { return }
-        stepSeconds = raw
-        onStepSecondsChange?(raw)
+        durationMinutes = raw
+        onDurationMinutesChange?(raw)
+    }
+
+    @objc private func directionToggled() {
+        guard !isSyncing else { return }
+        direction = directionCheckbox.state == .on ? .up : .down
+        onDirectionChange?(direction)
     }
 
     @objc private func beatCommitted() {
@@ -532,14 +604,17 @@ final class ChakraView: NSView {
 
     /// Re-read every caption after a language switch (SPEC §7.4), keeping the values.
     func retranslate() {
-        stepCaptionLabel.stringValue = ChakraSequence.stepCaption
-        stepPopup.setAccessibilityLabel(ChakraSequence.stepCaption)
+        durationCaptionLabel.stringValue = L10n.tr("Duration")
+        durationPopup.setAccessibilityLabel(L10n.tr("Duration"))
+        directionCheckbox.title = direction.name(for: L10n.language)
+        directionCheckbox.setAccessibilityLabel(L10n.tr("Direction"))
         beatCaptionLabel.stringValue = ChakraSequence.beatCaption
         beatField.setAccessibilityLabel(ChakraSequence.beatCaption)
         noteLabel.stringValue = ChakraSequence.defaultBeatNote
         setAccessibilityLabel(ChakraSequence.modeName)
-        rebuildStepItems()
-        setStepSeconds(stepSeconds)
+        rebuildDurationItems()
+        setDurationMinutes(durationMinutes)
+        setDirection(direction)
     }
 }
 

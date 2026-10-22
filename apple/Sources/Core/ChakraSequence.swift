@@ -68,8 +68,77 @@ public enum ChakraSequence {
     /// How long one chakra lasts before the next, in seconds.
     public static let defaultStepSeconds: Double = 6.0
 
-    /// The offered step durations, in seconds. The default is among them.
-    public static let stepSecondsChoices: [Double] = [3, 6, 10, 15, 20, 30]
+    /// The offered lengths of a whole journey, in minutes.
+    ///
+    /// A journey is a walk from one end of the body to the other and back, so its
+    /// length is a better thing to choose than the pace of a single step: the pace
+    /// follows from the length and the number of steps, and the journey ends by itself
+    /// when the time is up.
+    public static let durationMinutesChoices: [Int] = [1, 2, 5]
+
+    /// The length a journey starts on, in minutes.
+    public static let defaultDurationMinutes: Int = 1
+
+    /// Which way a journey walks first.
+    public enum Direction: String, Sendable, CaseIterable {
+        /// From the earth upwards, to the crown and back down.
+        case up
+        /// From the crown downwards, to the earth and back up.
+        case down
+
+        /// The caption of the direction control, in the current language.
+        @MainActor
+        public func name(for language: LanguageCode) -> String {
+            switch self {
+            case .up: return L10n.tr("Up, then back")
+            case .down: return L10n.tr("Down, then back")
+            }
+        }
+    }
+
+    /// Where a journey starts when the user has not picked a step.
+    ///
+    /// The direction decides which end the walk begins at: "up" starts at the earth and
+    /// climbs, "down" starts at the crown and descends. Either way the journey covers
+    /// the whole body and comes back.
+    public static func defaultStart(for direction: Direction) -> Int {
+        direction == .up ? 0 : steps.count - 1
+    }
+
+    /// The steps a journey visits, in order.
+    ///
+    /// The journey goes from one end of the body to the other and comes back, and
+    /// stops there. A walk that ended at the crown would leave the sound playing with
+    /// nowhere left to go, and one that went up and down forever would never be
+    /// finished.
+    ///
+    /// The last entry is the step the journey *ends* on, and the mode switches itself
+    /// off there.
+    public static func journey(from start: Int, direction: Direction) -> [Int] {
+        let start = index(of: start)
+        let forward = direction == .up
+            ? Array(start...steps.count - 1)
+            : Array((0...start).reversed())
+        return forward + forward.dropLast().reversed()
+    }
+
+    /// The number of steps a journey visits.
+    public static func journeyLength(from start: Int, direction: Direction) -> Int {
+        journey(from: start, direction: direction).count
+    }
+
+    /// How long each step of a journey lasts, in seconds.
+    ///
+    /// The whole journey is the length the user chose; the pace follows from it and the
+    /// number of steps, so the two controls cannot disagree.
+    public static func stepSeconds(
+        forJourneyOfMinutes minutes: Int,
+        steps count: Int
+    ) -> Double {
+        guard count > 0 else { return defaultStepSeconds }
+        let total = max(1, minutes) * 60
+        return max(0.5, Double(total) / Double(count))
+    }
 
     /// The shortest and longest beat the mode accepts. The upper bound is roughly where
     /// a binaural difference stops being heard as a beat and starts being heard as
@@ -139,12 +208,6 @@ public enum ChakraSequence {
     @MainActor
     public static var defaultBeatNote: String {
         L10n.tr("The default 21 Hz sits in the alpha band.")
-    }
-
-    /// A step duration as a caption: `6 s`.
-    @MainActor
-    public static func stepSecondsText(_ seconds: Double) -> String {
-        L10n.tr("%1 s", String(Int(seconds.rounded())))
     }
 
     // MARK: - Lookup

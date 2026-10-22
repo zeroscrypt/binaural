@@ -87,6 +87,10 @@ MESSAGES: dict[str, str] = {
         "Единство и присутствие, чтобы чувствовать целостность."
     ),
     "Step": "Шаг",
+    "Duration": "Длительность",
+    "Direction": "Направление",
+    "Up, then back": "Снизу вверх и обратно",
+    "Down, then back": "Сверху вниз и обратно",
     "Beat": "Биение",
     "%1 s": "%1 с",
     "The default 21 Hz sits in the alpha band.": (

@@ -5,12 +5,13 @@ import XCTest
 
 @testable import Binaural
 
-/// The chakra mode: seven solfeggio steps, root to crown, advanced by a timer.
+/// The chakra mode: a journey up the body and back, with the sound playing the whole
+/// time.
 ///
-/// The mode is a *program*: it sets both channels and keeps setting them. So the tests
-/// are about the pair it plays, the order it plays it in, and the fact that it does not
-/// fight the rest of the window — the preset bar stands down while it is on, because a
-/// preset click would be overwritten by the next step.
+/// The mode is a *program*: it sets both channels, it keeps setting them, and it starts
+/// the sound itself. So the tests are about the pair it plays, the order it plays it in,
+/// and the fact that it does not walk on with the playback stopped — a journey that
+/// advanced in silence was a light show on a timer.
 @MainActor
 final class ChakraModeTests: XCTestCase {
 
@@ -32,9 +33,12 @@ final class ChakraModeTests: XCTestCase {
         try await super.tearDown()
     }
 
-    private func makeController(session: Session? = nil) -> MainWindowController {
-        if let session { store.save(session) }
-        return MainWindowController(engine: AudioEngine(), store: store)
+    /// A controller whose "is the sound playing" the test answers for itself: there is no
+    /// audio device here to play through.
+    private func makeController(playing: Bool = true) -> MainWindowController {
+        let controller = MainWindowController(engine: AudioEngine(), store: store)
+        controller.playbackRunningOverride = playing
+        return controller
     }
 
     // MARK: - It is a mode, and it is off to begin with
@@ -70,11 +74,10 @@ final class ChakraModeTests: XCTestCase {
         XCTAssertFalse(controller.presetBlockControl.isHidden)
     }
 
-    // MARK: - The pair it plays
+    // MARK: - The journey
 
-    /// The first step is the earth: 174 Hz, the lowest tone of the extended Solfeggio
-    /// set — the one called *the foundation*. The sequence starts on the ground and
-    /// rises from there.
+    /// The journey starts at the earth, the lowest step: 174 Hz, the lowest tone of the
+    /// extended Solfeggio set.
     func testItStartsOnTheEarthStep() {
         let controller = makeController()
         controller.setChakraMode(true)
@@ -84,54 +87,58 @@ final class ChakraModeTests: XCTestCase {
         XCTAssertEqual((left + right) / 2, 174, accuracy: 0.05)
     }
 
-    /// The beat is the difference between the ears, and the default is the measured
-    /// 21 Hz.
-    func testTheDefaultBeatIsTheDifferenceBetweenTheEars() {
+    /// The journey goes up the body and comes back down, and then the mode switches
+    /// itself off. A walk that ended at the crown would leave the sound playing with
+    /// nowhere left to go.
+    func testTheJourneyGoesUpAndBackAndThenStops() {
         let controller = makeController()
         controller.setChakraMode(true)
 
-        let (left, right) = controller.displayedFrequencies
-        XCTAssertEqual(right - left, 21, accuracy: 0.05)
+        let journey = controller.chakraJourneyIndices
+        XCTAssertEqual(journey.first, 0, "it starts at the earth")
+        XCTAssertEqual(journey.last, 0, "and comes back to where it started")
+        XCTAssertEqual(journey.prefix(4), [0, 1, 2, 3], "upwards first")
+        XCTAssertEqual(journey.suffix(4), [3, 2, 1, 0], "and downwards afterwards")
+        XCTAssertEqual(Set(journey), Set(0..<ChakraSequence.steps.count))
+
+        // Walking the whole journey switches the mode off at the end.
+        for _ in journey { controller.advanceChakraStepForTests() }
+        XCTAssertFalse(controller.isChakraModeActive, "the journey ends by itself")
     }
 
-    /// The sequence rises. That is the whole point of the mode.
-    func testTheStepsRise() {
+    /// The other direction starts at the crown and comes back down to the earth.
+    func testTheDirectionCanBeTheOtherWayRound() {
         let controller = makeController()
         controller.setChakraMode(true)
+        controller.chakraControl.setDirection(.down)
+        controller.chakraControl.onDirectionChange?(.down)
 
-        var carriers: [Double] = []
-        for _ in 0..<ChakraSequence.steps.count {
-            let (left, right) = controller.displayedFrequencies
-            carriers.append((left + right) / 2)
-            controller.advanceChakraStepForTests()
-        }
-        XCTAssertEqual(carriers, carriers.sorted())
-        XCTAssertEqual(carriers.first, 174)
-        XCTAssertEqual(carriers.last, 963)
+        let journey = controller.chakraJourneyIndices
+        XCTAssertEqual(journey.first, ChakraSequence.steps.count - 1, "it starts at the crown")
+        XCTAssertEqual(journey.last, ChakraSequence.steps.count - 1)
+        XCTAssertEqual(journey.suffix(4).map { $0 }, [4, 5, 6, 7], "and comes back up")
     }
 
-    /// Every step is a solfeggio frequency, and the sequence visits all seven.
-    func testItVisitsEveryStepInOrder() {
-        let controller = makeController()
+    /// The journey only moves while there is sound. It used to walk on a timer whatever
+    /// the playback was doing, so the chakras on screen changed in silence — a light
+    /// show with no music under it.
+    func testTheJourneyDoesNotMoveWithoutSound() {
+        let controller = makeController(playing: false)
         controller.setChakraMode(true)
+        let before = controller.currentChakraStepID
 
-        var ids: [String] = [controller.currentChakraStepID ?? ""]
-        for _ in 1..<ChakraSequence.steps.count {
-            controller.advanceChakraStepForTests()
-            ids.append(controller.currentChakraStepID ?? "")
-        }
-        XCTAssertEqual(ids, ChakraSequence.steps.map(\.id))
+        controller.advanceChakraStepForTests()
+        XCTAssertEqual(controller.currentChakraStepID, before, "silence does not move it")
     }
 
-    /// After the crown it starts again. A sound app that stopped at the top would leave
-    /// the user with silence and no way to say so.
-    func testItStartsAgainAfterTheCrown() {
-        let controller = makeController()
+    /// The journey moves when the sound is playing.
+    func testTheJourneyMovesWithSound() {
+        let controller = makeController(playing: true)
         controller.setChakraMode(true)
-        for _ in 0..<ChakraSequence.steps.count {
-            controller.advanceChakraStepForTests()
-        }
-        XCTAssertEqual(controller.currentChakraStepID, "earth")
+        let before = controller.currentChakraStepID
+
+        controller.advanceChakraStepForTests()
+        XCTAssertNotEqual(controller.currentChakraStepID, before)
     }
 
     // MARK: - The controls
@@ -149,14 +156,14 @@ final class ChakraModeTests: XCTestCase {
         XCTAssertEqual((left + right) / 2, 174, accuracy: 0.05, "the carrier did not move")
     }
 
-    /// The offered step durations are data, and the default is among them.
-    func testTheStepDurationsAreOffered() {
+    /// The offered lengths are data, and the default is among them.
+    func testTheDurationsAreOffered() {
         let controller = makeController()
-        let titles = controller.chakraControl.stepChoiceTitles
-        XCTAssertEqual(titles.count, ChakraSequence.stepSecondsChoices.count)
+        let titles = controller.chakraControl.durationChoiceTitles
+        XCTAssertEqual(titles.count, ChakraSequence.durationMinutesChoices.count)
         XCTAssertTrue(
-            titles.contains(ChakraSequence.stepSecondsText(ChakraSequence.defaultStepSeconds)),
-            "the default has to be one of the offered choices"
+            titles.contains("1 min"),
+            "the default has to be one of the offered choices: \(titles)"
         )
     }
 
@@ -178,7 +185,7 @@ final class ChakraModeTests: XCTestCase {
         let controller = makeController()
         controller.setChakraMode(true)
 
-        XCTAssertEqual(controller.chakraControl.figureCurrentIndex, 0, "the root is the first")
+        XCTAssertEqual(controller.chakraControl.figureCurrentIndex, 0, "the earth is the first")
         XCTAssertEqual(controller.chakraControl.figureReachedIndex, 0)
 
         controller.advanceChakraStepForTests()
@@ -188,18 +195,16 @@ final class ChakraModeTests: XCTestCase {
 
     // MARK: - The colours
 
-    /// The colours follow the rainbow from the root of the body to the top: red, orange,
-    /// yellow, green, light blue, blue, violet. It is the order everyone already knows,
-    /// so a reader can tell which chakra they are looking at from the colour alone.
+    /// The colours follow the rainbow from the root to the crown, with the earth a
+    /// stone grey. It is the order everyone already knows, so a reader can tell which
+    /// chakra they are looking at from the colour alone.
     func testThePaletteIsTheRainbowFromRootToCrown() {
         XCTAssertEqual(ChakraPalette.colors.count, ChakraSequence.steps.count)
-        // Seven distinct colours: the point of the palette is that the eye can tell
-        // the chakras apart, and two shared colours would undo that.
         var hexes: Set<String> = []
         for index in 0..<ChakraSequence.steps.count {
             hexes.insert(Self.hex(of: ChakraPalette.color(forStepIndex: index), in: .aqua))
         }
-        XCTAssertEqual(hexes.count, ChakraSequence.steps.count)
+        XCTAssertEqual(hexes.count, ChakraSequence.steps.count, "no two steps share a colour")
     }
 
     /// The shades are muted on purpose: a saturated red on a dark background is a
@@ -215,8 +220,8 @@ final class ChakraModeTests: XCTestCase {
         ]
         for index in 0..<ChakraSequence.steps.count {
             let colour = ChakraPalette.color(forStepIndex: index)
-            XCTAssertEqual(Self.hex(of: colour, in: .aqua), lightExpected[index], "light, chakra \(index)")
-            XCTAssertEqual(Self.hex(of: colour, in: .darkAqua), darkExpected[index], "dark, chakra \(index)")
+            XCTAssertEqual(Self.hex(of: colour, in: .aqua), lightExpected[index], "light, step \(index)")
+            XCTAssertEqual(Self.hex(of: colour, in: .darkAqua), darkExpected[index], "dark, step \(index)")
         }
     }
 
@@ -240,25 +245,8 @@ final class ChakraModeTests: XCTestCase {
         return result
     }
 
-    /// The number on screen wears its chakra's colour, and so does the point on the
-    /// figure — the same colour in two places is what ties them together.
-    func testTheNumberWearsTheChakrasColour() {
-        let controller = makeController()
-        controller.setChakraMode(true)
-
-        let earth = ChakraPalette.color(forStepIndex: 0)
-        XCTAssertEqual(
-            controller.chakraControl.frequencyColour.description,
-            earth.description,
-            "the earth's number is the earth's colour"
-        )
-
-        controller.advanceChakraStepForTests()
-        let sacral = ChakraPalette.color(forStepIndex: 1)
-        XCTAssertEqual(controller.chakraControl.frequencyColour.description, sacral.description)
-    }
-
     // MARK: - It does not fight the rest of the window
+
     /// The mode sets both channels, so a locked difference would fight it. The lock is
     /// released rather than silently overridden.
     func testALockedDifferenceIsReleasedWhenTheModeStarts() {

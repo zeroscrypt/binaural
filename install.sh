@@ -145,6 +145,98 @@ usage_error() {
     exit "$EXIT_USAGE"
 }
 
+# --------------------------------------------------------------------------- #
+# Prefix safety
+# --------------------------------------------------------------------------- #
+#
+# The installer ends with `rm -rf "$PREFIX"`, so the string it accepts is the string
+# that decides what gets deleted. `rm -rf /` is refused by rm itself, but `rm -rf
+# "$HOME"` is not, and neither is `rm -rf /usr`. So the prefix is resolved once, here,
+# and checked before anything is written or removed.
+
+# resolve_path PATH — the absolute form of PATH, with ~ expanded.
+#
+# Everything downstream — the validation, the messages, the removal — has to work on
+# the same string, and a path that is still relative is relative to whatever the
+# current directory happens to be when the removal runs.
+resolve_path() {
+    _rp_path="$1"
+    case "$_rp_path" in
+        "~")   _rp_path="$HOME" ;;
+        "~/"*) _rp_path="$HOME/${_rp_path#\~/}" ;;
+    esac
+    case "$_rp_path" in
+        /*) ;;
+        *)  _rp_path="${PWD}/${_rp_path}" ;;
+    esac
+    printf '%s' "$_rp_path" | sed -e 's|//*|/|g' -e 's|/\./|/|g'
+}
+
+# validate_prefix — refuse a prefix that must never be removed.
+validate_prefix() {
+    _vp_raw="$PREFIX"
+    PREFIX="$(resolve_path "$_vp_raw")"
+
+    case "$PREFIX" in
+        "")   usage_error "--prefix must not be empty." ;;
+        *..*) usage_error "--prefix must not contain '..': ${_vp_raw}" ;;
+    esac
+
+    # The home directory itself, and any directory that *contains* it, are off
+    # limits: the installer writes into the prefix and removes the prefix, and both
+    # are wrong when the prefix is the home directory or the directory holding it.
+    if [ -n "${HOME:-}" ] && [ "${HOME:-}" != "/" ]; then
+        case "$PREFIX" in
+            "$HOME")
+                usage_error "--prefix must not be your home directory (${HOME})." ;;
+        esac
+        case "$HOME" in
+            "$PREFIX"/*)
+                usage_error "--prefix must not contain your home directory (${HOME})." ;;
+        esac
+    fi
+
+    if [ "$PREFIX" = "/" ]; then
+        usage_error "--prefix must not be the root directory."
+    fi
+    case "$PREFIX" in
+        /bin|/boot|/dev|/etc|/home|/lib|/opt|/proc|/root|/run|/sbin|/srv|/sys|/usr|/var)
+            usage_error "--prefix must not be a system directory (${PREFIX})." ;;
+    esac
+
+    # The prefix has to look like an install of *this* app, or already be one we
+    # installed into earlier. A name the user did not type is the only thing that
+    # stops `rm -rf` from being aimed at a directory that merely happens to exist.
+    case "$(basename "$PREFIX" | tr '[:upper:]' '[:lower:]')" in
+        *binaural*) return 0 ;;
+    esac
+    if [ -f "${PREFIX}/install-meta" ]; then
+        return 0
+    fi
+    usage_error "--prefix must be a directory for ${APP_NAME}: its name has to contain \"binaural\". Got ${PREFIX}."
+}
+
+# prefix_is_ours — is the prefix one this installer put there?
+#
+# The removal in do_uninstall is `rm -rf`, so it only runs against a directory we can
+# identify as ours: the marker file the installer writes, or the application itself.
+# A directory that merely *looks* like a prefix is not enough.
+prefix_is_ours() {
+    if [ -f "${PREFIX}/install-meta" ]; then
+        return 0
+    fi
+    # A prefix installed before the marker existed still holds the application.
+    for _po in "${PREFIX}/app/bin/${APP_NAME}" \
+              "${PREFIX}/app/${APP_NAME}" \
+              "${PREFIX}/app/${APP_NAME}-${PLATFORM}/${APP_NAME}" \
+              "${PREFIX}/venv/bin/${APP_NAME}"; do
+        if [ -e "$_po" ] || [ -L "$_po" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 # on_error CODE [LINE] [STEP] [CMD] — the one place an unexplained failure is
 # reported, so a failure caught at a call site, one caught by the on_exit() backstop
 # and one caught by the zsh hook below all read the same. LINE is "?" when the shell
@@ -1370,6 +1462,15 @@ do_uninstall() {
     fi
 
     if [ -d "$PREFIX" ]; then
+        # `rm -rf` on a directory the installer did not put there is the one mistake
+        # this script cannot make safe by accident, so the removal only happens against
+        # a prefix we can identify as ours.
+        if ! prefix_is_ours; then
+            err "${PREFIX} does not look like an installation of ${APP_NAME}:"
+            err "no install-meta and no application in it."
+            err "Refusing to remove it. Remove it by hand if it really is yours."
+            return "$EXIT_FAIL"
+        fi
         step "removing ${PREFIX}"
         must "${LINENO:-?}" "remove ${PREFIX}" rm -rf "$PREFIX"
         _found=1
@@ -1404,13 +1505,20 @@ main() {
         if [ -n "${BINAURAL_BIN_DIR:-}" ]; then
             BIN_DIR="$BINAURAL_BIN_DIR"
         fi
-        case "$PREFIX" in
-            "~/"*) PREFIX="$HOME/${PREFIX#'~/'}" ;;
-        esac
-        case "$BIN_DIR" in
-            "~/"*) BIN_DIR="$HOME/${BIN_DIR#'~/'}" ;;
-        esac
     fi
+
+    # The prefix and the bin dir are resolved the same way whether they came from a
+    # flag, an environment variable or the default, so that the check below sees the
+    # real path and not the spelling of it. The `~` used to be expanded only when the
+    # script was run with no arguments at all, which meant `--prefix=~/x` reached the
+    # installer as the four characters `~/x` and was treated as a relative path.
+    case "$PREFIX" in
+        "~/"*) PREFIX="$HOME/${PREFIX#'~/'}" ;;
+    esac
+    case "$BIN_DIR" in
+        "~/"*) BIN_DIR="$HOME/${BIN_DIR#'~/'}" ;;
+    esac
+    validate_prefix
 
     # Called plainly, not as `do_install || _status=$?`. On the right-hand side of an
     # AND-OR list the shell suspends `set -e` for the whole call — a failing command

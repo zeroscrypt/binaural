@@ -37,8 +37,13 @@ final class HeadphoneCheckCoordinator {
     protocol Target: AnyObject {
         /// Show the verdict on the always-visible status line (SPEC §7).
         func apply(headphoneReport: HeadphoneReport)
-        /// Persist `headphoneCheckAcknowledged` / `channelsSwapped`.
-        func persistHeadphoneState(acknowledged: Bool, channelsSwapped: Bool)
+        /// Persist `headphoneCheckAcknowledged` and the channel swap.
+        ///
+        /// The *report* is passed rather than a resolved boolean, because "the report
+        /// says the channels are not swapped" and "the report says nothing about the
+        /// channels" are different facts — and only the first may change what the
+        /// window remembers.
+        func persistHeadphoneState(acknowledged: Bool, report: HeadphoneReport)
     }
 
     private let player: LRTonePlayer
@@ -99,7 +104,7 @@ final class HeadphoneCheckCoordinator {
             target?.apply(headphoneReport: report)
             target?.persistHeadphoneState(
                 acknowledged: true,
-                channelsSwapped: report.channelsSwapped
+                report: report
             )
             return report
         }
@@ -142,7 +147,7 @@ final class HeadphoneCheckCoordinator {
         // out besides the window's close button, which means the same thing.
         target.persistHeadphoneState(
             acknowledged: dialog.acknowledged || dialog.report.isHeadphones,
-            channelsSwapped: dialog.report.channelsSwapped
+            report: dialog.report
         )
         target.apply(headphoneReport: dialog.report)
         return dialog.report

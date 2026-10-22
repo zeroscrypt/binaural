@@ -66,7 +66,8 @@ final class L10nKeysTests: XCTestCase {
         "Finding your words and telling the truth.",
         "Seeing clearly before you decide.",
         "Unity and presence, to feel whole.",
-        "Step", "Beat", "%1 s",
+        "Beat",
+        "Duration", "Direction", "Up, then back", "Down, then back",
         "The default 21 Hz sits in the alpha band.",
         // the language control in the main window (SPEC §7.4)
         "Language",

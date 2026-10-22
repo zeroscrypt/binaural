@@ -39,9 +39,9 @@ final class HeadphoneCheckTests: XCTestCase {
         var swaps: [Bool] = []
 
         func apply(headphoneReport: HeadphoneReport) { applied.append(headphoneReport) }
-        func persistHeadphoneState(acknowledged: Bool, channelsSwapped: Bool) {
+        func persistHeadphoneState(acknowledged: Bool, report: HeadphoneReport) {
             acknowledgements.append(acknowledged)
-            swaps.append(channelsSwapped)
+            swaps.append(report.channelsSwapped)
         }
         var lastAcknowledged: Bool? { acknowledgements.last }
         var lastSwapped: Bool? { swaps.last }
@@ -247,7 +247,15 @@ final class HeadphoneCheckTests: XCTestCase {
         controller.setFrequency(205, for: .left)
         controller.setFrequency(215, for: .right)
 
-        controller.recordHeadphoneState(acknowledged: true, channelsSwapped: true)
+        controller.recordHeadphoneState(
+            acknowledged: true,
+            report: HeadphoneReport(
+                verdict: .headphones,
+                device: nil,
+                confidence: .high,
+                lrTest: .rightThenLeft
+            )
+        )
 
         XCTAssertEqual(controller.displayedFrequencies.left, 205, "the display shows what was asked")
         XCTAssertEqual(controller.displayedFrequencies.right, 215)

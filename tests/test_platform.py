@@ -213,6 +213,11 @@ Sink #0
 \t\t[Out] Speaker: Speaker
 """
 
+# The real output of `pactl list sinks`. Note what is *not* here: the line naming the
+# default sink. `pactl list sinks` does not print one — that answer belongs to
+# `pactl info`, and `pactl get-default-sink` gives it directly. A fixture that had the
+# line in it described a command that does not exist, and the parser was written to
+# read it, so the default was never found.
 PACTL_MONITOR = """
 Sink #0
 \tName: alsa_output.pci-0000_00_1f.3.hdmi-stereo
@@ -220,9 +225,10 @@ Sink #0
 \tActive Port: hdmi-output-0
 \tPorts:
 \t\thdmi-output-0: HDMI
-
-Default Sink: alsa_output.pci-0000_00_1f.3.hdmi-stereo
 """
+
+# `pactl get-default-sink` prints the name and nothing else.
+PACTL_DEFAULT_SINK = "alsa_output.pci-0000_00_1f.3.hdmi-stereo\n"
 
 
 def test_parse_pactl_headphone_port():
@@ -244,11 +250,19 @@ def test_parse_pactl_speaker_port():
 
 def test_parse_pactl_hdmi_is_speakers_and_marks_default():
     # An HDMI sink is a monitor/TV: speakers, never headphones.
-    devices, hints = parse_pactl_sinks(PACTL_MONITOR)
+    devices, hints = parse_pactl_sinks(
+        PACTL_MONITOR, default_name="alsa_output.pci-0000_00_1f.3.hdmi-stereo"
+    )
     assert len(devices) == 1
     device = devices[0]
     assert device.is_default is True
     assert classify_output(device.name, hints[device.identifier]) is DeviceClass.SPEAKERS
+
+
+def test_parse_pactl_without_a_default_marks_none():
+    """No default known means no default claimed — not a guess."""
+    devices, _ = parse_pactl_sinks(PACTL_MONITOR)
+    assert devices[0].is_default is False
 
 
 def test_parse_pactl_null_sink_is_virtual():
@@ -306,13 +320,24 @@ def test_classify_output_speakers_and_unknown():
     assert classify_output("Something", "") is DeviceClass.UNKNOWN
 
 
-def _fake_pactl(output: str):
-    """Stands in for linux._run: canned pactl output, other tools absent."""
+def _fake_pactl(output: str, default_sink: str = ""):
+    """Stands in for linux._run: canned pactl output, other tools absent.
+
+    The commands are answered separately, because they answer different questions:
+    `pactl list sinks` lists the sinks, `pactl get-default-sink` names the default
+    one, and `pactl info` repeats that name in a "Default Sink:" line. A stub that
+    returned the same text for all three hid exactly the bug this is about.
+    """
 
     def runner(args, **kwargs):
-        if args[0] == "pactl":
-            return output
-        return None
+        if args[0] != "pactl":
+            return None
+        command = args[1] if len(args) > 1 else ""
+        if command == "get-default-sink":
+            return default_sink or None
+        if command == "info":
+            return f"Default Sink: {default_sink.strip()}\n" if default_sink else None
+        return output
 
     return runner
 
@@ -328,11 +353,56 @@ def test_linux_backend_uses_pactl_output(monkeypatch):
     assert backend.heuristic_verdict() == (DeviceClass.UNKNOWN, None)
 
 
+def test_linux_backend_finds_the_default_sink(monkeypatch):
+    """The backend has to know which output is the default.
+
+    ``pactl list sinks`` does not say, so the name comes from
+    ``pactl get-default-sink``. The parser used to look for a "Default Sink:" line in
+    the list output, which is not a thing that command prints — so the default was
+    never found and the backend had no default output to speak of.
+    """
+    from binaural.audio.platform import linux as linux_module
+
+    monkeypatch.setattr(
+        linux_module,
+        "_run",
+        _fake_pactl(PACTL_MONITOR, "alsa_output.pci-0000_00_1f.3.hdmi-stereo"),
+    )
+    backend = LinuxBackend()
+    default = backend.default_output()
+    assert default is not None, "the default output was not found"
+    assert default.identifier == "alsa_output.pci-0000_00_1f.3.hdmi-stereo"
+    assert default.is_default is True
+
+
+def test_linux_backend_falls_back_to_pactl_info_for_the_default(monkeypatch):
+    """An older PulseAudio has no `get-default-sink`; `pactl info` carries the answer."""
+    from binaural.audio.platform import linux as linux_module
+
+    def runner(args, **kwargs):
+        if args[0] != "pactl":
+            return None
+        if len(args) > 1 and args[1] == "get-default-sink":
+            return None
+        if len(args) > 1 and args[1] == "info":
+            return "Default Sink: alsa_output.pci-0000_00_1f.3.hdmi-stereo\n"
+        return PACTL_MONITOR
+
+    monkeypatch.setattr(linux_module, "_run", runner)
+    backend = LinuxBackend()
+    default = backend.default_output()
+    assert default is not None
+    assert default.identifier == "alsa_output.pci-0000_00_1f.3.hdmi-stereo"
+
+
 def test_linux_backend_speakers_verdict(monkeypatch):
     from binaural.audio.platform import linux as linux_module
 
-    output = PACTL_SPEAKERS + "\nDefault Sink: alsa_output.pci-0000_00_1f.3.analog-stereo\n"
-    monkeypatch.setattr(linux_module, "_run", _fake_pactl(output))
+    monkeypatch.setattr(
+        linux_module,
+        "_run",
+        _fake_pactl(PACTL_SPEAKERS, "alsa_output.pci-0000_00_1f.3.analog-stereo"),
+    )
     backend = LinuxBackend()
     verdict, device = backend.heuristic_verdict()
     assert device is not None

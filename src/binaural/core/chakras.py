@@ -47,6 +47,10 @@ __all__ = [
     "beat_caption",
     "default_beat_note",
     "step_seconds_text",
+    "duration_caption",
+    "direction_caption",
+    "up_then_back_caption",
+    "down_then_back_caption",
 ]
 
 _CONTEXT = "Chakras"
@@ -236,6 +240,26 @@ def default_beat_note() -> str:
     constant.
     """
     return tr("The default 21 Hz sits in the alpha band.")
+
+
+def duration_caption() -> str:
+    """The caption of the journey-length control."""
+    return tr("Duration")
+
+
+def direction_caption() -> str:
+    """The caption of the direction control."""
+    return tr("Direction")
+
+
+def up_then_back_caption() -> str:
+    """The direction that walks from the earth upwards and back."""
+    return tr("Up, then back")
+
+
+def down_then_back_caption() -> str:
+    """The direction that walks from the crown downwards and back."""
+    return tr("Down, then back")
 
 
 def step_seconds_text(seconds: float) -> str:

@@ -62,6 +62,15 @@ final class MainWindowController: NSWindowController {
     private var isChakraMode = false
     /// The step being played, as an index into `ChakraSequence.steps`.
     private var chakraStepIndex = 0
+    /// The highest step the journey has reached. The marks below it stay lit on the way
+    /// back down, because the body has been that high.
+    private var chakraReachedIndex = 0
+    /// The step the journey started from.
+    private var chakraStartIndex = 0
+    /// The steps the journey visits, in order.
+    private var chakraJourney: [Int] = []
+    /// How far along the journey we are.
+    private var chakraJourneyPosition = 0
     /// Advances the sequence. `nil` whenever the mode is off, so an idle window
     /// schedules nothing at all.
     private var chakraTimer: Timer?
@@ -373,10 +382,14 @@ final class MainWindowController: NSWindowController {
         presetBar.onCategorySelected = { [weak self] id in self?.presetCategoryChanged(id) }
         presetBar.onPresetSelected = { [weak self] preset in self?.applyPreset(preset) }
         beatView.onLockToggled = { [weak self] locked in self?.setDifferenceLocked(locked) }
-        chakraView.onStepSecondsChange = { [weak self] seconds in
-            self?.chakraStepSecondsChanged(seconds)
+        chakraView.onDurationMinutesChange = { [weak self] minutes in
+            self?.chakraDurationChanged(minutes)
+        }
+        chakraView.onDirectionChange = { [weak self] direction in
+            self?.chakraDirectionChanged(direction)
         }
         chakraView.onBeatChange = { [weak self] beatHz in self?.chakraBeatChanged(beatHz) }
+        chakraView.onChakraPicked = { [weak self] index in self?.chakraPicked(index) }
     }
 
     // MARK: - The chakra mode
@@ -417,9 +430,11 @@ final class MainWindowController: NSWindowController {
                 beatView.setLocked(false)
                 beatView.showBoundaryNote(nil)
             }
-            chakraStepIndex = 0
-            applyChakraStep()
-            startChakraTimer()
+            startChakraJourney(from: ChakraSequence.defaultStart(for: chakraView.selectedDirection))
+            // The mode makes the sound itself. A journey that walked on with the
+            // playback stopped was a light show on a timer, and the step on screen had
+            // nothing to do with what the ear heard.
+            startChakraPlayback()
         } else {
             stopChakraTimer()
         }
@@ -429,17 +444,64 @@ final class MainWindowController: NSWindowController {
     /// on-screen truth.
     var isChakraModeActive: Bool { isChakraMode }
 
+    /// Whether the sound is playing.
+    ///
+    /// The journey only moves while it is, and the mode starts the sound itself. A unit
+    /// test has no audio device to play through, so the answer comes from a seam the
+    /// tests can set rather than from the engine.
+    var isPlaybackRunning: Bool {
+        if let forced = playbackRunningOverride { return forced }
+        return engine.isRunning
+    }
+
+    /// The tests' answer to "is the sound playing". `nil` means "ask the engine".
+    var playbackRunningOverride: Bool?
+
     /// The step being played, for the tests and the status line.
     var currentChakraStepID: String? {
         isChakraMode ? ChakraSequence.steps[chakraStepIndex].id : nil
     }
 
-    /// Advance to the next step.
+    /// The step the journey is on, and how many steps it has visited.
+    var currentChakraStepIndex: Int { chakraStepIndex }
+
+    /// The steps a journey visits, in order — the tests read it to check the walk.
+    var chakraJourneyIndices: [Int] { chakraJourney }
+
+    /// Begin a journey at `start`.
     ///
-    /// The sequence runs from the root to the crown and then starts again: a sound app
-    /// that stopped at the top would leave the user with silence and no way to say so.
+    /// The journey goes from one end of the body to the other and back, and the mode
+    /// switches itself off when it is over.
+    private func startChakraJourney(from start: Int) {
+        chakraStartIndex = ChakraSequence.index(of: start)
+        chakraJourney = ChakraSequence.journey(
+            from: chakraStartIndex,
+            direction: chakraView.selectedDirection
+        )
+        chakraJourneyPosition = 0
+        // The lit marks are the ones the journey has reached: they stay lit on the way
+        // back down, because the body has been that high.
+        chakraReachedIndex = chakraStartIndex
+        applyChakraStep()
+        startChakraTimer()
+    }
+
+    /// Advance to the next step of the journey.
+    ///
+    /// The journey only moves while there is sound. It used to walk on a timer whatever
+    /// the playback was doing, so the chakras on screen changed in silence — a light
+    /// show with no music under it.
     private func advanceChakraStep() {
-        chakraStepIndex = (chakraStepIndex + 1) % ChakraSequence.steps.count
+        guard isPlaybackRunning else { return }
+        chakraJourneyPosition += 1
+        if chakraJourneyPosition >= chakraJourney.count {
+            // The journey is over. The mode switches itself off and the sound stops
+            // with it — the journey was the reason for the sound.
+            stopChakraTimer()
+            setChakraMode(false)
+            stopPlayback()
+            return
+        }
         applyChakraStep()
     }
 
@@ -448,17 +510,38 @@ final class MainWindowController: NSWindowController {
     /// `notify: false` on both: the pair is one edit, not two, and the difference lock
     /// is not consulted — the mode has already decided what the difference is.
     private func applyChakraStep() {
-        let step = ChakraSequence.steps[chakraStepIndex]
+        let index = chakraJourney.isEmpty
+            ? chakraStartIndex
+            : chakraJourney[min(chakraJourneyPosition, chakraJourney.count - 1)]
+        chakraStepIndex = index
+        chakraReachedIndex = max(chakraReachedIndex, index)
+
+        let step = ChakraSequence.steps[index]
         let (left, right) = ChakraSequence.pair(for: step, beatHz: chakraView.selectedBeatHz)
         leftControl.setValue(left, notify: false)
         rightControl.setValue(right, notify: false)
-        chakraView.show(step: step, index: chakraStepIndex, reachedIndex: chakraStepIndex)
+        chakraView.show(step: step, index: index, reachedIndex: chakraReachedIndex)
         frequenciesChanged()
+    }
+
+    /// Start the sound if it is not playing already.
+    private func startChakraPlayback() {
+        // The tests answer for themselves; there is no device to open.
+        guard playbackRunningOverride == nil else { return }
+        guard !engine.isRunning else { return }
+        if engine.start() {
+            armTimer(at: Date())
+        } else {
+            showError(engine.error)
+        }
     }
 
     private func startChakraTimer() {
         stopChakraTimer()
-        let seconds = max(0.5, chakraView.selectedStepSeconds)
+        let seconds = ChakraSequence.stepSeconds(
+            forJourneyOfMinutes: chakraView.selectedDurationMinutes,
+            steps: max(1, chakraJourney.count)
+        )
         chakraTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.advanceChakraStep() }
         }
@@ -469,11 +552,21 @@ final class MainWindowController: NSWindowController {
         chakraTimer = nil
     }
 
-    /// A new step duration. The timer is rebuilt, because a `repeats` timer cannot
-    /// change its own interval.
-    private func chakraStepSecondsChanged(_ seconds: Double) {
+    /// A new length for the journey. The timer is rebuilt, because a `repeats` timer
+    /// cannot change its own interval, and the pace follows from the length and the
+    /// number of steps.
+    private func chakraDurationChanged(_ minutes: Int) {
         guard isChakraMode else { return }
         startChakraTimer()
+    }
+
+    /// A new direction. The journey is rebuilt from where it started, because the
+    /// direction is which way it walks *first*.
+    private func chakraDirectionChanged(_ direction: ChakraSequence.Direction) {
+        guard isChakraMode else { return }
+        // The direction says which end the walk starts at, so the journey is rebuilt
+        // from that end.
+        startChakraJourney(from: ChakraSequence.defaultStart(for: direction))
     }
 
     /// A new beat. The beat is part of the pair, so the current step is replayed with it
@@ -482,6 +575,15 @@ final class MainWindowController: NSWindowController {
     private func chakraBeatChanged(_ beatHz: Double) {
         guard isChakraMode else { return }
         applyChakraStep()
+    }
+
+    /// The user clicked a chakra on the figure. The journey starts there.
+    private func chakraPicked(_ index: Int) {
+        if !isChakraMode {
+            setChakraMode(true)
+        }
+        startChakraJourney(from: index)
+        startChakraPlayback()
     }
 
     // MARK: - Lock difference (SPEC §7)
@@ -1188,11 +1290,8 @@ final class MainWindowController: NSWindowController {
             controller.noteHeadphoneReport(report)
         }
 
-        func persistHeadphoneState(acknowledged: Bool, channelsSwapped: Bool) {
-            controller.recordHeadphoneState(
-                acknowledged: acknowledged,
-                channelsSwapped: channelsSwapped
-            )
+        func persistHeadphoneState(acknowledged: Bool, report: HeadphoneReport) {
+            controller.recordHeadphoneState(acknowledged: acknowledged, report: report)
         }
     }
 
@@ -1225,9 +1324,19 @@ final class MainWindowController: NSWindowController {
     /// `channelsSwapped` is a *generator* decision: the window keeps showing what the user
     /// asked for and the session keeps the unswapped numbers, so the stored document is
     /// readable without knowing the hardware (`HeadphoneDetector.swapChannels`'s rule).
-    func recordHeadphoneState(acknowledged: Bool, channelsSwapped swapped: Bool) {
+    ///
+    /// The swap only changes when the report carries a **decisive** L/R answer. A report
+    /// without one — the test never ran, or it ran and could not tell — says nothing
+    /// about the channels, and taking its "not swapped" at face value would un-swap a
+    /// pair the user had already established. That is not a corner case: the session
+    /// remembers the swap as a plain flag, so on the next launch the fresh report has no
+    /// L/R answer to repeat, and applying it unconditionally wiped the swap every time
+    /// the app was reopened.
+    func recordHeadphoneState(acknowledged: Bool, report: HeadphoneReport) {
         headphoneStateAcknowledged = acknowledged
-        channelsSwapped = swapped
+        if report.hasDecisiveLRAnswer {
+            channelsSwapped = report.channelsSwapped
+        }
         pushFrequencies()
         scheduleSave()
     }

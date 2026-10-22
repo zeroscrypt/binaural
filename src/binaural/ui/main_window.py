@@ -1256,8 +1256,12 @@ class MainWindow(QMainWindow):
         """Feed the status indicator and the channel-swap decision."""
         self._headphone_report = report
         self.status_indicator.set_report(report)
-        if report is not None:
-            self.set_channels_swapped(bool(getattr(report, "channels_swapped", False)))
+        if report is not None and report.has_decisive_lr_answer:
+            # Only a report that carries a *decisive* L/R answer may change the swap.
+            # A report without one — the test never ran, or it ran and could not tell —
+            # says nothing about the channels, and taking its "not swapped" at face
+            # value un-swapped a pair the user had already established.
+            self.set_channels_swapped(report.channels_swapped)
 
     def headphone_report(self) -> HeadphoneReport | None:
         """The verdict the app is currently acting on, or ``None``."""

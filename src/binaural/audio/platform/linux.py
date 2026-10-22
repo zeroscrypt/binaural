@@ -65,21 +65,24 @@ def _run(args: list[str]) -> str | None:
     return proc.stdout or ""
 
 
-def parse_pactl_sinks(text: str) -> tuple[list[AudioDevice], dict[str, str]]:
+def parse_pactl_sinks(
+    text: str, default_name: str = ""
+) -> tuple[list[AudioDevice], dict[str, str]]:
     """Parses `pactl list sinks`.
 
     Returns ``(devices, hints)`` where ``hints`` maps a sink identifier to its
     active-port text, e.g. ``"analog_output_1": "[Out] Headphone"``.
+
+    ``default_name`` is the name of the default sink. It is a *parameter* because
+    `pactl list sinks` does not say which sink is the default: that line belongs to
+    `pactl info`, and `pactl get-default-sink` answers it directly. Looking for it in
+    the list output meant the default was never found, and the backend had no default
+    output device to speak of.
     """
     devices: list[AudioDevice] = []
     hints: dict[str, str] = {}
     if not text:
         return devices, hints
-
-    default_name = ""
-    match = re.search(r"Default Sink:\s*(\S+)", text)
-    if match:
-        default_name = match.group(1)
 
     name: str | None = None
     description: str | None = None
@@ -228,12 +231,27 @@ class LinuxBackend:
         self._null = NullBackend()
         self._hints: dict[str, str] = {}
 
+    def _default_sink_name(self) -> str:
+        """The name of the default sink, or ``""`` when it cannot be read.
+
+        `pactl get-default-sink` answers it directly; `pactl info` carries the same
+        answer as a "Default Sink:" line, and is the fallback for a PulseAudio old
+        enough not to have the first command.
+        """
+        out = (_run(["pactl", "get-default-sink"]) or "").strip()
+        if out:
+            return out.splitlines()[0].strip()
+        match = re.search(r"Default Sink:\s*(\S+)", _run(["pactl", "info"]) or "")
+        return match.group(1) if match else ""
+
     def _discover(self) -> list[AudioDevice]:
         self._hints = {}
 
         text = _run(["pactl", "list", "sinks"])
         if text:
-            devices, hints = parse_pactl_sinks(text)
+            devices, hints = parse_pactl_sinks(
+                text, default_name=self._default_sink_name()
+            )
             if devices:
                 self._hints = hints
                 return devices

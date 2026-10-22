@@ -58,6 +58,21 @@ public struct HeadphoneReport: Sendable, Equatable {
     /// swap them (SPEC §4.2).
     public var channelsSwapped: Bool { lrTest == .rightThenLeft }
 
+    /// Whether the report carries a **decisive** answer about the channels.
+    ///
+    /// Three states have to be told apart, and only two of them are about which way
+    /// round the channels are: `nil` means the test never ran, `.indeterminate` means it
+    /// ran and could not tell, and only `.leftThenRight`/`.rightThenLeft` say which way
+    /// round they are.
+    ///
+    /// `channelsSwapped` answers false for all three, so anything that applies it
+    /// unconditionally would un-swap a pair the user had already established — which is
+    /// what happens on the next launch, when the session remembers the swap as a plain
+    /// flag and the fresh report has no L/R answer to repeat.
+    public var hasDecisiveLRAnswer: Bool {
+        lrTest == .leftThenRight || lrTest == .rightThenLeft
+    }
+
     /// The device name, or `""` when nothing was readable.
     public var deviceName: String { device?.name ?? "" }
 }

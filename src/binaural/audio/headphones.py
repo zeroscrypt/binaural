@@ -79,6 +79,23 @@ class HeadphoneReport:
     def channels_swapped(self) -> bool:
         return self.lr_test is LrTestResult.RIGHT_THEN_LEFT
 
+    @property
+    def has_decisive_lr_answer(self) -> bool:
+        """Whether the report carries a **decisive** answer about the channels.
+
+        Three states have to be told apart, and only two of them are about which way
+        round the channels are: ``None`` means the test never ran, ``INDETERMINATE``
+        means it ran and could not tell, and only ``LEFT_THEN_RIGHT``/
+        ``RIGHT_THEN_LEFT`` say which way round they are.
+
+        ``channels_swapped`` answers False for all three, so anything that applies it
+        unconditionally would un-swap a pair the user had already established. That is
+        not a corner case: the session remembers the swap as a plain flag, so on the
+        next launch the fresh report has no L/R answer to repeat, and applying it
+        unconditionally wiped the swap every time the app was reopened.
+        """
+        return self.lr_test in (LrTestResult.LEFT_THEN_RIGHT, LrTestResult.RIGHT_THEN_LEFT)
+
 
 def detect(report: HeadphoneReport | None = None) -> HeadphoneReport:
     """Heuristic verdict for the default output device.
