@@ -269,6 +269,11 @@ final class ChakraFigureView: NSView {
         static let cocoonBottom: CGFloat = 1.075
         /// The point the shells close in on: the middle of the body.
         static let cocoonCentreY: CGFloat = 0.500
+        /// The ground the figure stands on: the sole of the foot.
+        ///
+        /// The curve through the foot's points overshoots a little at the turn, and a
+        /// figure whose feet sink below the ground is a figure sunk into it.
+        static let groundY: CGFloat = 0.980
 
         /// How far the aura reaches in toward the spine at a height.
         ///
@@ -324,74 +329,7 @@ final class ChakraFigureView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         drawCocoon()
         drawBodyGrains()
-
-        // The drawn outline is the guide the grains gather onto, so it fades as they
-        // gather: what is left is the figure itself.
-        let ink = NSColor.secondaryLabelColor.withAlphaComponent(0.30 * (1 - formation))
-        let line = NSBezierPath()
-        line.lineWidth = max(1.0, figureHeight * 0.006)
-        line.lineJoinStyle = .round
-        line.lineCapStyle = .round
-
-        // The head.
-        let head = point(0, Figure.headCentreY)
-        let headWidth = Figure.headHalfWidth * figureHeight
-        let headHeight = Figure.headHalfHeight * figureHeight
-        line.appendOval(in: NSRect(
-            x: head.x - headWidth,
-            y: head.y - headHeight,
-            width: headWidth * 2,
-            height: headHeight * 2
-        ))
-
-        // The trunk: neck, shoulders, ribs, waist, hips.
-        line.append(smoothPath(Figure.trunk))
-
-        // The arms and the legs: shapes, like the trunk. A limb is thicker at the top
-        // than at the wrist, and one line round it cannot say that.
-        for side in [1.0, -1.0] as [CGFloat] {
-            line.append(smoothPath(Figure.arm.map { (x: side * $0.x, y: $0.y) }))
-            line.append(smoothPath(Figure.leg.map { (x: side * $0.x, y: $0.y) }))
-        }
-
-        ink.setStroke()
-        line.stroke()
-
         drawMarks()
-    }
-
-    /// A closed path through the given points, smoothed.
-    ///
-    /// The curve runs *through* the points rather than between them. Smoothing through
-    /// the midpoints is the cheaper trick, but it pulls the shape in towards its own
-    /// centre: a torso drawn that way loses its shoulders, and the figure comes out
-    /// narrower than the marks on it. A spline through the points keeps the figure's
-    /// extent and only softens the corners.
-    private func smoothPath(_ points: [(x: CGFloat, y: CGFloat)]) -> NSBezierPath {
-        let path = NSBezierPath()
-        let p = points.map { point($0.x, $0.y) }
-        guard p.count > 2 else { return path }
-        // How much of the neighbouring segment the curve borrows. Below 1 it rounds the
-        // corners without the overshoot a full Catmull-Rom puts at a sharp turn.
-        let tension = 0.8
-        path.move(to: p[0])
-        for index in p.indices {
-            let p0 = p[(index - 1 + p.count) % p.count]
-            let p1 = p[index]
-            let p2 = p[(index + 1) % p.count]
-            let p3 = p[(index + 2) % p.count]
-            let c1 = CGPoint(
-                x: p1.x + (p2.x - p0.x) * tension / 6,
-                y: p1.y + (p2.y - p0.y) * tension / 6
-            )
-            let c2 = CGPoint(
-                x: p2.x - (p3.x - p1.x) * tension / 6,
-                y: p2.y - (p3.y - p1.y) * tension / 6
-            )
-            path.curve(to: p2, controlPoint1: c1, controlPoint2: c2)
-        }
-        path.close()
-        return path
     }
 
     /// The seven marks: a dot in each chakra's colour, on the spine.
@@ -470,10 +408,7 @@ final class ChakraFigureView: NSView {
     }
 
     /// Points along a polyline, one every `spacing` units.
-    private static func sample(
-        _ points: [(x: CGFloat, y: CGFloat)],
-        spacing: CGFloat
-    ) -> [CGPoint] {
+    private static func sample(_ points: [CGPoint], spacing: CGFloat) -> [CGPoint] {
         guard points.count > 1 else { return [] }
         var out: [CGPoint] = []
         for index in points.indices {
@@ -500,13 +435,66 @@ final class ChakraFigureView: NSView {
                 y: Figure.headCentreY + sin(angle) * Figure.headHalfHeight
             ))
         }
-        points += sample(Figure.trunk, spacing: 0.015)
+        points += sample(ChakraFigureView.smoothedShape(Figure.trunk), spacing: 0.011)
         for side in [1.0, -1.0] as [CGFloat] {
-            points += sample(Figure.arm.map { (x: side * $0.x, y: $0.y) }, spacing: 0.015)
-            points += sample(Figure.leg.map { (x: side * $0.x, y: $0.y) }, spacing: 0.015)
+            points += sample(
+                ChakraFigureView.smoothedShape(Figure.arm.map { (x: side * $0.x, y: $0.y) }),
+                spacing: 0.014
+            )
+            points += sample(
+                ChakraFigureView.smoothedShape(Figure.leg.map { (x: side * $0.x, y: $0.y) }),
+                spacing: 0.014
+            )
         }
-        return points
+        // The feet stand on the ground and do not sink into it.
+        let clipped = points.map { CGPoint(x: $0.x, y: min($0.y, Figure.groundY)) }
+        return clipped
     }()
+
+    /// The same curve the figure was drawn with, worked out in the figure's own units.
+    ///
+    /// The grains and the shape have to be the same curve: a body drawn of grains that
+    /// gather onto a slightly different line is a body that never quite closes.
+    private static func smoothedShape(_ points: [(x: CGFloat, y: CGFloat)]) -> [CGPoint] {
+        guard points.count > 2 else { return [] }
+        let tension = 0.8
+        var out: [CGPoint] = []
+        let steps = 8
+        for index in points.indices {
+            let p0 = points[(index - 1 + points.count) % points.count]
+            let p1 = points[index]
+            let p2 = points[(index + 1) % points.count]
+            let p3 = points[(index + 2) % points.count]
+            let c1 = CGPoint(
+                x: p1.x + (p2.x - p0.x) * tension / 6,
+                y: p1.y + (p2.y - p0.y) * tension / 6
+            )
+            let c2 = CGPoint(
+                x: p2.x - (p3.x - p1.x) * tension / 6,
+                y: p2.y - (p3.y - p1.y) * tension / 6
+            )
+            for step in 0..<steps {
+                let t = CGFloat(step) / CGFloat(steps)
+                let u = 1 - t
+                let u2 = u * u
+                let t2 = t * t
+                // The weights of a cubic Bézier. They have to be these and not the
+                // quadratic ones: a quadratic weighting does not sum to one, so the
+                // curve stops passing through the points and the shape comes apart.
+                out.append(CGPoint(
+                    x: u2 * u * p1.x
+                        + 3 * u2 * t * c1.x
+                        + 3 * u * t2 * c2.x
+                        + t2 * t * p2.x,
+                    y: u2 * u * p1.y
+                        + 3 * u2 * t * c1.y
+                        + 3 * u * t2 * c2.y
+                        + t2 * t * p2.y
+                ))
+            }
+        }
+        return out
+    }
 
     /// The grains the body is made of.
     ///
@@ -522,7 +510,7 @@ final class ChakraFigureView: NSView {
     }()
 
     /// How far the body's grains float when there is no sound.
-    private static let bodyFloat: CGFloat = 0.045
+    private static let bodyFloat: CGFloat = 0.028
 
     /// How many grains the streams are made of.
     ///
@@ -550,7 +538,7 @@ final class ChakraFigureView: NSView {
     ///
     /// Enough to break the outline of the flow: the streams are still there, but they
     /// are not a shape yet.
-    private static let chaos: CGFloat = 0.140
+    private static let chaos: CGFloat = 0.055
 
     /// A well-mixed number for a grain's index.
     ///
@@ -983,8 +971,8 @@ final class ChakraFigureView: NSView {
             )
             // Where the body is near the chakra being played, it is brighter.
             let reach = Figure.reachIn(at: grain.home.y, activeY: active)
-            let alpha = (alive ? 0.85 : 0.50) * (0.45 + 0.55 * reach)
-            let size = figureHeight * (alive ? 0.0046 : 0.0045)
+            let alpha = (alive ? 0.85 : 0.60) * (0.45 + 0.55 * reach)
+            let size = figureHeight * (alive ? 0.0070 : 0.0062)
             Self.colour(forHeight: grain.home.y).withAlphaComponent(alpha).setFill()
             NSBezierPath(ovalIn: NSRect(
                 x: centre.x - size, y: centre.y - size,
@@ -1005,7 +993,7 @@ final class ChakraFigureView: NSView {
         // The shells are driven by the same clock as the streams, so the whole aura
         // comes back to where it started after one round.
         let travel = streamTravel
-        for (layer, shell) in Self.shells.enumerated() {
+        for shell in Self.shells {
             for (index, grain) in shell.grains.enumerated() {
                 let lit = alive
                     ? pow(0.5 + 0.5 * sin(
