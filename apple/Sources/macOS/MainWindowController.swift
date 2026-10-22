@@ -49,21 +49,46 @@ final class MainWindowController: NSWindowController {
     private let presetStatusLabel = NSTextField(labelWithString: "")
     private var presetStatusTimer: Timer?
 
-    /// SPEC §7's interface language, moved out of the Settings dialog into the window it
-    /// controls. The dialog it used to live in was retired: everything else it held — the
-    /// timer, the volume, re-running the headphone check — was already in the window, so
-    /// the dialog held exactly one thing that was not, and it cost a whole window to say
-    /// it. Native names in both languages ("English", "Русский"), so a user can always
+    /// The preset block, kept as a property because the chakra mode takes its place: the
+    /// two are alternative programs and only one of them is on screen at a time.
+    private let presetBlock = NSStackView()
+
+    /// The chakra mode: seven solfeggio steps, root to crown, advanced by a timer.
+    ///
+    /// Off by default. It is a program of its own — it sets both channels and keeps
+    /// setting them — and a user who has not asked for it should get the plain
+    /// frequency controls.
+    private let chakraView = ChakraView()
+    private var isChakraMode = false
+    /// The step being played, as an index into `ChakraSequence.steps`.
+    private var chakraStepIndex = 0
+    /// Advances the sequence. `nil` whenever the mode is off, so an idle window
+    /// schedules nothing at all.
+    private var chakraTimer: Timer?
+    /// The mode's switch, on the status row next to the headphone check.
+    private let chakraButton = NSButton()
+
+    /// The overflow menu in the top corner.
+    ///
+    /// The headphone check, the frequency reference and the language used to be two
+    /// buttons and a popup in the top row, which spent the row's width on three things a
+    /// user reaches for once and then rarely. One icon in the corner is quieter, and it
+    /// leaves the row to say what the app is *doing* rather than what it can be asked to
+    /// do. Native names in both languages ("English", "Русский"), so a user can always
     /// find their own language in the list.
-    private let languagePopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let menuButton = NSButton()
+    private let overflowMenu = NSMenu()
+    private let overflowLanguageItem = NSMenuItem()
+    private let overflowLanguageMenu = NSMenu()
     /// The top row, kept so a test can read what is on it.
     private var statusRowView: NSView?
 
     /// SPEC §7: "кнопка проверки наушников прямо в окне — повторить §4 в любой момент, а
-    /// не только при старте". It sits on the status row next to the always-visible
-    /// indicator, so the warning and the way to re-check are in one place.
-    private let headphoneCheckButton = NSButton()
+    /// не только при старте". It lives in the overflow menu now, but it is still *in the
+    /// window*, which is what the rule asks for.
     private var onHeadphoneCheckRequested: (() -> Void)?
+    /// The frequency reference, opened from the same menu.
+    private var onReferenceRequested: (() -> Void)?
 
     private var activeEar: FrequencyControlView.Ear = .left
     /// The preset category currently shown, written back into the session. Not read from
@@ -122,6 +147,13 @@ final class MainWindowController: NSWindowController {
             defer: false
         )
         window.minSize = NSSize(width: 580, height: 700)
+        // The title is not shown. macOS 26 draws the window's title as a floating glass
+        // plate above the traffic lights, and a plate that only repeats the app's name
+        // is a plate that says nothing — the row underneath it says what the app wants
+        // the reader to know. The title is still set, because the menu and the About
+        // window read it.
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
         // The tray can hide and show this window, so closing it must not destroy it.
         // Without this, `close()` releases the controller and the status item's Show
         // command would have nothing to show.
@@ -161,20 +193,39 @@ final class MainWindowController: NSWindowController {
     // MARK: - Building
 
     private func buildContent() {
-        headphoneCheckButton.target = self
-        headphoneCheckButton.action = #selector(headphoneCheckTapped)
-        headphoneCheckButton.bezelStyle = .rounded
+        // The overflow button. An SF Symbol rather than a drawn glyph: it is the same
+        // icon the system uses for "more", so it reads without a caption.
+        menuButton.image = NSImage(
+            systemSymbolName: "ellipsis.circle",
+            accessibilityDescription: L10n.tr("More")
+        )
+        menuButton.bezelStyle = .accessoryBarAction
+        menuButton.menu = overflowMenu
+        // An image button, so no caption. The default title is "Button", which VoiceOver
+        // would read aloud before the accessibility label.
+        menuButton.title = ""
+        menuButton.setAccessibilityLabel(L10n.tr("More"))
 
-        // The language control lives on the top row, next to the app name and the headphone
-        // state — it is a property of the window as a whole, not a transport control, and
-        // it is the one thing a new user has to find before they can read anything else.
-        languagePopup.controlSize = .regular
-        languagePopup.font = .systemFont(ofSize: 13)
-        languagePopup.target = self
-        languagePopup.action = #selector(languageSelected)
+        // The mode's switch. It is a toggle because it is a state, and it sits on the
+        // status row next to the overflow menu: both are things a user reaches for when
+        // they want to change how the app behaves.
+        chakraButton.target = self
+        chakraButton.action = #selector(toggleChakraMode)
+        chakraButton.bezelStyle = .rounded
+        chakraButton.setButtonType(.toggle)
+
+        // The status line: what the app wants the reader to know right now, in the
+        // colour the state deserves. It has a row of its own at the very top because it
+        // is a statement, not a control — the row below it holds the buttons, and
+        // mixing the two made the message look like one more label between them.
+        let statusLine = NSStackView(views: [indicator])
+        statusLine.orientation = .horizontal
+        statusLine.alignment = .centerY
+        statusLine.spacing = 0
+        statusLine.translatesAutoresizingMaskIntoConstraints = false
 
         let statusRow = NSStackView(views: [
-            indicator, NSView(), headphoneCheckButton, languagePopup
+            NSView(), chakraButton, menuButton
         ])
         statusRowView = statusRow
         statusRow.orientation = .horizontal
@@ -238,13 +289,15 @@ final class MainWindowController: NSWindowController {
         noticeLabel.textColor = .secondaryLabelColor
         noticeLabel.isHidden = true
 
-        let presetBlock = NSStackView(views: [presetBar, presetStatusLabel, noticeLabel])
+        presetBlock.addArrangedSubview(presetBar)
+        presetBlock.addArrangedSubview(presetStatusLabel)
+        presetBlock.addArrangedSubview(noticeLabel)
         presetBlock.orientation = .vertical
         presetBlock.alignment = .leading
         presetBlock.spacing = 6
-
         let stack = NSStackView(views: [
-            statusRow, ears, beatView, transport, timerRow, presetBlock, errorLabel
+            statusLine, statusRow, ears, beatView, transport, timerRow,
+            presetBlock, chakraView, errorLabel
         ])
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -263,14 +316,16 @@ final class MainWindowController: NSWindowController {
         ]
         // `.leading` alignment keeps each row at its natural width, so the rows that
         // should span the window are pinned to the stack's width by hand.
-        for row in [statusRow as NSView, ears, beatView, transport, timerRow,
-                    presetBlock, errorLabel] {
+        for row in [statusLine as NSView, statusRow as NSView, ears, beatView, transport,
+                    timerRow, presetBlock, chakraView, errorLabel] {
             row.translatesAutoresizingMaskIntoConstraints = false
             constraints.append(row.widthAnchor.constraint(equalTo: stack.widthAnchor))
         }
         constraints += [
             statusRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-            headphoneCheckButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            statusLine.heightAnchor.constraint(greaterThanOrEqualToConstant: 32),
+            menuButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            menuButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
             ears.heightAnchor.constraint(greaterThanOrEqualToConstant: 200),
             playButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 120),
             playButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
@@ -279,15 +334,17 @@ final class MainWindowController: NSWindowController {
             volumeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
             muteButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             timerRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-            languagePopup.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             // SPEC §7.2: the preset chips keep their 44 px targets; the block itself only
             // has to be tall enough to hold both rows.
-            presetBlock.heightAnchor.constraint(greaterThanOrEqualToConstant: 100)
+            presetBlock.heightAnchor.constraint(greaterThanOrEqualToConstant: 100),
+            // The figure is 164 pt tall; the block has to hold it.
+            chakraView.heightAnchor.constraint(greaterThanOrEqualToConstant: 170),
+            chakraButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
         ]
         NSLayoutConstraint.activate(constraints)
 
         window?.contentView = content
-        rebuildLanguages()
+        rebuildOverflowMenu()
     }
 
     private func connect() {
@@ -301,6 +358,101 @@ final class MainWindowController: NSWindowController {
         presetBar.onCategorySelected = { [weak self] id in self?.presetCategoryChanged(id) }
         presetBar.onPresetSelected = { [weak self] preset in self?.applyPreset(preset) }
         beatView.onLockToggled = { [weak self] locked in self?.setDifferenceLocked(locked) }
+        chakraView.onStepSecondsChange = { [weak self] seconds in
+            self?.chakraStepSecondsChanged(seconds)
+        }
+        chakraView.onBeatChange = { [weak self] beatHz in self?.chakraBeatChanged(beatHz) }
+    }
+
+    // MARK: - The chakra mode
+
+    @objc private func toggleChakraMode() {
+        setChakraMode(!isChakraMode)
+    }
+
+    /// Turn the mode on or off.
+    ///
+    /// The two are alternatives, not additions: the mode sets both channels and keeps
+    /// setting them, and a preset click would be overwritten by the next step. So the
+    /// preset bar is hidden while the mode is on, and the switch is the way back.
+    func setChakraMode(_ enabled: Bool) {
+        guard enabled != isChakraMode else { return }
+        isChakraMode = enabled
+        chakraButton.state = enabled ? .on : .off
+        chakraView.isHidden = !enabled
+        presetBlock.isHidden = enabled
+        if enabled {
+            // The mode owns both channels, so a locked difference would fight it.
+            if differenceLock.isLocked {
+                differenceLock.unlock()
+                beatView.setLocked(false)
+                beatView.showBoundaryNote(nil)
+            }
+            chakraStepIndex = 0
+            applyChakraStep()
+            startChakraTimer()
+        } else {
+            stopChakraTimer()
+        }
+    }
+
+    /// Whether the mode is on. The tests read it; the button's own state is the
+    /// on-screen truth.
+    var isChakraModeActive: Bool { isChakraMode }
+
+    /// The step being played, for the tests and the status line.
+    var currentChakraStepID: String? {
+        isChakraMode ? ChakraSequence.steps[chakraStepIndex].id : nil
+    }
+
+    /// Advance to the next step.
+    ///
+    /// The sequence runs from the root to the crown and then starts again: a sound app
+    /// that stopped at the top would leave the user with silence and no way to say so.
+    private func advanceChakraStep() {
+        chakraStepIndex = (chakraStepIndex + 1) % ChakraSequence.steps.count
+        applyChakraStep()
+    }
+
+    /// Put the current step's pair on the two channels and show it.
+    ///
+    /// `notify: false` on both: the pair is one edit, not two, and the difference lock
+    /// is not consulted — the mode has already decided what the difference is.
+    private func applyChakraStep() {
+        let step = ChakraSequence.steps[chakraStepIndex]
+        let (left, right) = ChakraSequence.pair(for: step, beatHz: chakraView.selectedBeatHz)
+        leftControl.setValue(left, notify: false)
+        rightControl.setValue(right, notify: false)
+        chakraView.show(step: step, index: chakraStepIndex, reachedIndex: chakraStepIndex)
+        frequenciesChanged()
+    }
+
+    private func startChakraTimer() {
+        stopChakraTimer()
+        let seconds = max(0.5, chakraView.selectedStepSeconds)
+        chakraTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.advanceChakraStep() }
+        }
+    }
+
+    private func stopChakraTimer() {
+        chakraTimer?.invalidate()
+        chakraTimer = nil
+    }
+
+    /// A new step duration. The timer is rebuilt, because a `repeats` timer cannot
+    /// change its own interval.
+    private func chakraStepSecondsChanged(_ seconds: Double) {
+        guard isChakraMode else { return }
+        startChakraTimer()
+    }
+
+    /// A new beat. The beat is part of the pair, so the current step is replayed with it
+    /// rather than waiting for the next one — a change the user just made should be
+    /// heard at once.
+    private func chakraBeatChanged(_ beatHz: Double) {
+        guard isChakraMode else { return }
+        applyChakraStep()
     }
 
     // MARK: - Lock difference (SPEC §7)
@@ -705,13 +857,17 @@ final class MainWindowController: NSWindowController {
         onHeadphoneCheckRequested = handler
     }
 
+    /// The frequency reference, opened from the window's corner menu.
+    func setReferenceHandler(_ handler: @escaping () -> Void) {
+        onReferenceRequested = handler
+    }
+
     /// Press the window's own check button, as a click would.
     func tapHeadphoneCheckButton() {
         headphoneCheckTapped()
     }
 
     /// The button as a view, so a host can place it somewhere other than the status row.
-    var headphoneCheckControl: NSButton { headphoneCheckButton }
 
     /// Feed a report straight into the indicator — the coordinator's `Target` path.
     func apply(headphoneReport: HeadphoneReport) {
@@ -729,27 +885,58 @@ final class MainWindowController: NSWindowController {
 
     // MARK: - Language (SPEC §7.4)
 
-    /// The list, rebuilt so the caption and the selection follow the current language.
+    /// The overflow menu, rebuilt so its captions and the language's tick follow the
+    /// current language.
     ///
-    /// `addItem(withTitle:)` returns the menu rather than the item, which is the only way to
-    /// reach the item and set its payload. The selection is re-applied after the rebuild:
-    /// `removeAllItems()` clears it.
-    private func rebuildLanguages() {
-        languagePopup.removeAllItems()
+    /// A menu is cheap to rebuild and impossible to patch reliably: the titles are
+    /// localised, the language submenu's contents change with the interface, and the
+    /// tick has to move.
+    private func rebuildOverflowMenu() {
+        overflowMenu.removeAllItems()
+
+        let check = NSMenuItem(
+            title: L10n.tr("Check headphones…"),
+            action: #selector(headphoneCheckTapped),
+            keyEquivalent: ""
+        )
+        check.target = self
+        check.toolTip = L10n.tr("Re-reads the default audio output device and offers the L/R test.")
+        overflowMenu.addItem(check)
+
+        let reference = NSMenuItem(
+            title: L10n.tr("Frequency reference…"),
+            action: #selector(referenceTapped),
+            keyEquivalent: ""
+        )
+        reference.target = self
+        overflowMenu.addItem(reference)
+
+        overflowMenu.addItem(.separator())
+
+        overflowLanguageMenu.removeAllItems()
         for code in L10n.languages {
-            languagePopup.menu?.addItem(
-                withTitle: LanguageCode.name(code),
-                action: nil,
+            let item = NSMenuItem(
+                title: LanguageCode.name(code),
+                action: #selector(languageSelected(_:)),
                 keyEquivalent: ""
-            ).representedObject = code.rawValue
+            )
+            item.target = self
+            item.representedObject = code.rawValue
+            item.state = code == L10n.language ? .on : .off
+            overflowLanguageMenu.addItem(item)
         }
-        let index = L10n.languages.firstIndex(of: L10n.language) ?? 0
-        languagePopup.selectItem(at: index)
+        overflowLanguageItem.title = L10n.tr("Language")
+        overflowLanguageItem.submenu = overflowLanguageMenu
+        overflowMenu.addItem(overflowLanguageItem)
     }
 
-    @objc private func languageSelected() {
-        guard let raw = languagePopup.selectedItem?.representedObject as? String else { return }
-        // `L10n` posts the change; the window, the menus and this popup all re-read it.
+    @objc private func referenceTapped() {
+        onReferenceRequested?()
+    }
+
+    @objc private func languageSelected(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String else { return }
+        // `L10n` posts the change; the window and the menus all re-read it.
         L10n.setLanguage(raw)
     }
 
@@ -778,15 +965,13 @@ final class MainWindowController: NSWindowController {
             L10n.tr("Output level from 0 to 100 percent. Not medical advice: keep it low.")
         )
         muteButton.title = L10n.tr("Mute")
-        headphoneCheckButton.title = L10n.tr("Check headphones…")
-        headphoneCheckButton.setAccessibilityLabel(L10n.tr("Check headphones…"))
-        headphoneCheckButton.setAccessibilityHelp(
-            L10n.tr("Re-reads the default audio output device and offers the L/R test.")
-        )
 
         timerView.retranslate()
-        languagePopup.setAccessibilityLabel(L10n.tr("Language"))
-        rebuildLanguages()
+        chakraView.retranslate()
+        chakraButton.title = L10n.tr("Chakras")
+        chakraButton.setAccessibilityLabel(L10n.tr("Chakras"))
+        menuButton.setAccessibilityLabel(L10n.tr("More"))
+        rebuildOverflowMenu()
         // SPEC §7.4: the preset chips are data (F3's own EN/RU names), but the caption
         // and the chip help go through `tr`, so the whole bar is re-read here.
         presetBar.retranslate()
@@ -851,6 +1036,9 @@ final class MainWindowController: NSWindowController {
     var isMuted: Bool { muteButton.state == .on }
     var isPlaying: Bool { engine.isRunning }
 
+    /// Whether the difference lock is on.
+    var differenceLockIsLocked: Bool { differenceLock.isLocked }
+
     var leftCaption: String { leftControl.caption }
     var beat: (hz: Double, carrier: Double) {
         (beatView.displayedBeatHz, beatView.displayedCarrierHz)
@@ -872,6 +1060,18 @@ final class MainWindowController: NSWindowController {
 
     /// The beat card, so a test can ask where the lock checkbox ended up.
     var beatCard: NSView { beatView }
+
+    /// The chakra panel, so a test can read what it shows and press its controls.
+    var chakraControl: ChakraView { chakraView }
+
+    /// The preset block, so a test can see whether the chakra mode took its place.
+    var presetBlockControl: NSView { presetBlock }
+
+    /// Advance the chakra sequence by one step, as the timer does. The tests drive it
+    /// rather than waiting for the clock.
+    func advanceChakraStepForTests() {
+        advanceChakraStep()
+    }
 
     /// The category chips, as captions.
     var presetCategoryTitles: [String] { presetBar.categoryTitles }
@@ -1164,32 +1364,36 @@ final class MainWindowController: NSWindowController {
     /// in a comment.
     var timerChoiceTitles: [String] { timerView.choiceTitles }
 
-    /// The language control in the window: its list, its caption and its selected item.
+    /// The language control in the window: its list and its caption.
     /// SPEC §7.4 says the choice is switchable from the window as well as from the menu,
     /// which is what the control is.
-    var languageTitles: [String] { languagePopup.itemTitles }
-    /// The accessibility label: read aloud by VoiceOver, so unlike a visible caption it
-    /// does have to follow the language.
-    var languageAccessibilityLabel: String { languagePopup.accessibilityLabel() ?? "" }
-    /// The popup itself, so a test can measure where it ended up in the row.
-    var languageControl: NSPopUpButton { languagePopup }
+    var languageTitles: [String] { overflowLanguageMenu.items.map(\.title) }
+    /// The accessibility label of the corner menu button: read aloud by VoiceOver, so
+    /// unlike a visible caption it does have to follow the language.
+    var cornerMenuAccessibilityLabel: String { menuButton.accessibilityLabel() ?? "" }
+    /// The overflow menu, so a test can read what it offers and press its items.
+    var overflowMenuControl: NSMenu { overflowMenu }
+    /// The corner button's frame in the given view, so a test can check where it sits.
+    func menuButtonFrame(in view: NSView) -> NSRect {
+        menuButton.convert(menuButton.bounds, to: view)
+    }
     /// The status row, for tests that need to see what sits on the top row and in which
     /// order.
     var statusRow: NSStackView? { statusRowView as? NSStackView }
-    var languagePopupHeight: CGFloat { languagePopup.frame.height }
-    var selectedLanguage: LanguageCode {
-        guard let raw = languagePopup.selectedItem?.representedObject as? String else {
-            return L10n.language
-        }
-        return LanguageCode.parse(raw) ?? L10n.language
-    }
+    /// The height of the corner menu button, so a test can check that it is a real
+    /// click target rather than a glyph.
+    var languagePopupHeight: CGFloat { menuButton.frame.height }
+    /// The language the app is in. The menu holds the choice rather than *being* the
+    /// choice, so this reads the app's own state.
+    var selectedLanguage: LanguageCode { L10n.language }
 
-    /// Pick a language as the popup would, going through `L10n.setLanguage` exactly as the
-    /// *View → Language* menu does.
+    /// Pick a language as the menu item would, going through the item's own action so
+    /// there is one code path for "switch the language" and not two.
     func selectLanguage(_ code: LanguageCode) {
-        let index = L10n.languages.firstIndex(of: code) ?? 0
-        languagePopup.selectItem(at: index)
-        languageSelected()
+        guard let item = overflowLanguageMenu.items.first(where: {
+            ($0.representedObject as? String) == code.rawValue
+        }), let action = item.action else { return }
+        NSApp.sendAction(action, to: item.target, from: item)
     }
 
     /// The selected duration in minutes, and the only place the window reads it from.

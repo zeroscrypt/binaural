@@ -30,7 +30,14 @@ from enum import Enum
 
 from .oscillator import MAX_FREQ_HZ, MIN_FREQ_HZ
 
-__all__ = ["Channel", "DifferenceLock", "Resolution", "STEP_HZ", "quantized"]
+__all__ = [
+    "Channel",
+    "DifferenceLock",
+    "Resolution",
+    "STEP_HZ",
+    "quantized",
+    "snapped",
+]
 
 #: SPEC F1: the frequency grid every value in this module stays on.
 STEP_HZ = 0.1
@@ -49,6 +56,20 @@ def quantized(hz: float) -> float:
     if not math.isfinite(value):
         return MIN_FREQ_HZ
     return min(MAX_FREQ_HZ, max(MIN_FREQ_HZ, round(value, 1)))
+
+
+def snapped(hz: float) -> float:
+    """Snap to the 0.1 Hz grid **without** the audible-range clamp.
+
+    :func:`quantized` is right for a *frequency*: it has to be audible. A *beat* is not
+    a frequency — it is the difference between two of them, and the chakra mode accepts
+    0.5 Hz, which the frequency clamp would raise to 1 Hz. The rounding is the same
+    rule; only the clamp is left off.
+    """
+    value = float(hz)
+    if not math.isfinite(value):
+        return value
+    return round(value, 1)
 
 
 class Channel(Enum):

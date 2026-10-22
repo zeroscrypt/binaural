@@ -22,19 +22,7 @@ enum ChannelPalette {
     /// pins. These hexes are the same numbers `TOKENS` carries on the Qt side, so the
     /// two implementations cannot drift apart by accident.
     private static func dynamic(light: UInt32, dark: UInt32) -> NSColor {
-        func resolve(_ hex: UInt32) -> NSColor {
-            NSColor(
-                srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
-                green: CGFloat((hex >> 8) & 0xFF) / 255,
-                blue: CGFloat(hex & 0xFF) / 255,
-                alpha: 1
-            )
-        }
-        return NSColor(name: nil) { appearance in
-            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-                ? resolve(dark)
-                : resolve(light)
-        }
+        DynamicColor.make(light: light, dark: dark)
     }
 }
 
@@ -74,7 +62,7 @@ final class FrequencyControlView: NSView {
     private let captionLabel = NSTextField(labelWithString: "")
     private let rangeHintLabel = NSTextField(labelWithString: "")
     private let displayLabel = NSTextField(labelWithString: "")
-    private let field = NSTextField()
+    private let field = TallTargetTextField()
     private let stepper = NSStepper()
     private let slider = NSSlider()
     private var isSyncing = false
@@ -108,12 +96,18 @@ final class FrequencyControlView: NSView {
         rangeHintLabel.textColor = .tertiaryLabelColor
         rangeHintLabel.alignment = .right
 
-        displayLabel.font = .monospacedDigitSystemFont(ofSize: 34, weight: .semibold)
+        displayLabel.font = .monospacedDigitSystemFont(ofSize: 30, weight: .semibold)
         displayLabel.textColor = accent
 
         field.delegate = self
         field.font = .monospacedDigitSystemFont(ofSize: 15, weight: .regular)
         field.alignment = .left
+        // The number is read at a fixed place — the left edge — and sits in the middle
+        // of the field's height rather than at the top of it. A single-line bezeled cell
+        // centres itself, but only if the cell knows the field's height.
+        field.cell?.usesSingleLineMode = true
+        field.cell?.lineBreakMode = .byClipping
+        field.cell?.wraps = false
         field.formatter = Self.formatter
         field.target = self
         field.action = #selector(commitField)
@@ -160,7 +154,7 @@ final class FrequencyControlView: NSView {
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 8
-        stack.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
+        stack.edgeInsets = NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
 
@@ -171,10 +165,18 @@ final class FrequencyControlView: NSView {
             stack.bottomAnchor.constraint(equalTo: bottomAnchor),
 
             // SPEC §7.2: 44 px minimum click target, and the header must not squash.
-            field.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            // The field itself is the height of its own text — AppKit pins a bezeled
+            // field's text to the top, so a taller field would show the number floating
+            // at the top of an empty box. `TallTargetTextField` adds the missing band
+            // back as hit slop, and the row keeps the 44 px.
+            entryRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             slider.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-            slider.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -32),
-            entryRow.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -32),
+            slider.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
+            // The exact-entry field is a fixed width rather than the panel's. It was
+            // stretched across the whole panel, which made a four-digit number look
+            // like it was floating in an empty room; the slider below is the thing that
+            // wants the width.
+            field.widthAnchor.constraint(equalToConstant: 124),
             rangeHintLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 96),
             rangeHintLabel.trailingAnchor.constraint(equalTo: stack.trailingAnchor, constant: -16),
             captionLabel.trailingAnchor.constraint(lessThanOrEqualTo: rangeHintLabel.leadingAnchor, constant: -8)

@@ -160,6 +160,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.setHeadphoneCheckHandler { [weak self] in
             _ = self?.coordinator?.rerunFromUser()
         }
+        // The window's corner menu opens the same reference the *Help* item does.
+        controller.setReferenceHandler { [weak self] in self?.openReference() }
 
         // The menu-bar item, from launch, and the wiring that makes it the *same* app
         // rather than a second front end: every action asks the window or the coordinator,

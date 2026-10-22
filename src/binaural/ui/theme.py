@@ -58,6 +58,17 @@ TOKENS: dict[str, tuple[str, str]] = {
     # answerable without reading the caption. They used to be two purples — `primary`
     # and `secondary`, a step apart — which is not a distinction anyone can see.
     "left": ("#2563EB", "#60A5FA"),  # left channel
+    # The chakra colours: the rainbow from the root of the body to the crown, muted so
+    # that seven of them at once is not a glare. The light shades clear 3.7:1 on white
+    # and the dark ones clear 5.7:1 on the dark surface.
+    "chakra-earth": ("#7A6E5C", "#B3A692"),
+    "chakra-root": ("#C8503F", "#F0877A"),
+    "chakra-sacral": ("#C06A22", "#F0A45F"),
+    "chakra-solar-plexus": ("#A1810F", "#E3C453"),
+    "chakra-heart": ("#3F8A4C", "#6FBE7C"),
+    "chakra-throat": ("#2E88A8", "#5FB6D2"),
+    "chakra-third-eye": ("#4E63C4", "#8A9BEA"),
+    "chakra-crown": ("#8149B0", "#B183DE"),
     "accent": ("#059669", "#34D399"),  # play button, confirmations
     "background": ("#FAF5FF", "#151221"),
     "surface": ("#FFFFFF", "#1E1A2E"),

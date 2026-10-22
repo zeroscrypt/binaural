@@ -14,6 +14,7 @@ EXPECTED_CATEGORIES = [
     "schumann",
     "planetary",
     "solfeggio",
+    "chakras",
     "tuning",
     "research",
     "rife",
@@ -62,7 +63,7 @@ def test_category_fields_are_complete(raw):
 def test_all_eleven_categories_present_and_non_empty(loaded):
     categories, entries = loaded
     assert [c.id for c in categories] == EXPECTED_CATEGORIES
-    assert [c.order for c in categories] == list(range(1, 12))
+    assert [c.order for c in categories] == list(range(1, 13))
     for category in categories:
         assert any(e.category == category.id for e in entries), f"{category.id} is empty"
 

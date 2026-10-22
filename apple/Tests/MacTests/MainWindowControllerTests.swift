@@ -214,19 +214,19 @@ final class MainWindowControllerTests: XCTestCase {
         let controller = makeController()
 
         controller.setHeadphoneState(.headphones, deviceName: "AirPods Pro")
-        XCTAssertEqual(controller.statusText, "Headphones detected")
+        XCTAssertEqual(controller.statusText, "Headphones in use")
         XCTAssertTrue(controller.statusToolTip.contains("AirPods Pro"), "the device name is kept")
 
         controller.setHeadphoneState(.speakers)
-        XCTAssertTrue(controller.statusText.contains("Speakers detected"))
+        XCTAssertTrue(controller.statusText.contains("Use headphones"))
         XCTAssertFalse(controller.statusText.contains("AirPods"), "a stale name must not linger")
 
         // Switching language re-reads the *current* state, not a remembered one.
         controller.setHeadphoneState(.headphones)
         L10n.setLanguage("ru")
-        XCTAssertEqual(controller.statusText, "Наушники обнаружены")
+        XCTAssertEqual(controller.statusText, "Используются наушники")
         L10n.setLanguage("en")
-        XCTAssertEqual(controller.statusText, "Headphones detected")
+        XCTAssertEqual(controller.statusText, "Headphones in use")
     }
 
     // MARK: - Session (SPEC F5)

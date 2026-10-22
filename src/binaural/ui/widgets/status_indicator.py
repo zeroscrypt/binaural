@@ -164,11 +164,11 @@ class StatusIndicator(QWidget):
         self._device_name = str(device_name or "")
 
         if state == STATE_HEADPHONES:
-            label = tr("Headphones detected")
+            label = tr("Headphones in use")
             token = "accent-strong"
             description = tr("Binaural beats are rendered correctly.")
         elif state == STATE_SPEAKERS:
-            label = tr("Speakers detected — headphones needed")
+            label = tr("Use headphones")
             token = "warning-text"
             description = tr(
                 "On speakers the two tones mix in the air, so the beat disappears. "

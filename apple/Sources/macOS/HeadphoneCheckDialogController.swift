@@ -385,7 +385,7 @@ final class HeadphoneCheckDialogController: NSWindowController, NSWindowDelegate
             "Binaural beats only work when each ear receives its own tone. On speakers the "
                 + "two frequencies mix in the air before reaching your ears, and the effect "
                 + "disappears. You can continue anyway — the app will keep showing a "
-                + "\u{201C}Speakers detected\u{201D} indicator in the status bar."
+                + "\u{201C}Use headphones\u{201D} notice in the status bar."
         )
         lrButton.title = L10n.tr("Run L/R test")
         retryButton.title = L10n.tr("Retry check")

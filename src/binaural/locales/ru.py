@@ -57,6 +57,41 @@ MESSAGES: dict[str, str] = {
     "Concentration": "Концентрация",
     "Work": "Работа",
     "Sport": "Спорт",
+    # The chakra sequence: seven solfeggio steps, root to crown. The names and the
+    # descriptions are the mode's own vocabulary, not the brainwave bands above.
+    "Chakras": "Чакры",
+    "Earth": "Земля",
+    "Ground and stability: the body's own base.": "Земля и опора: основа тела.",
+    "Root": "Корень",
+    "Sacral": "Сакральная",
+    "Solar plexus": "Солнечное сплетение",
+    "Heart": "Сердце",
+    "Throat": "Горло",
+    "Third eye": "Третий глаз",
+    "Crown": "Корона",
+    "Letting go of fear and touching ground.": "Отпустить страх и коснуться земли.",
+    "Undoing what got stuck and opening up to change.": (
+        "Отменить то, что застряло, и открыться переменам."
+    ),
+    "The love frequency. The best known of the nine.": (
+        "Частота любви. Самая известная из девяти."
+    ),
+    "Relationships, connection, forgiving others.": (
+        "Отношения, связь, прощение других."
+    ),
+    "Finding your words and telling the truth.": (
+        "Найти свои слова и сказать правду."
+    ),
+    "Seeing clearly before you decide.": "Увидеть ясно, прежде чем решить.",
+    "Unity and presence, to feel whole.": (
+        "Единство и присутствие, чтобы чувствовать целостность."
+    ),
+    "Step": "Шаг",
+    "Beat": "Биение",
+    "%1 s": "%1 с",
+    "The default 21 Hz sits in the alpha band.": (
+        "По умолчанию 21 Гц — в альфа-диапазоне."
+    ),
     "Current frequencies: left %1, right %2.": "Текущие частоты: слева %1, справа %2.",
     "Preset name": "Название пресета",
     "This preset is remembered for the next start.": (
@@ -115,6 +150,8 @@ MESSAGES: dict[str, str] = {
     # --- menus (incl. the language switch) ---------------------------------
     "&View": "&Вид",
     "Language": "Язык",
+    # The corner menu: the headphone check, the frequency reference and the language.
+    "More": "Ещё",
     "&Settings…": "&Настройки…",
     "&Help": "&Справка",
     "Frequency &reference…": "Справочник &частот…",
@@ -174,8 +211,12 @@ MESSAGES: dict[str, str] = {
     # --- status indicator --------------------------------------------------
     "Audio output status": "Состояние аудиовыхода",
     "Headphones detected": "Наушники обнаружены",
+    # The status line says what to *do*, not what was found. "Обнаружены динамики —
+    # нужны наушники" reads as a diagnosis and then an instruction, and the first half
+    # is the part the reader does not need.
+    "Headphones in use": "Используются наушники",
+    "Use headphones": "Используйте наушники",
     "Binaural beats are rendered correctly.": "Бинауральные биения формируются верно.",
-    "Speakers detected — headphones needed": "Обнаружены динамики — нужны наушники",
     "On speakers the two tones mix in the air, so the beat disappears. "
     "Use headphones for the effect.": (
         "На динамиках два тона смешиваются в воздухе, поэтому биение исчезает. "
@@ -383,11 +424,11 @@ MESSAGES: dict[str, str] = {
     "Binaural beats only work when each ear receives its own tone. On speakers the "
     "two frequencies mix in the air before reaching your ears, and the effect "
     "disappears. You can continue anyway — the app will keep showing a "
-    "“Speakers detected” indicator in the status bar.": (
+    "“Use headphones” notice in the status bar.": (
         "Бинауральные биения работают, только когда каждое ухо получает свой тон. "
         "На динамиках две частоты смешиваются в воздухе раньше, чем достигают ушей, "
         "и эффект исчезает. Можно продолжить всё равно — приложение будет "
-        "показывать в строке состояния индикатор «Обнаружены динамики»."
+        "показывать в строке состояния надпись «Используйте наушники»."
     ),
     "This check can be repeated at any time from the Help menu.": (
         "Эту проверку можно повторить в любой момент из меню «Справка»."

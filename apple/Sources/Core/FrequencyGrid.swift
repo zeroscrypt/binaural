@@ -50,6 +50,17 @@ public enum FrequencyGrid {
         quantized(quantized(hz) + (delta.isFinite ? delta : 0))
     }
 
+    /// Snap to the 0.1 Hz grid **without** the audible-range clamp.
+    ///
+    /// `quantized(_:)` is right for a *frequency*: it has to be audible. A *beat* is
+    /// not a frequency — it is the difference between two of them, and the chakra mode
+    /// accepts 0.5 Hz, which the frequency clamp would raise to 1 Hz. The rounding is the
+    /// same rule as ``quantized(_:)``; only the clamp is left off.
+    public static func snapped(_ hz: Double) -> Double {
+        guard hz.isFinite else { return hz }
+        return Double(String(format: "%.1f", hz)) ?? hz
+    }
+
     // MARK: - Slider mapping
 
     /// Frequency -> slider position in 0...1, logarithmic.

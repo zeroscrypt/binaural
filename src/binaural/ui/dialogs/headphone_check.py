@@ -47,7 +47,7 @@ _EXPLANATION = (
     "Binaural beats only work when each ear receives its own tone. On speakers the "
     "two frequencies mix in the air before reaching your ears, and the effect "
     "disappears. You can continue anyway — the app will keep showing a "
-    "“Speakers detected” indicator in the status bar."
+    "“Use headphones” notice in the status bar."
 )
 _HINT_RETRY = "This check can be repeated at any time from the Help menu."
 

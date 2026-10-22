@@ -52,11 +52,26 @@ final class L10nKeysTests: XCTestCase {
         "Stopped at the range limit: the difference is locked, so the other channel cannot follow any further.",
         // status indicator
         "Audio output status", "Headphones detected",
-        "Speakers detected — headphones needed", "Unknown device",
+        "Headphones in use", "Use headphones", "Unknown device",
         // timer (SPEC §5 F5)
         "Timer", "Off", "%1 min",
+        // the chakra mode: seven solfeggio steps, root to crown
+        "Chakras",
+        "Earth", "Ground and stability: the body's own base.",
+        "Root", "Sacral", "Solar plexus", "Heart", "Throat", "Third eye", "Crown",
+        "Letting go of fear and touching ground.",
+        "Undoing what got stuck and opening up to change.",
+        "The love frequency. The best known of the nine.",
+        "Relationships, connection, forgiving others.",
+        "Finding your words and telling the truth.",
+        "Seeing clearly before you decide.",
+        "Unity and presence, to feel whole.",
+        "Step", "Beat", "%1 s",
+        "The default 21 Hz sits in the alpha band.",
         // the language control in the main window (SPEC §7.4)
         "Language",
+        // the corner menu in the window's top corner
+        "More",
         // menu-bar status item (SPEC §7; Python's TrayController). All four were already in
         // ru.py for the tray, which is why none of them needed a Swift addition.
         "Show Binaural", "Hide Binaural", "Frequency reference…",
@@ -67,7 +82,7 @@ final class L10nKeysTests: XCTestCase {
         "Output device not recognised — run the L/R test",
         "Headphones", "Speakers", "Virtual device", "Unknown", "Unknown output device",
         "Device", "Verdict", "Confidence", "High", "Medium", "Low",
-        "Binaural beats only work when each ear receives its own tone. On speakers the two frequencies mix in the air before reaching your ears, and the effect disappears. You can continue anyway — the app will keep showing a “Speakers detected” indicator in the status bar.",
+        "Binaural beats only work when each ear receives its own tone. On speakers the two frequencies mix in the air before reaching your ears, and the effect disappears. You can continue anyway — the app will keep showing a “Use headphones” notice in the status bar.",
         "This check can be repeated at any time from the Help menu.",
         "L/R test: Left → Right — headphones confirmed, channels correct.",
         "L/R test: Right → Left — headphones confirmed, channels are swapped. Binaural will swap them when generating.",

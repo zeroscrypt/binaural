@@ -42,8 +42,18 @@
       "description_ru": "Девять тонов сольфеджио 174…963 Гц с приписываемыми значениями"
     },
     {
-      "id": "tuning",
+      "id": "chakras",
       "order": 5,
+      "icon": "🌈",
+      "color": "#8149B0",
+      "label_en": "Chakras",
+      "label_ru": "Чакры",
+      "description_en": "The seven chakras, root to crown, on the solfeggio scale",
+      "description_ru": "Семь чакр, от корня к короне, по шкале сольфеджио"
+    },
+    {
+      "id": "tuning",
+      "order": 6,
       "icon": "🎼",
       "color": "#0D9488",
       "label_en": "Tuning & Reference",
@@ -53,7 +63,7 @@
     },
     {
       "id": "research",
-      "order": 6,
+      "order": 7,
       "icon": "🔬",
       "color": "#6C8EEF",
       "label_en": "Research & Studies",
@@ -63,7 +73,7 @@
     },
     {
       "id": "rife",
-      "order": 7,
+      "order": 8,
       "icon": "⚡",
       "color": "#6D28D9",
       "label_en": "Rife & Therapeutic",
@@ -73,7 +83,7 @@
     },
     {
       "id": "nasa",
-      "order": 8,
+      "order": 9,
       "icon": "🚀",
       "color": "#4F46E5",
       "label_en": "Space & Consciousness",
@@ -83,7 +93,7 @@
     },
     {
       "id": "healing",
-      "order": 9,
+      "order": 10,
       "icon": "✨",
       "color": "#34D399",
       "label_en": "Healing & Energy",
@@ -93,7 +103,7 @@
     },
     {
       "id": "substance",
-      "order": 10,
+      "order": 11,
       "icon": "🧪",
       "color": "#B45309",
       "label_en": "Substances & Medication",
@@ -103,7 +113,7 @@
     },
     {
       "id": "affect",
-      "order": 11,
+      "order": 12,
       "icon": "☀️",
       "color": "#DB2777",
       "label_en": "Mood & Positive Affect",
@@ -706,6 +716,142 @@
         "solfeggio",
         "oneness",
         "consciousness"
+      ]
+    },
+    {
+      "id": "chakra-174",
+      "category": "chakras",
+      "label": "174 Hz — Earth",
+      "beat_hz": 174.0,
+      "carrier_hz": 174.0,
+      "effect_en": "The earth level, below the root: grounding, stability, easing physical tension. The lowest tone of the extended Solfeggio set.",
+      "effect_ru": "Уровень земли, ниже корня: укоренение, стабильность, снятие физического напряжения. Самая низкая нота расширенного сольфеджио.",
+      "evidence": "traditional",
+      "source": "Traditional solfeggio and chakra practice",
+      "tags": [
+        "tonal",
+        "solfeggio",
+        "chakra",
+        "earth"
+      ]
+    },
+    {
+      "id": "chakra-396",
+      "category": "chakras",
+      "label": "396 Hz — Root (Muladhara)",
+      "beat_hz": 396.0,
+      "carrier_hz": 396.0,
+      "effect_en": "Root chakra, at the base of the spine: grounding, safety, releasing fear and guilt. Solfeggio UT.",
+      "effect_ru": "Мух, у основания позвоночника: укоренение, безопасность, освобождение от страха и вины. Сольфеджио UT.",
+      "evidence": "traditional",
+      "source": "Traditional solfeggio and chakra practice",
+      "tags": [
+        "tonal",
+        "solfeggio",
+        "chakra",
+        "root"
+      ]
+    },
+    {
+      "id": "chakra-417",
+      "category": "chakras",
+      "label": "417 Hz — Sacral (Svadhisthana)",
+      "beat_hz": 417.0,
+      "carrier_hz": 417.0,
+      "effect_en": "Sacral chakra, below the navel: creativity, emotional expression, undoing what is stuck. Solfeggio RE.",
+      "effect_ru": "Свадхиштхана, ниже пупка: творчество, эмоциональная выразительность, отмена застрявшего. Сольфеджио RE.",
+      "evidence": "traditional",
+      "source": "Traditional solfeggio and chakra practice",
+      "tags": [
+        "tonal",
+        "solfeggio",
+        "chakra",
+        "sacral"
+      ]
+    },
+    {
+      "id": "chakra-528",
+      "category": "chakras",
+      "label": "528 Hz — Solar plexus (Manipura)",
+      "beat_hz": 528.0,
+      "carrier_hz": 528.0,
+      "effect_en": "Solar plexus chakra, in the upper abdomen: transformation, confidence, the so-called love frequency. Solfeggio MI.",
+      "effect_ru": "Манипура, в верхней части живота: трансформация, уверенность, так называемая частота любви. Сольфеджио MI.",
+      "evidence": "traditional",
+      "source": "Traditional solfeggio and chakra practice",
+      "tags": [
+        "tonal",
+        "solfeggio",
+        "chakra",
+        "solar-plexus"
+      ]
+    },
+    {
+      "id": "chakra-639",
+      "category": "chakras",
+      "label": "639 Hz — Heart (Anahata)",
+      "beat_hz": 639.0,
+      "carrier_hz": 639.0,
+      "effect_en": "Heart chakra, in the chest: compassion, relationships, inner balance. Solfeggio FA.",
+      "effect_ru": "Анахата, в груди: сострадание, отношения, внутренний баланс. Сольфеджио FA.",
+      "evidence": "traditional",
+      "source": "Traditional solfeggio and chakra practice",
+      "tags": [
+        "tonal",
+        "solfeggio",
+        "chakra",
+        "heart"
+      ]
+    },
+    {
+      "id": "chakra-741",
+      "category": "chakras",
+      "label": "741 Hz — Throat (Vishuddha)",
+      "beat_hz": 741.0,
+      "carrier_hz": 741.0,
+      "effect_en": "Throat chakra, at the voice box: speaking truthfully, finding solutions, expression. Solfeggio SOL.",
+      "effect_ru": "Вишудха, у голосовой щели: правдивая речь, поиск решений, выражение. Сольфеджио SOL.",
+      "evidence": "traditional",
+      "source": "Traditional solfeggio and chakra practice",
+      "tags": [
+        "tonal",
+        "solfeggio",
+        "chakra",
+        "throat"
+      ]
+    },
+    {
+      "id": "chakra-852",
+      "category": "chakras",
+      "label": "852 Hz — Third eye (Ajna)",
+      "beat_hz": 852.0,
+      "carrier_hz": 852.0,
+      "effect_en": "Third eye chakra, between the brows: intuition, seeing clearly, returning to mental and spiritual order. Solfeggio LA.",
+      "effect_ru": "Аджина, между бровями: интуиция, ясное видение, возвращение к душевному и духовному порядку. Сольфеджио LA.",
+      "evidence": "traditional",
+      "source": "Traditional solfeggio and chakra practice",
+      "tags": [
+        "tonal",
+        "solfeggio",
+        "chakra",
+        "third-eye"
+      ]
+    },
+    {
+      "id": "chakra-963",
+      "category": "chakras",
+      "label": "963 Hz — Crown (Sahasrara)",
+      "beat_hz": 963.0,
+      "carrier_hz": 963.0,
+      "effect_en": "Crown chakra, at the top of the head: unity, higher consciousness, feeling whole. Solfeggio SI.",
+      "effect_ru": "Сахасрара, на макушке: единство, высшее сознание, ощущение целостности. Сольфеджио SI.",
+      "evidence": "traditional",
+      "source": "Traditional solfeggio and chakra practice",
+      "tags": [
+        "tonal",
+        "solfeggio",
+        "chakra",
+        "crown"
       ]
     },
     {

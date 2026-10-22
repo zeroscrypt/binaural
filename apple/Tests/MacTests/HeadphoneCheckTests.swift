@@ -279,15 +279,15 @@ final class HeadphoneCheckTests: XCTestCase {
     func testTheIndicatorFollowsTheReport() {
         let controller = MainWindowController(engine: AudioEngine(), store: temporaryStore())
         controller.apply(headphoneReport: report(verdict: .headphones, confidence: .high, name: "AirPods Pro"))
-        XCTAssertEqual(controller.statusText, "Headphones detected")
+        XCTAssertEqual(controller.statusText, "Headphones in use")
         XCTAssertTrue(controller.statusToolTip.contains("AirPods Pro"))
 
         controller.apply(headphoneReport: report(verdict: .speakers, confidence: .medium))
-        XCTAssertTrue(controller.statusText.contains("Speakers detected"))
+        XCTAssertTrue(controller.statusText.contains("Use headphones"))
 
         L10n.setLanguage("ru")
         controller.apply(headphoneReport: report(verdict: .speakers, confidence: .medium))
-        XCTAssertTrue(controller.statusText.contains("Обнаружены динамики"))
+        XCTAssertTrue(controller.statusText.contains("Используйте наушники"))
         L10n.setLanguage("en")
         controller.tearDown()
     }

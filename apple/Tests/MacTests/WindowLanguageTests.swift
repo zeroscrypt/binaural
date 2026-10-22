@@ -47,19 +47,19 @@ final class WindowLanguageTests: XCTestCase {
         XCTAssertEqual(controller.selectedLanguage, .ru, "the control follows the app")
     }
 
-    /// No caption: the popup reads "English" or "Русский", which says what it is. The
-    /// accessibility label is still translated — that one is read aloud, not looked at.
+    /// The corner menu is an icon, so it has no caption. The accessibility label is
+    /// still translated — that one is read aloud, not looked at.
     func testThereIsNoCaptionButTheAccessibilityLabelIsTranslated() {
         XCTAssertEqual(controller.languageTitles, ["English", "Русский"],
                        "the language names stay native, as they must")
-        XCTAssertEqual(controller.languageAccessibilityLabel, "Language")
+        XCTAssertEqual(controller.cornerMenuAccessibilityLabel, "More")
         L10n.setLanguage("ru")
-        XCTAssertEqual(controller.languageAccessibilityLabel, "Язык")
+        XCTAssertEqual(controller.cornerMenuAccessibilityLabel, "Ещё")
     }
 
-    /// SPEC §7: the top row carries the app's state — the headphone indicator, the re-check
-    /// button and the language. The language sits at the **right**, after the re-check
-    /// button, and the row is pinned to the top of the window.
+    /// SPEC §7: the top row carries the app's state — the headphone indicator and the
+    /// mode's switch. The corner menu sits at the **right**, and the row is pinned to the
+    /// top of the window.
     func testTheControlSitsAtTheTopRight() throws {
         let window = try XCTUnwrap(controller.window)
         window.contentView?.layoutSubtreeIfNeeded()
@@ -67,19 +67,30 @@ final class WindowLanguageTests: XCTestCase {
         let row = try XCTUnwrap(controller.statusRow)
         let titles = row.arrangedSubviews.compactMap { ($0 as? NSButton)?.title }
         XCTAssertEqual(
-            titles, ["Check headphones…", "English"],
-            "the re-check button first, then the language popup: \(titles)"
+            titles, ["Chakras", ""],
+            "the mode's switch, then the corner menu (an icon, so no title): \(titles)"
         )
 
         let rowFrame = row.convert(row.bounds, to: window.contentView)
-        let popupFrame = controller.languageControl.convert(
-            controller.languageControl.bounds, to: window.contentView
-        )
+        let menuFrame = controller.menuButtonFrame(in: window.contentView!)
         XCTAssertGreaterThan(
-            popupFrame.minX, rowFrame.minX + rowFrame.width - popupFrame.width - 1,
-            "the language popup is the last thing in the row, at its right edge"
+            menuFrame.minX, rowFrame.minX + rowFrame.width - menuFrame.width - 1,
+            "the corner menu is the last thing in the row, at its right edge"
         )
-        XCTAssertLessThan(popupFrame.maxY, rowFrame.maxY + 1, "the row is at the top")
+        XCTAssertLessThan(menuFrame.maxY, rowFrame.maxY + 1, "the row is at the top")
+    }
+
+    /// The corner menu holds the three things that used to sit in the row as buttons: the
+    /// headphone check, the frequency reference and the language.
+    func testTheCornerMenuHoldsTheThreeThings() {
+        let menu = controller.overflowMenuControl
+        let titles = menu.items.map(\.title)
+        XCTAssertTrue(titles.contains("Check headphones…"), "\(titles)")
+        XCTAssertTrue(titles.contains("Frequency reference…"), "\(titles)")
+        XCTAssertTrue(titles.contains("Language"), "\(titles)")
+
+        let language = try? XCTUnwrap(menu.items.first { $0.title == "Language" }?.submenu)
+        XCTAssertEqual(language?.items.map(\.title), ["English", "Русский"])
     }
 
     /// `setLanguage` is the same call the *View → Language* menu makes — one implementation

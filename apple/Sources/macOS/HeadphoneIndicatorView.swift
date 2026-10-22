@@ -111,11 +111,11 @@ final class HeadphoneIndicatorView: NSView {
         switch state {
         case .headphones:
             symbol = "\u{2713}"
-            text = L10n.tr("Headphones detected")
+            text = L10n.tr("Headphones in use")
             colour = .systemGreen
         case .speakers:
             symbol = "!"
-            text = L10n.tr("Speakers detected — headphones needed")
+            text = L10n.tr("Use headphones")
             colour = .systemOrange
         case .unknown:
             symbol = "?"

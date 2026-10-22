@@ -544,8 +544,8 @@ def test_theme_tokens_match_the_spec():
 @pytest.mark.parametrize(
     "state, fragment",
     [
-        (STATE_HEADPHONES, "Headphones detected"),
-        (STATE_SPEAKERS, "Speakers detected"),
+        (STATE_HEADPHONES, "Headphones in use"),
+        (STATE_SPEAKERS, "Use headphones"),
         (STATE_UNKNOWN, "Unknown device"),
     ],
 )
@@ -570,7 +570,7 @@ def test_status_indicator_accepts_a_report(qapp):
     )
     indicator = StatusIndicator()
     indicator.set_report(report)
-    assert "Speakers detected" in indicator.text()
+    assert "Use headphones" in indicator.text()
     assert "Mac mini Speakers" in indicator.toolTip()
 
     confirmed = HeadphoneReport(
@@ -580,7 +580,7 @@ def test_status_indicator_accepts_a_report(qapp):
         lr_test=LrTestResult.LEFT_THEN_RIGHT,
     )
     indicator.set_report(confirmed)
-    assert "Headphones detected" in indicator.text()
+    assert "Headphones in use" in indicator.text()
     indicator.deleteLater()
 
 
@@ -596,7 +596,7 @@ def test_window_swallows_a_headphone_report(qapp):
         lr_test=LrTestResult.RIGHT_THEN_LEFT,
     )
     win.set_headphone_report(report)
-    assert "Headphones detected" in win.status_indicator.text()
+    assert "Headphones in use" in win.status_indicator.text()
     assert win.channels_swapped() is True
     win.close()
     win.deleteLater()
@@ -775,7 +775,7 @@ def test_headphone_check_dialog_feeds_the_window(qapp):
     report = dialog.report()
     window.set_headphone_report(report)
 
-    assert "Headphones detected" in window.status_indicator.text()
+    assert "Headphones in use" in window.status_indicator.text()
     assert window.channels_swapped() is True
     dialog.close()
     dialog.deleteLater()

@@ -23,10 +23,12 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QSlider,
+    QToolButton,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -174,6 +176,24 @@ class MainWindow(QMainWindow):
         central_layout.setSpacing(theme.SPACE_LG)
         self.setCentralWidget(central)
 
+        # --- the corner menu ------------------------------------------------
+        # The headphone check, the frequency reference and the language. They live in
+        # the menu bar as well, but they are here too, behind one button: the window
+        # should not carry three controls for things a user reaches for once, and the
+        # row it does carry is for saying what the app is *doing*, not what it can be
+        # asked to do.
+        top = QHBoxLayout()
+        top.setSpacing(theme.SPACE_SM)
+        top.addStretch(1)
+        self._more_button = QToolButton(self)
+        self._more_button.setText(tr("More"))
+        self._more_button.setAccessibleName(tr("More"))
+        self._more_button.setPopupMode(
+            QToolButton.ToolButtonPopupMode.InstantPopup
+        )
+        top.addWidget(self._more_button)
+        central_layout.addLayout(top)
+
         # --- ear panels ---------------------------------------------------
         ears = QHBoxLayout()
         ears.setSpacing(theme.SPACE_LG)
@@ -203,6 +223,7 @@ class MainWindow(QMainWindow):
 
         self._build_status_bar()
         self._build_menu()
+        self._attach_more_menu()
         self._connect_engine()
 
         self._restore_session()
@@ -613,6 +634,20 @@ class MainWindow(QMainWindow):
         self._view_menu.addSeparator()
         self._view_menu.addAction(self._settings_action)
 
+    def _attach_more_menu(self) -> None:
+        """Put the corner button's menu together.
+
+        It is assembled after the menu bar because the items are the *same* actions:
+        one action, two places, so the shortcut and the enabled state cannot disagree
+        between the menu bar and the window.
+        """
+        menu = QMenu(self._more_button)
+        menu.addAction(self._check_action)
+        menu.addAction(self._reference_action)
+        menu.addSeparator()
+        menu.addMenu(self._language_menu)
+        self._more_button.setMenu(menu)
+
     def set_language(self, code: str) -> str:
         """Switch the UI language from the View menu. Returns the active code."""
         return i18n.set_language(code)
@@ -636,6 +671,9 @@ class MainWindow(QMainWindow):
         the language themselves.
         """
         self.setWindowTitle(tr("Binaural"))
+
+        self._more_button.setText(tr("More"))
+        self._more_button.setAccessibleName(tr("More"))
 
         self._left.retranslate(tr(LEFT_EAR))
         self._right.retranslate(tr(RIGHT_EAR))

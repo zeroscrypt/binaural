@@ -127,7 +127,7 @@ def test_the_first_launch_warns(launch):
     """Speakers, nothing confirmed yet: the dialog opens and the warning sticks."""
     window = launch(SPEAKERS)
     assert FakeCheckDialog.shown == 1
-    assert "Speakers detected" in window.status_indicator.text()
+    assert "Use headphones" in window.status_indicator.text()
     assert window.headphone_check_acknowledged() is True
 
 
@@ -135,13 +135,13 @@ def test_the_dialog_does_not_come_back_on_the_next_launch(launch):
     """§4.3: once confirmed, no dialog on every start — but the status still tells."""
     window = launch(SPEAKERS, acknowledged=True)
     assert FakeCheckDialog.shown == 0
-    assert "Speakers detected" in window.status_indicator.text()
+    assert "Use headphones" in window.status_indicator.text()
 
 
 def test_headphones_need_no_dialog_and_silence_the_warning(launch):
     window = launch(HEADPHONES)
     assert FakeCheckDialog.shown == 0
-    assert "Headphones detected" in window.status_indicator.text()
+    assert "Headphones in use" in window.status_indicator.text()
     # Nothing to warn about any more, so the flag is set without asking anyone.
     assert window.headphone_check_acknowledged() is True
 
@@ -150,7 +150,7 @@ def test_detection_always_updates_the_indicator(launch):
     """Plugging headphones in after the warning was confirmed clears the status."""
     window = launch(HEADPHONES, acknowledged=True)
     assert FakeCheckDialog.shown == 0
-    assert "Headphones detected" in window.status_indicator.text()
+    assert "Headphones in use" in window.status_indicator.text()
     assert window.headphone_report().is_headphones is True
 
 
@@ -159,7 +159,7 @@ def test_a_missing_dialog_layer_is_not_fatal(launch, monkeypatch):
     monkeypatch.setattr(window, "_dialog_class", lambda name: None)
     # Second pass with no dialogs package: the status stays truthful.
     binaural_app._run_headphone_check(window)
-    assert "Speakers detected" in window.status_indicator.text()
+    assert "Use headphones" in window.status_indicator.text()
 
 
 def test_failing_detection_never_stops_the_launch(launch, monkeypatch):
