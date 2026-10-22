@@ -29,13 +29,15 @@ final class MainWindowController: NSWindowController {
     )
     private let beatView = BeatDisplayView()
     private let playButton = NSButton()
-    /// A speaker instead of the word "Volume". The slider next to it is the volume; the
-    /// word only says what the thing under it is, and a row of controls is quieter
-    /// without it.
-    private let volumeIcon = NSImageView()
+    /// The speaker next to the volume slider *is* the mute control: clicking it silences
+    /// the sound, and the icon says so by being crossed out.
+    ///
+    /// It was a plain picture next to a second, separate mute control at the far end of
+    /// the row — two controls for one thing, and the row longer for it. The state of
+    /// the sound belongs on the icon that shows the sound.
+    private let volumeIcon = NSButton()
     private let volumeSlider = NSSlider()
     private let volumeLabel = NSTextField(labelWithString: "")
-    private let muteButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let timerView = TimerControlView()
     /// Transient note under the preset bar — Python's `statusBar().showMessage`, reused for
     /// the difference lock because the same "we just changed your state, here is why" message
@@ -273,8 +275,12 @@ final class MainWindowController: NSWindowController {
         playButton.title = ""
         playButton.setButtonType(.momentaryChange)
 
+        volumeIcon.isBordered = false
+        volumeIcon.imagePosition = .imageOnly
         volumeIcon.imageScaling = .scaleProportionallyDown
         volumeIcon.contentTintColor = .secondaryLabelColor
+        volumeIcon.target = self
+        volumeIcon.action = #selector(muteToggled)
 
         volumeSlider.minValue = 0
         volumeSlider.maxValue = 1
@@ -286,13 +292,10 @@ final class MainWindowController: NSWindowController {
         volumeLabel.textColor = .secondaryLabelColor
         volumeLabel.alignment = .right
 
-        muteButton.target = self
-        muteButton.action = #selector(muteToggled)
-
-        // `NSView()` between the volume and the mute control is the `addStretch` of the
-        // Python transport row: the mute sits at the far end, not next to the slider.
+        // `NSView()` at the end is the `addStretch` of the Python transport row: the
+        // controls sit at the left and the row's slack goes to the right.
         let transport = NSStackView(views: [
-            playButton, volumeIcon, volumeSlider, volumeLabel, NSView(), muteButton
+            playButton, volumeIcon, volumeSlider, volumeLabel, NSView()
         ])
         transport.orientation = .horizontal
         transport.alignment = .centerY
@@ -334,6 +337,10 @@ final class MainWindowController: NSWindowController {
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 16
+        // The row with the mode's switch and the corner menu is a header, not a
+        // section: it sits close under the title bar and close above the ear panels,
+        // because the space around it was air nobody was using.
+        stack.setCustomSpacing(8, after: statusRow)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         let content = NSView()
@@ -342,7 +349,7 @@ final class MainWindowController: NSWindowController {
         var constraints: [NSLayoutConstraint] = [
             stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 24),
             stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -24),
-            stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 20),
+            stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 10),
             // Content hugs the top; the window may be taller than it needs to be.
             stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -20)
         ]
@@ -360,18 +367,24 @@ final class MainWindowController: NSWindowController {
             menuButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             menuButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
             ears.heightAnchor.constraint(greaterThanOrEqualToConstant: 200),
-            playButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 120),
+            // The button is a picture, so it is as wide as the picture: a fixed 120 pt
+            // was a wide empty box around a 17 pt glyph. SPEC §7.2's 44 px target is
+            // still met, and the button now fits what it shows.
+            playButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
             playButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             volumeSlider.widthAnchor.constraint(greaterThanOrEqualToConstant: 160),
             volumeSlider.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             volumeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
-            muteButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            // The mute control is a small glyph, but it is a control: the click target
+            // is SPEC 7.2's 44 px on both sides.
+            volumeIcon.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            volumeIcon.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             timerRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             // SPEC §7.2: the preset chips keep their 44 px targets; the block itself only
             // has to be tall enough to hold both rows.
             presetBlock.heightAnchor.constraint(greaterThanOrEqualToConstant: 100),
-            // The figure is 164 pt tall; the block has to hold it.
-            chakraView.heightAnchor.constraint(greaterThanOrEqualToConstant: 170),
+            // The figure is 192 pt tall; the block has to hold it.
+            chakraView.heightAnchor.constraint(greaterThanOrEqualToConstant: 192),
             chakraButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
         ]
         NSLayoutConstraint.activate(constraints)
@@ -438,6 +451,10 @@ final class MainWindowController: NSWindowController {
         updateChakraButtonAppearance()
         chakraView.isHidden = !enabled
         presetBlock.isHidden = enabled
+        // The cocoon only exists while the mode does, so it is told about the sound
+        // again here: turning the mode on while the sound is already running has to
+        // bring it to life, and turning it off has to let it go quiet.
+        chakraView.setPlaying(isPlaybackRunning)
         if enabled {
             // The mode owns both channels, so a locked difference would fight it.
             if differenceLock.isLocked {
@@ -867,6 +884,7 @@ final class MainWindowController: NSWindowController {
             showError(engine.error)
         }
         retranslate()
+        chakraView.setPlaying(isPlaybackRunning)
         publishPlaybackState()
     }
 
@@ -883,6 +901,7 @@ final class MainWindowController: NSWindowController {
         engine.stop()
         disarmTimer()
         hideError()
+        chakraView.setPlaying(isPlaybackRunning)
     }
 
     // MARK: - Timer (SPEC §5 F5)
@@ -953,8 +972,39 @@ final class MainWindowController: NSWindowController {
         scheduleSave()
     }
 
+    /// The speaker icon was clicked. The mute is a flip, not a checkbox: the icon is
+    /// the only place the state is shown, so the control keeps no state of its own.
     @objc private func muteToggled() {
-        engine.isMuted = muteButton.state == .on
+        setMuted(!engine.isMuted)
+    }
+
+    /// Mute or unmute, and show it on the icon.
+    ///
+    /// The volume is left alone: muting is a separate thing from turning the volume
+    /// down, and a user who unmutes expects the level they set to still be there.
+    func setMuted(_ muted: Bool) {
+        engine.isMuted = muted
+        updateMuteIcon()
+    }
+
+    /// The speaker that doubles as the mute control.
+    ///
+    /// Muted, it is crossed out — the state is on the icon, not in a word beside it.
+    private func updateMuteIcon() {
+        let muted = engine.isMuted
+        let image = NSImage(
+            systemSymbolName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+            accessibilityDescription: L10n.tr(muted ? "Unmute" : "Mute")
+        )?.withSymbolConfiguration(
+            NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
+        )
+        image?.size = NSSize(width: 17, height: 17)
+        volumeIcon.image = image
+        volumeIcon.setAccessibilityLabel(L10n.tr(muted ? "Unmute" : "Mute"))
+        volumeIcon.setAccessibilityHelp(
+            L10n.tr("Silences the sound. The volume itself is not changed.")
+        )
+        volumeIcon.contentTintColor = muted ? .tertiaryLabelColor : .secondaryLabelColor
     }
 
     private func updateVolumeLabel() {
@@ -1118,20 +1168,11 @@ final class MainWindowController: NSWindowController {
             ))
         }
 
-        volumeIcon.image = NSImage(
-            systemSymbolName: "speaker.wave.2.fill",
-            accessibilityDescription: L10n.tr("Volume")
-        )
-        volumeIcon.setAccessibilityLabel(L10n.tr("Volume"))
         volumeSlider.setAccessibilityLabel(L10n.tr("Volume"))
         volumeSlider.setAccessibilityHelp(
             L10n.tr("Output level from 0 to 100 percent. Not medical advice: keep it low.")
         )
-        muteButton.image = NSImage(
-            systemSymbolName: muteButton.state == .on ? "speaker.slash.fill" : "speaker.wave.2.fill",
-            accessibilityDescription: L10n.tr("Mute")
-        )
-        muteButton.setAccessibilityLabel(L10n.tr("Mute"))
+        updateMuteIcon()
 
         timerView.retranslate()
         chakraView.retranslate()
@@ -1153,10 +1194,14 @@ final class MainWindowController: NSWindowController {
         showCountdown(at: Date())
 
         let playing = engine.isRunning
-        playButton.image = NSImage(
+        let symbol = NSImage(
             systemSymbolName: playing ? "pause.fill" : "play.fill",
             accessibilityDescription: L10n.tr(playing ? "Stop" : "Play")
+        )?.withSymbolConfiguration(
+            NSImage.SymbolConfiguration(pointSize: 17, weight: .regular)
         )
+        symbol?.size = NSSize(width: 17, height: 17)
+        playButton.image = symbol
         playButton.setAccessibilityLabel(
             L10n.tr(playing ? "Stop the binaural tone" : "Play the binaural tone")
         )
@@ -1204,7 +1249,7 @@ final class MainWindowController: NSWindowController {
     }
 
     var displayedVolume: Double { volumeSlider.doubleValue }
-    var isMuted: Bool { muteButton.state == .on }
+    var isMuted: Bool { engine.isMuted }
     var isPlaying: Bool { engine.isRunning }
 
     /// Whether the difference lock is on.
@@ -1218,8 +1263,8 @@ final class MainWindowController: NSWindowController {
     var beatHintText: String { beatView.hintText }
     var rightCaption: String { rightControl.caption }
     var playButtonTitle: String { playButton.accessibilityLabel() ?? "" }
-    var volumeCaptionTitle: String { volumeIcon.accessibilityLabel() ?? "" }
-    var muteTitle: String { muteButton.accessibilityLabel() ?? "" }
+    var volumeCaptionTitle: String { volumeSlider.accessibilityLabel() ?? "" }
+    var muteTitle: String { volumeIcon.accessibilityLabel() ?? "" }
     var statusText: String { indicator.text }
     var statusToolTip: String { indicator.toolTip ?? "" }
 
@@ -1460,11 +1505,6 @@ final class MainWindowController: NSWindowController {
     func setVolume(_ level: Double) {
         volumeSlider.doubleValue = min(1, max(0, level))
         volumeMoved()
-    }
-
-    func setMuted(_ muted: Bool) {
-        muteButton.state = muted ? .on : .off
-        muteToggled()
     }
 
     // MARK: - Window visibility (the status item's job)

@@ -21,8 +21,14 @@ enum RussianWindowAdditions {
 
     /// Russian text for the keys in ``messages``, keyed by the same English sources.
     static let messages: [String: String] = [
-        // SPEC F2 asks for a mute control and `main_window.py` has no mute button.
+        // SPEC F2 asks for a mute control and `main_window.py` has no mute button. The
+        // speaker by the volume slider *is* that control, so the icon has to say both
+        // ways round: silence it, and stop silencing it.
         "Mute": "Без звука",
+        "Unmute": "Включить звук",
+        "Silences the sound. The volume itself is not changed.": (
+            "Выключает звук. Сама громкость не меняется."
+        ),
         // The Settings dialog is retired: the language it held moved into the main window,
         // so nothing here shows `Settings…` any more. `ru.py`'s "&Settings…" is still the Qt
         // app's own menu item and stays in the generated catalogue, untouched.

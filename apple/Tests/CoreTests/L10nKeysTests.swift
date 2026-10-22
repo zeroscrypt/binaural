@@ -23,7 +23,8 @@ final class L10nKeysTests: XCTestCase {
     /// one literal per `tr(` call, and a concatenated literal would hide half a key.
     static let referencedKeys: [String] = [
         // main window and transport
-        "Binaural", "LEFT EAR", "RIGHT EAR", "Play", "Stop", "Volume", "Mute",
+        "Binaural", "LEFT EAR", "RIGHT EAR", "Play", "Stop", "Volume", "Mute", "Unmute",
+        "Silences the sound. The volume itself is not changed.",
         "Play the binaural tone", "Stop the binaural tone",
         "Starts or stops playback. The keyboard shortcut is Space.",
         "Output level from 0 to 100 percent. Not medical advice: keep it low.",

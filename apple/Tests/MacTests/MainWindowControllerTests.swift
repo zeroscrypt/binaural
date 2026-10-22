@@ -120,6 +120,37 @@ final class MainWindowControllerTests: XCTestCase {
 
     // MARK: - Transport (SPEC F2)
 
+    /// The speaker by the volume slider *is* the mute control, and the icon says which
+    /// way round it is: a crossed speaker means silence, and a plain one means the sound
+    /// is back. There was a second control for the same thing at the far end of the
+    /// row, which said the same thing twice.
+    func testTheMuteControlIsTheSpeakerIcon() {
+        let controller = makeController()
+        XCTAssertEqual(controller.muteTitle, "Mute")
+
+        controller.setMuted(true)
+        XCTAssertTrue(controller.isMuted)
+        XCTAssertEqual(
+            controller.muteTitle, "Unmute",
+            "the icon has to say how to get the sound back, not only that it is gone"
+        )
+
+        controller.setMuted(false)
+        XCTAssertFalse(controller.isMuted)
+        XCTAssertEqual(controller.muteTitle, "Mute")
+    }
+
+    /// The slider keeps the volume and the icon keeps the silence: two different
+    /// things, and muting one does not move the other.
+    func testMutingDoesNotMoveTheVolume() {
+        let controller = makeController()
+        controller.setVolume(0.8)
+        controller.setMuted(true)
+
+        XCTAssertEqual(controller.displayedVolume, 0.8, accuracy: 0.001)
+        XCTAssertEqual(controller.volumeCaptionTitle, "Volume")
+    }
+
     func testVolumeAndMuteAreIndependentOfTheFrequencies() {
         let controller = makeController(session: Session(leftHz: 205, rightHz: 215, volume: 0.5))
         controller.setVolume(0.25)

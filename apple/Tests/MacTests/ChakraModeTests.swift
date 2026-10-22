@@ -41,6 +41,44 @@ final class ChakraModeTests: XCTestCase {
         return controller
     }
 
+    // MARK: - The cocoon
+
+    /// The cocoon is the sound's own shape: it is around the figure while the sound
+    /// plays, and it is not there when the sound stops.
+    func testTheCocoonFollowsTheSound() {
+        let controller = makeController(playing: true)
+        controller.setChakraMode(true)
+        XCTAssertTrue(
+            controller.chakraControl.figureIsPlaying,
+            "the cocoon is the sound's shape; it forms with the sound"
+        )
+
+        controller.playbackRunningOverride = false
+        controller.setChakraMode(false)
+        XCTAssertFalse(
+            controller.chakraControl.figureIsPlaying,
+            "and it falls apart when the sound stops"
+        )
+    }
+
+    /// The grains do not jump into the shape: they assemble into it, over about half a
+    /// second, which is the difference between a shell and a picture of one.
+    func testTheCocoonAssemblesRatherThanAppearing() {
+        let controller = makeController(playing: true)
+        controller.setChakraMode(true)
+
+        XCTAssertLessThan(
+            controller.chakraControl.cocoonFormation, 1,
+            "the shape forms over time, not in one step"
+        )
+
+        let formed = expectation(description: "the cocoon assembles")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            if controller.chakraControl.cocoonFormation >= 1 { formed.fulfill() }
+        }
+        wait(for: [formed], timeout: 5)
+    }
+
     // MARK: - It is a mode, and it is off to begin with
 
     /// The mode is a program of its own. A user who has not asked for it should get the
