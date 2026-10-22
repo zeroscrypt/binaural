@@ -35,11 +35,11 @@ final class ChakraFigureView: NSView {
     private static let pickRadius: CGFloat = 0.05
 
     /// The mark nearest to a point, if it is close enough to be a click.
-    private func mark(near point: CGPoint) -> Int? {
+    private func mark(near location: CGPoint) -> Int? {
         var best: (index: Int, distance: CGFloat)?
         for (visualIndex, normalised) in Body.marks.enumerated() {
-            let centre = self.point(normalised)
-            let distance = hypot(centre.x - point.x, centre.y - point.y)
+            let centre = point(normalised.x, normalised.y)
+            let distance = hypot(centre.x - location.x, centre.y - location.y)
             if best == nil || distance < best!.distance {
                 best = (Body.marks.count - 1 - visualIndex, distance)
             }
@@ -85,115 +85,97 @@ final class ChakraFigureView: NSView {
     /// width. The proportions are a standing figure seen from the front — a head, narrow
     /// shoulders, arms hanging clear of the torso, and two separate legs.
     private enum Body {
-        /// The body's width as a fraction of its height. A standing figure is about
-        /// two and a half times as tall as it is wide.
-        static let aspect: CGFloat = 0.40
+        /// The body's width as a fraction of its height. A figure in the lotus pose is
+        /// wider than it is tall at the knees, and the whole shape has to fit the panel.
+        static let aspect: CGFloat = 0.46
 
-        /// The head and the neck. The head is a small oval, wider at the temples than at
-        /// the jaw, and the neck is a short column between the jaw and the shoulders.
-        static let head: [CGPoint] = [
-            CGPoint(x: 0.500, y: 0.000),   // crown
-            CGPoint(x: 0.560, y: 0.014),
-            CGPoint(x: 0.606, y: 0.052),
-            CGPoint(x: 0.626, y: 0.090),   // temple
-            CGPoint(x: 0.606, y: 0.128),
-            CGPoint(x: 0.560, y: 0.152),
-            CGPoint(x: 0.530, y: 0.164),   // jaw corner
-            CGPoint(x: 0.524, y: 0.196),   // neck
-            CGPoint(x: 0.476, y: 0.196),
-            CGPoint(x: 0.470, y: 0.164),
-            CGPoint(x: 0.440, y: 0.152),
-            CGPoint(x: 0.394, y: 0.128),
-            CGPoint(x: 0.374, y: 0.090),
-            CGPoint(x: 0.394, y: 0.052),
-            CGPoint(x: 0.440, y: 0.014)
+        /// The head: an oval from the crown to the chin.
+        static let headCentreY: CGFloat = 0.100
+        static let headHalfWidth: CGFloat = 0.048
+        static let headHalfHeight: CGFloat = 0.080
+
+        /// The trunk, upright: neck, shoulders, ribs, waist, hips.
+        static let neckTop: CGFloat = 0.170
+        static let neckBottom: CGFloat = 0.235
+        static let neckHalfWidth: CGFloat = 0.026
+        static let shoulderY: CGFloat = 0.250
+        static let shoulderHalfWidth: CGFloat = 0.112
+        static let armpitY: CGFloat = 0.320
+        static let waistY: CGFloat = 0.430
+        static let waistHalfWidth: CGFloat = 0.090
+        static let hipY: CGFloat = 0.500
+        static let hipHalfWidth: CGFloat = 0.106
+        static let lapY: CGFloat = 0.570
+
+        /// The crossed legs: a wide, low mound with the knees at the sides and the feet
+        /// crossed in front.
+        static let base: [(x: CGFloat, y: CGFloat)] = [
+            (0.000, 0.545),
+            (0.155, 0.560),
+            (0.296, 0.645),   // right knee
+            (0.312, 0.760),
+            (0.248, 0.840),
+            (0.118, 0.868),
+            (0.000, 0.858),   // the crossed feet at the front
+            (-0.118, 0.868),
+            (-0.248, 0.840),
+            (-0.312, 0.760),
+            (-0.296, 0.645),
+            (-0.155, 0.560)
         ]
 
-        /// The trunk: shoulders, ribs, waist, hips. Drawn on its own so the arms can
-        /// hang beside it with a gap between them, the way an arm actually does.
-        static let torso: [CGPoint] = [
-            CGPoint(x: 0.500, y: 0.190),   // where the neck meets the trunk
-            CGPoint(x: 0.590, y: 0.210),
-            CGPoint(x: 0.660, y: 0.236),   // shoulder
-            CGPoint(x: 0.672, y: 0.276),   // deltoid
-            CGPoint(x: 0.648, y: 0.350),   // ribs
-            CGPoint(x: 0.608, y: 0.430),   // waist
-            CGPoint(x: 0.618, y: 0.500),   // hip
-            CGPoint(x: 0.500, y: 0.520),   // crotch
-            CGPoint(x: 0.382, y: 0.500),
-            CGPoint(x: 0.392, y: 0.430),
-            CGPoint(x: 0.352, y: 0.350),
-            CGPoint(x: 0.328, y: 0.276),
-            CGPoint(x: 0.340, y: 0.236),
-            CGPoint(x: 0.410, y: 0.210)
+        /// The feet, crossed in front of the lap.
+        static let feet: [(x: CGFloat, y: CGFloat)] = [
+            (0.000, 0.790),
+            (0.058, 0.812),
+            (0.052, 0.850),
+            (0.000, 0.856),
+            (-0.052, 0.850),
+            (-0.058, 0.812)
         ]
 
-        /// One arm, from the shoulder to the hand. The left arm is the mirror of it.
-        static let arm: [CGPoint] = [
-            CGPoint(x: 0.660, y: 0.240),
-            CGPoint(x: 0.706, y: 0.286),   // upper arm
-            CGPoint(x: 0.712, y: 0.360),   // elbow
-            CGPoint(x: 0.706, y: 0.440),   // forearm
-            CGPoint(x: 0.700, y: 0.492),   // wrist
-            CGPoint(x: 0.714, y: 0.526),   // hand
-            CGPoint(x: 0.704, y: 0.552),   // fingertips
-            CGPoint(x: 0.678, y: 0.542),
-            CGPoint(x: 0.674, y: 0.492),
-            CGPoint(x: 0.678, y: 0.436),
-            CGPoint(x: 0.672, y: 0.356),
-            CGPoint(x: 0.650, y: 0.284),
-            CGPoint(x: 0.646, y: 0.238)
+        /// The arm, from the shoulder joint to the hand resting on the knee.
+        static let arm: [(x: CGFloat, y: CGFloat)] = [
+            (0.104, 0.258),   // shoulder joint
+            (0.168, 0.400),   // upper arm
+            (0.232, 0.540),   // elbow
+            (0.268, 0.650),   // forearm
+            (0.282, 0.700),   // wrist
+            (0.292, 0.730),   // hand
+            (0.268, 0.748),   // fingertips
+            (0.242, 0.716),   // palm
+            (0.232, 0.660),   // inner wrist
+            (0.196, 0.552),   // inner elbow
+            (0.140, 0.412),   // inner upper arm
+            (0.108, 0.320)    // armpit
         ]
 
-        /// One leg, from the hip to the foot. The left leg is the mirror of it.
-        ///
-        /// The legs are **narrow and parallel**. An earlier version let them splay, and
-        /// the splay read as a wide base under the body — a second, lower silhouette
-        /// that had nothing to do with the figure.
-        static let leg: [CGPoint] = [
-            CGPoint(x: 0.506, y: 0.512),
-            CGPoint(x: 0.596, y: 0.502),
-            CGPoint(x: 0.606, y: 0.610),   // thigh
-            CGPoint(x: 0.590, y: 0.720),   // knee
-            CGPoint(x: 0.598, y: 0.840),   // calf
-            CGPoint(x: 0.590, y: 0.928),   // ankle
-            CGPoint(x: 0.612, y: 0.958),   // toe
-            CGPoint(x: 0.528, y: 0.962),   // heel
-            CGPoint(x: 0.514, y: 0.928),
-            CGPoint(x: 0.510, y: 0.840),
-            CGPoint(x: 0.504, y: 0.720),
-            CGPoint(x: 0.500, y: 0.610)
-        ]
-
-        /// The eight marks, crown first, on the spine. The visual order is the reverse
-        /// of the sequence's — that one runs earth to crown.
+        /// The seven chakras and the earth below them, as heights down the body.
         ///
         /// The heights are the traditional ones: the crown at the top of the head, the
         /// third eye between the brows, the throat at the base of the throat, the heart
-        /// in the chest, the solar plexus between the navel and the bottom of the ribs,
-        /// the sacral four fingers below the navel, the root at the base of the spine,
-        /// and the earth below the feet.
-        static let marks: [CGPoint] = [
-            CGPoint(x: 0.5, y: 0.030),   // crown
-            CGPoint(x: 0.5, y: 0.100),   // third eye
-            CGPoint(x: 0.5, y: 0.200),   // throat
-            CGPoint(x: 0.5, y: 0.300),   // heart
-            CGPoint(x: 0.5, y: 0.420),   // solar plexus
-            CGPoint(x: 0.5, y: 0.490),   // sacral
-            CGPoint(x: 0.5, y: 0.550),   // root
-            CGPoint(x: 0.5, y: 0.948)    // earth, at the feet
+        /// in the centre of the chest, the solar plexus in the upper abdomen under the
+        /// ribcage, the sacral just below the navel, the root at the base of the spine.
+        /// The earth is below the body, not on it.
+        static let marks: [(x: CGFloat, y: CGFloat)] = [
+            (0, 0.055),   // crown
+            (0, 0.135),   // third eye
+            (0, 0.205),   // throat
+            (0, 0.330),   // heart
+            (0, 0.440),   // solar plexus
+            (0, 0.515),   // sacral
+            (0, 0.590),   // root
+            (0, 0.960)    // earth, below the body
         ]
     }
 
-    /// The body's width in points.
-    private var bodyWidth: CGFloat { bounds.height * Body.aspect }
-
-    /// Map normalised coordinates onto the view. The body is centred, and its height is
-    /// the view's height.
-    private func point(_ normalised: CGPoint) -> CGPoint {
+    /// A point given as a half-width in units of the body's height and a height down
+    /// the body. The body's height is the view's height, and it is centred, so the
+    /// units are the same everywhere and the proportions are the drawing's.
+    private func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
         CGPoint(
-            x: bounds.midX + (normalised.x - 0.5) * bodyWidth,
-            y: normalised.y * bounds.height
+            x: bounds.midX + x * bounds.height,
+            y: y * bounds.height
         )
     }
 
@@ -202,16 +184,42 @@ final class ChakraFigureView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         let ink = NSColor.secondaryLabelColor
         let line = NSBezierPath()
-        line.lineWidth = max(1.0, bounds.height * 0.007)
+        line.lineWidth = max(1.0, bounds.height * 0.006)
         line.lineJoinStyle = .round
         line.lineCapStyle = .round
 
-        line.append(smoothPath(Body.head))
-        line.append(smoothPath(Body.torso))
+        // The head.
+        let head = point(0, Body.headCentreY)
+        let headWidth = Body.headHalfWidth * bounds.height
+        let headHeight = Body.headHalfHeight * bounds.height
+        line.appendOval(in: NSRect(
+            x: head.x - headWidth,
+            y: head.y - headHeight,
+            width: headWidth * 2,
+            height: headHeight * 2
+        ))
+
+        // The trunk, upright.
+        line.append(smoothPath([
+            (0, Body.neckTop),
+            (Body.neckHalfWidth, Body.neckBottom),
+            (Body.shoulderHalfWidth, Body.shoulderY),
+            (Body.shoulderHalfWidth * 0.92, Body.armpitY),
+            (Body.waistHalfWidth, Body.waistY),
+            (Body.hipHalfWidth, Body.hipY),
+            (0, Body.lapY),
+            (-Body.hipHalfWidth, Body.hipY),
+            (-Body.waistHalfWidth, Body.waistY),
+            (-Body.shoulderHalfWidth * 0.92, Body.armpitY),
+            (-Body.shoulderHalfWidth, Body.shoulderY),
+            (-Body.neckHalfWidth, Body.neckBottom)
+        ]))
+
+        // The crossed legs, the feet in front of them, and the arms.
+        line.append(smoothPath(Body.base))
+        line.append(smoothPath(Body.feet))
         line.append(smoothPath(Body.arm))
-        line.append(smoothPath(Body.arm.map { $0.mirrored() }))
-        line.append(smoothPath(Body.leg))
-        line.append(smoothPath(Body.leg.map { $0.mirrored() }))
+        line.append(smoothPath(Body.arm.map { (-$0.x, $0.y) }))
 
         ink.setStroke()
         line.stroke()
@@ -221,25 +229,24 @@ final class ChakraFigureView: NSView {
 
     /// A closed path through the given points, smoothed.
     ///
-    /// The curve passes **through** the points rather than through the midpoints between
-    /// them. Smoothing through the midpoints is the cheaper trick, but it pulls the shape
-    /// in towards its own centre and rounds the corners — a body drawn that way loses its
-    /// shoulders and its width. A spline through the points keeps the figure's extent and
-    /// only softens the corners.
-    private func smoothPath(_ points: [CGPoint]) -> NSBezierPath {
+    /// The curve runs *through* the points rather than between them. Smoothing through
+    /// the midpoints is the cheaper trick, but it pulls the shape in towards its own
+    /// centre: a torso drawn that way loses its shoulders, and the figure comes out
+    /// narrower than the marks on it. A spline through the points keeps the figure's
+    /// extent and only softens the corners.
+    private func smoothPath(_ points: [(x: CGFloat, y: CGFloat)]) -> NSBezierPath {
         let path = NSBezierPath()
-        let p = points.map { point($0) }
-        let n = p.count
-        guard n > 2 else { return path }
+        let p = points.map { point($0.x, $0.y) }
+        guard p.count > 2 else { return path }
         // How much of the neighbouring segment the curve borrows. Below 1 it rounds the
         // corners without the overshoot a full Catmull-Rom puts at a sharp turn.
         let tension = 0.8
         path.move(to: p[0])
-        for i in 0..<n {
-            let p0 = p[(i - 1 + n) % n]
-            let p1 = p[i]
-            let p2 = p[(i + 1) % n]
-            let p3 = p[(i + 2) % n]
+        for index in p.indices {
+            let p0 = p[(index - 1 + p.count) % p.count]
+            let p1 = p[index]
+            let p2 = p[(index + 1) % p.count]
+            let p3 = p[(index + 2) % p.count]
             let c1 = CGPoint(
                 x: p1.x + (p2.x - p0.x) * tension / 6,
                 y: p1.y + (p2.y - p0.y) * tension / 6
@@ -257,12 +264,17 @@ final class ChakraFigureView: NSView {
     /// The seven marks: a dot in each chakra's colour, on the spine.
     private func drawMarks() {
         for (visualIndex, normalised) in Body.marks.enumerated() {
-            // The visual order is crown-first; the sequence runs root-first.
+            // The visual order is crown-first; the sequence runs earth-first.
             let stepIndex = Body.marks.count - 1 - visualIndex
-            let centre = point(normalised)
+            let centre = point(normalised.x, normalised.y)
             let colour = ChakraPalette.color(forStepIndex: stepIndex)
             let isCurrent = currentIndex == stepIndex
             let isReached = stepIndex <= reachedIndex
+            // The step in hand is brighter than the ones around it, so the eye finds it
+            // before it reads anything.
+            let markColour = isCurrent
+                ? ChakraPalette.brightColor(forStepIndex: stepIndex)
+                : colour
 
             let base = bounds.height * 0.0135
             let radius = isCurrent ? base * 1.35 : base
@@ -277,7 +289,7 @@ final class ChakraFigureView: NSView {
                 ]
                 for halo in halos {
                     let grown = radius * halo.scale
-                    colour.withAlphaComponent(halo.alpha).setFill()
+                    markColour.withAlphaComponent(halo.alpha).setFill()
                     NSBezierPath(ovalIn: NSRect(
                         x: centre.x - grown, y: centre.y - grown,
                         width: grown * 2, height: grown * 2
@@ -285,7 +297,7 @@ final class ChakraFigureView: NSView {
                 }
             }
 
-            colour.withAlphaComponent(isReached ? 1.0 : 0.32).setFill()
+            markColour.withAlphaComponent(isReached ? 0.75 : 0.28).setFill()
             NSBezierPath(ovalIn: NSRect(
                 x: centre.x - radius, y: centre.y - radius,
                 width: radius * 2, height: radius * 2
@@ -312,18 +324,19 @@ extension CGPoint {
 @MainActor
 final class ChakraView: NSView {
 
-    /// The user picked a new step duration, in seconds.
-    var onStepSecondsChange: ((Double) -> Void)?
     /// The user typed a new beat, in Hz.
     var onBeatChange: ((Double) -> Void)?
-    /// The user picked a new length for the whole journey, in minutes.
-    var onDurationMinutesChange: ((Int) -> Void)?
+    /// The user picked a new length for one step, in seconds.
+    var onStepSecondsChange: ((Int) -> Void)?
     /// The user chose which way the journey walks first.
     var onDirectionChange: ((ChakraSequence.Direction) -> Void)?
     /// The user clicked a chakra on the figure, and wants the journey to start there.
     var onChakraPicked: ((Int) -> Void)?
 
     private let figure = ChakraFigureView()
+    /// The eight steps as buttons. The marks on the figure are small, and a small mark
+    /// is a hard mark to hit; these are the same steps with a whole finger each.
+    private var chakraButtons: [ChakraButton] = []
     private let frequencyLabel = NSTextField(labelWithString: "")
     private let nameLabel = NSTextField(labelWithString: "")
     private let descriptionLabel = NSTextField(labelWithString: "")
@@ -332,9 +345,10 @@ final class ChakraView: NSView {
     private let directionCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
     private let beatCaptionLabel = NSTextField(labelWithString: "")
     private let beatField = TallTargetTextField()
+    private let beatStepper = NSStepper()
     private let noteLabel = NSTextField(labelWithString: "")
 
-    private var durationMinutes: Int = ChakraSequence.defaultDurationMinutes
+    private var stepSeconds: Int = ChakraSequence.defaultStepSeconds
     private var direction: ChakraSequence.Direction = .up
     private var beatHz: Double = ChakraSequence.defaultBeatHz
     private var isSyncing = false
@@ -374,7 +388,7 @@ final class ChakraView: NSView {
         durationPopup.font = .systemFont(ofSize: 13)
         durationPopup.target = self
         durationPopup.action = #selector(durationChanged)
-        durationPopup.setAccessibilityLabel(L10n.tr("Duration"))
+        durationPopup.setAccessibilityLabel(L10n.tr("Step"))
 
         directionCheckbox.target = self
         directionCheckbox.action = #selector(directionToggled)
@@ -400,18 +414,50 @@ final class ChakraView: NSView {
         beatField.formatter = Self.beatFormatter()
         beatField.setAccessibilityLabel(ChakraSequence.beatCaption)
 
+        // The arrows beside the beat. The `↑`/`↓` keys move the *frequency*; the beat
+        // had no mouse path at all, and a number that can only be changed by typing is a
+        // number nobody changes. Half a hertz a click, which is the difference between
+        // the alpha band and the edge of it.
+        beatStepper.minValue = ChakraSequence.minBeatHz
+        beatStepper.maxValue = ChakraSequence.maxBeatHz
+        beatStepper.increment = 0.5
+        beatStepper.valueWraps = false
+        beatStepper.target = self
+        beatStepper.action = #selector(beatStepperMoved)
+        beatStepper.setAccessibilityLabel(ChakraSequence.beatCaption)
+
         noteLabel.font = .systemFont(ofSize: 11)
         noteLabel.textColor = .tertiaryLabelColor
         noteLabel.lineBreakMode = .byWordWrapping
         noteLabel.maximumNumberOfLines = 2
         noteLabel.stringValue = ChakraSequence.defaultBeatNote
 
+        // The steps as buttons, in the order the sequence walks them.
+        chakraButtons = ChakraSequence.steps.indices.map { index in
+            let button = ChakraButton(frame: .zero)
+            button.fill = ChakraPalette.color(forStepIndex: index)
+            button.setAccessibilityLabel(
+                ChakraSequence.name(of: ChakraSequence.steps[index])
+            )
+            button.setAccessibilityHelp(
+                L10n.tr("Play this chakra from here.")
+            )
+            button.target = self
+            button.action = #selector(chakraButtonTapped(_:))
+            button.tag = index
+            return button
+        }
+        let chakraRow = NSStackView(views: chakraButtons)
+        chakraRow.orientation = .horizontal
+        chakraRow.alignment = .centerY
+        chakraRow.spacing = 6
+
         let durationRow = NSStackView(views: [durationCaptionLabel, durationPopup])
         durationRow.orientation = .horizontal
         durationRow.alignment = .centerY
         durationRow.spacing = 8
 
-        let beatRow = NSStackView(views: [beatCaptionLabel, beatField])
+        let beatRow = NSStackView(views: [beatCaptionLabel, beatField, beatStepper])
         beatRow.orientation = .horizontal
         beatRow.alignment = .centerY
         beatRow.spacing = 8
@@ -430,7 +476,8 @@ final class ChakraView: NSView {
         controls.spacing = 16
 
         let text = NSStackView(views: [
-            frequencyLabel, nameLabel, descriptionLabel, controls, directionCheckbox, noteLabel
+            frequencyLabel, nameLabel, descriptionLabel, chakraRow, controls,
+            directionCheckbox, noteLabel
         ])
         text.orientation = .vertical
         text.alignment = .leading
@@ -453,12 +500,20 @@ final class ChakraView: NSView {
             // SPEC §7.2: 44 px minimum click target. The field is the height of its own
             // text, and `TallTargetTextField` adds the missing band back as hit slop.
             durationPopup.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-            beatField.widthAnchor.constraint(equalToConstant: 76)
+            // As wide as the widest beat the mode accepts — `40.0` — and no wider.
+            beatField.widthAnchor.constraint(
+                equalToConstant: FieldMetrics.width(
+                    for: "40.0",
+                    font: beatField.font ?? NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
+                )
+            ),
+            // SPEC §7.2: the steps are buttons, so they are click targets.
+            chakraRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
         ])
 
         setAccessibilityLabel(ChakraSequence.modeName)
         rebuildDurationItems()
-        setDurationMinutes(durationMinutes)
+        setStepSeconds(stepSeconds)
         setDirection(direction)
         setBeatHz(beatHz)
     }
@@ -484,8 +539,8 @@ final class ChakraView: NSView {
     /// list is rebuilt rather than patched.
     private func rebuildDurationItems() {
         durationPopup.removeAllItems()
-        for choice in ChakraSequence.durationMinutesChoices {
-            durationPopup.addItem(withTitle: L10n.tr("%1 min", String(choice)))
+        for choice in ChakraSequence.stepSecondsChoices {
+            durationPopup.addItem(withTitle: ChakraSequence.stepText(choice))
             durationPopup.lastItem?.representedObject = choice
         }
     }
@@ -498,18 +553,21 @@ final class ChakraView: NSView {
         frequencyLabel.stringValue = FrequencyGrid.text(step.hz)
         // The number wears its chakra's colour: the colour is what the eye reads first,
         // and it is the same colour as the mark on the figure.
-        frequencyLabel.textColor = ChakraPalette.color(forStepIndex: index)
+        frequencyLabel.textColor = ChakraPalette.brightColor(forStepIndex: index)
         nameLabel.stringValue = ChakraSequence.name(of: step)
         descriptionLabel.stringValue = ChakraSequence.description(of: step)
         figure.currentIndex = index
         figure.reachedIndex = reachedIndex
+        for (buttonIndex, button) in chakraButtons.enumerated() {
+            button.isCurrent = buttonIndex == index
+        }
         setAccessibilityValue("\(ChakraSequence.name(of: step)), \(FrequencyGrid.text(step.hz)) Hz")
     }
 
     /// Select a length without telling anyone — used while restoring.
-    func setDurationMinutes(_ value: Int) {
-        durationMinutes = value
-        let index = ChakraSequence.durationMinutesChoices.firstIndex(of: value)
+    func setStepSeconds(_ value: Int) {
+        stepSeconds = value
+        let index = ChakraSequence.stepSecondsChoices.firstIndex(of: value)
             ?? Self.closestChoice(to: value)
         isSyncing = true
         durationPopup.selectItem(at: index)
@@ -519,7 +577,7 @@ final class ChakraView: NSView {
     private static func closestChoice(to value: Int) -> Int {
         var best = 0
         var bestDistance = Int.max
-        for (index, choice) in ChakraSequence.durationMinutesChoices.enumerated() {
+        for (index, choice) in ChakraSequence.stepSecondsChoices.enumerated() {
             let distance = abs(choice - value)
             if distance < bestDistance {
                 bestDistance = distance
@@ -542,11 +600,12 @@ final class ChakraView: NSView {
         beatHz = value
         isSyncing = true
         beatField.doubleValue = value
+        beatStepper.doubleValue = value
         isSyncing = false
     }
 
-    /// The length of the whole journey, in minutes.
-    var selectedDurationMinutes: Int { durationMinutes }
+    /// The length of one step, in seconds.
+    var selectedStepSeconds: Int { stepSeconds }
 
     /// Which way the journey walks first.
     var selectedDirection: ChakraSequence.Direction { direction }
@@ -569,19 +628,35 @@ final class ChakraView: NSView {
 
     // MARK: - Actions
 
+    /// A step was chosen. The journey starts there.
+    @objc private func chakraButtonTapped(_ sender: NSButton) {
+        onChakraPicked?(sender.tag)
+    }
+
     @objc private func durationChanged() {
         guard !isSyncing,
               let raw = durationPopup.selectedItem?.representedObject as? Int,
-              raw != durationMinutes
+              raw != stepSeconds
         else { return }
-        durationMinutes = raw
-        onDurationMinutesChange?(raw)
+        stepSeconds = raw
+        onStepSecondsChange?(raw)
     }
 
     @objc private func directionToggled() {
         guard !isSyncing else { return }
         direction = directionCheckbox.state == .on ? .up : .down
         onDirectionChange?(direction)
+    }
+
+    @objc private func beatStepperMoved() {
+        guard !isSyncing else { return }
+        let clamped = min(
+            ChakraSequence.maxBeatHz,
+            max(ChakraSequence.minBeatHz, beatStepper.doubleValue)
+        )
+        beatStepper.doubleValue = clamped
+        beatHz = clamped
+        onBeatChange?(clamped)
     }
 
     @objc private func beatCommitted() {
@@ -604,8 +679,8 @@ final class ChakraView: NSView {
 
     /// Re-read every caption after a language switch (SPEC §7.4), keeping the values.
     func retranslate() {
-        durationCaptionLabel.stringValue = L10n.tr("Duration")
-        durationPopup.setAccessibilityLabel(L10n.tr("Duration"))
+        durationCaptionLabel.stringValue = L10n.tr("Step")
+        durationPopup.setAccessibilityLabel(L10n.tr("Step"))
         directionCheckbox.title = direction.name(for: L10n.language)
         directionCheckbox.setAccessibilityLabel(L10n.tr("Direction"))
         beatCaptionLabel.stringValue = ChakraSequence.beatCaption
@@ -613,7 +688,7 @@ final class ChakraView: NSView {
         noteLabel.stringValue = ChakraSequence.defaultBeatNote
         setAccessibilityLabel(ChakraSequence.modeName)
         rebuildDurationItems()
-        setDurationMinutes(durationMinutes)
+        setStepSeconds(stepSeconds)
         setDirection(direction)
     }
 }

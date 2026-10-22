@@ -23,7 +23,33 @@ enum ChakraPalette {
         colors[ChakraSequence.index(of: index)]
     }
 
-    /// Earth first: stone, red, orange, yellow, green, light blue, blue, violet.
+    /// The colour of the step being played, brightened.
+    ///
+    /// The step in hand is the one the eye has to find first, and the resting colours are
+    /// muted on purpose. Brightening the current one is how the figure says which step it
+    /// is — and how the number says it too — without a second, brighter palette to keep
+    /// in step with the first.
+    static func brightColor(forStepIndex index: Int) -> NSColor {
+        bright(colors[ChakraSequence.index(of: index)])
+    }
+
+    /// The same hue, more of it: a little more saturation and a little more brightness.
+    static func bright(_ colour: NSColor) -> NSColor {
+        guard let srgb = colour.usingColorSpace(.sRGB) else { return colour }
+        var hue: CGFloat = 0
+        var saturation: CGFloat = 0
+        var brightness: CGFloat = 0
+        var alpha: CGFloat = 0
+        srgb.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+        return NSColor(
+            hue: hue,
+            saturation: min(1, saturation * 1.2),
+            brightness: min(1, brightness * 1.45),
+            alpha: alpha
+        )
+    }
+
+    /// Root first: stone, red, orange, yellow, green, light blue, blue, violet.
     ///
     /// The earth is a stone grey rather than a colour of the rainbow: it is not a
     /// chakra, it is the ground the seven stand on, and giving it a hue of its own would

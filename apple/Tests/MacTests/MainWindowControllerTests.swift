@@ -170,10 +170,10 @@ final class MainWindowControllerTests: XCTestCase {
 
     func testLanguageSwitchRetranslatesTheWindowLive() {
         let controller = makeController()
-        XCTAssertEqual(controller.playButtonTitle, "Play")
+        XCTAssertEqual(controller.playButtonTitle, "Play the binaural tone")
 
         L10n.setLanguage("ru")
-        XCTAssertEqual(controller.playButtonTitle, "Воспроизвести")
+        XCTAssertEqual(controller.playButtonTitle, "Запустить бинауральный тон")
         XCTAssertEqual(controller.leftCaption, "ЛЕВОЕ УХО")
         XCTAssertEqual(controller.rightCaption, "ПРАВОЕ УХО")
         XCTAssertEqual(controller.volumeCaptionTitle, "Громкость")
@@ -181,7 +181,7 @@ final class MainWindowControllerTests: XCTestCase {
         XCTAssertEqual(controller.window?.title, "Binaural")
 
         L10n.setLanguage("en")
-        XCTAssertEqual(controller.playButtonTitle, "Play")
+        XCTAssertEqual(controller.playButtonTitle, "Play the binaural tone")
         XCTAssertEqual(controller.leftCaption, "LEFT EAR")
     }
 
@@ -366,7 +366,7 @@ final class MainWindowControllerTests: XCTestCase {
         wired.tickTimer(at: start.addingTimeInterval(5 * 60 + 2))
         XCTAssertFalse(wired.isPlaying, "the timer ends the session by itself")
         XCTAssertFalse(wired.isShowingCountdown)
-        XCTAssertEqual(wired.playButtonTitle, "Play")
+        XCTAssertEqual(wired.playButtonTitle, "Play the binaural tone")
 
         // And it stopped by ramping the gain, not by jumping it: the published gain is
         // zero *with* the ramp SPEC F2 asks for, which is what makes it inaudible.

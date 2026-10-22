@@ -88,6 +88,7 @@ MESSAGES: dict[str, str] = {
     ),
     "Step": "Шаг",
     "Duration": "Длительность",
+    "Play this chakra from here.": "Играть с этой чакры.",
     "Direction": "Направление",
     "Up, then back": "Снизу вверх и обратно",
     "Down, then back": "Сверху вниз и обратно",

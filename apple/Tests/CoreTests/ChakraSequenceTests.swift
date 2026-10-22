@@ -76,19 +76,14 @@ final class ChakraSequenceTests: XCTestCase {
         XCTAssertLessThanOrEqual(ChakraSequence.defaultBeatHz, ChakraSequence.maxBeatHz)
     }
 
-    /// The default step is the measured one: the reference recording held each chakra
-    /// for six seconds.
-    func testTheDefaultStepIsSixSeconds() {
-        XCTAssertEqual(ChakraSequence.defaultStepSeconds, 6.0)
-        XCTAssertTrue(ChakraSequence.stepSecondsChoices.contains(ChakraSequence.defaultStepSeconds))
-    }
-
-    /// The default is on the list, so the control can show it without a special case.
-    func testTheStepChoicesAreOrderedAndIncludeTheDefault() {
-        let choices = ChakraSequence.stepSecondsChoices
-        XCTAssertEqual(choices, choices.sorted())
-        XCTAssertEqual(choices.first, 3)
-        XCTAssertTrue(choices.contains(ChakraSequence.defaultStepSeconds))
+    /// The step is the *switch timer*: how long a chakra lasts before the next one. The
+    /// choices run from half a minute to five.
+    func testTheDefaultStepIsHalfAMinuteAndTheChoicesAreOrdered() {
+        XCTAssertEqual(ChakraSequence.defaultStepSeconds, 30)
+        XCTAssertEqual(ChakraSequence.stepSecondsChoices, [30, 60, 120, 300])
+        XCTAssertTrue(
+            ChakraSequence.stepSecondsChoices.contains(ChakraSequence.defaultStepSeconds)
+        )
     }
 
     // MARK: - The pair

@@ -47,6 +47,8 @@ __all__ = [
     "beat_caption",
     "default_beat_note",
     "step_seconds_text",
+    "step_text",
+    "play_from_here_caption",
     "duration_caption",
     "direction_caption",
     "up_then_back_caption",
@@ -56,14 +58,14 @@ __all__ = [
 _CONTEXT = "Chakras"
 
 
-def tr(text: str) -> str:
+def tr(text: str, *args: str) -> str:
     """Translate through the shared catalogue.
 
     The wrapper keeps the call sites identical and gives lupdate a stable context.
     """
     from ..i18n import tr as _tr
 
-    return _tr(text, context=_CONTEXT)
+    return _tr(text, *args, context=_CONTEXT)
 
 
 @dataclass(frozen=True)
@@ -106,10 +108,12 @@ STEPS: tuple[ChakraStep, ...] = (
 DEFAULT_BEAT_HZ: float = 21.0
 
 #: How long one chakra lasts before the next, in seconds.
-DEFAULT_STEP_SECONDS: float = 6.0
+#: The length of one step, in seconds. This is the *switch timer*: how long a chakra
+#: lasts before the next one.
+DEFAULT_STEP_SECONDS: int = 30
 
-#: The offered step durations, in seconds. The default is among them.
-STEP_SECONDS_CHOICES: tuple[float, ...] = (3, 6, 10, 15, 20, 30)
+#: The offered step lengths, in seconds: half a minute, one, two and five minutes.
+STEP_SECONDS_CHOICES: tuple[int, ...] = (30, 60, 120, 300)
 
 #: The shortest and longest beat the mode accepts. The upper bound is roughly where a
 #: binaural difference stops being heard as a beat and starts being heard as roughness;
@@ -242,9 +246,21 @@ def default_beat_note() -> str:
     return tr("The default 21 Hz sits in the alpha band.")
 
 
+def step_text(seconds: int) -> str:
+    """A step length as a caption: ``30 s``, ``1 min``, ``5 min``."""
+    if seconds < 60:
+        return tr("%1 s", str(seconds))
+    return tr("%1 min", str(seconds // 60))
+
+
 def duration_caption() -> str:
     """The caption of the journey-length control."""
     return tr("Duration")
+
+
+def play_from_here_caption() -> str:
+    """The help text on a step's button."""
+    return tr("Play this chakra from here.")
 
 
 def direction_caption() -> str:

@@ -61,7 +61,6 @@ final class FrequencyControlView: NSView {
     private let accentText: NSColor
     private let captionLabel = NSTextField(labelWithString: "")
     private let rangeHintLabel = NSTextField(labelWithString: "")
-    private let displayLabel = NSTextField(labelWithString: "")
     private let field = TallTargetTextField()
     private let stepper = NSStepper()
     private let slider = NSSlider()
@@ -96,11 +95,12 @@ final class FrequencyControlView: NSView {
         rangeHintLabel.textColor = .tertiaryLabelColor
         rangeHintLabel.alignment = .right
 
-        displayLabel.font = .monospacedDigitSystemFont(ofSize: 30, weight: .semibold)
-        displayLabel.textColor = accent
-
         field.delegate = self
-        field.font = .monospacedDigitSystemFont(ofSize: 15, weight: .regular)
+        // The field **is** the readout. It used to have a big number above it and a
+        // small field below, and both showed the same value — the panel said the same
+        // thing twice and the eye had to work out which one was the real one.
+        field.font = .monospacedDigitSystemFont(ofSize: 24, weight: .semibold)
+        field.textColor = accent
         field.alignment = .left
         // The number is read at a fixed place — the left edge — and sits in the middle
         // of the field's height rather than at the top of it. A single-line bezeled cell
@@ -150,7 +150,7 @@ final class FrequencyControlView: NSView {
         entryRow.alignment = .centerY
         entryRow.spacing = 6
 
-        let stack = NSStackView(views: [header, displayLabel, entryRow, slider])
+        let stack = NSStackView(views: [header, entryRow, slider])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 8
@@ -172,11 +172,16 @@ final class FrequencyControlView: NSView {
             entryRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             slider.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             slider.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28),
-            // The exact-entry field is a fixed width rather than the panel's. It was
-            // stretched across the whole panel, which made a four-digit number look
-            // like it was floating in an empty room; the slider below is the thing that
-            // wants the width.
-            field.widthAnchor.constraint(equalToConstant: 124),
+            // The exact-entry field is as wide as the widest value it can hold —
+            // `20000.0` — and no wider. It was stretched across the whole panel, which
+            // made a four-digit number look like it was floating in an empty room; the
+            // slider below is the thing that wants the width.
+            field.widthAnchor.constraint(
+                equalToConstant: FieldMetrics.width(
+                    for: "20000.0",
+                    font: field.font ?? NSFont.monospacedDigitSystemFont(ofSize: 24, weight: .semibold)
+                )
+            ),
             rangeHintLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 96),
             rangeHintLabel.trailingAnchor.constraint(equalTo: stack.trailingAnchor, constant: -16),
             captionLabel.trailingAnchor.constraint(lessThanOrEqualTo: rangeHintLabel.leadingAnchor, constant: -8)
@@ -271,13 +276,12 @@ final class FrequencyControlView: NSView {
     private func syncWidgets() {
         isSyncing = true
         defer { isSyncing = false }
-        displayLabel.stringValue = String(format: "%.1f", value)
         if let editor = field.currentEditor() {
             // Do not fight the user while they are typing: only refresh the buffer
             // when the field is not being edited.
             editor.string = String(format: "%.1f", value)
-        } else if let parsed = Self.formatter.number(from: String(format: "%.1f", value)) {
-            field.doubleValue = parsed.doubleValue
+        } else {
+            field.stringValue = String(format: "%.1f", value)
         }
         stepper.doubleValue = value
         slider.doubleValue = FrequencyGrid.sliderPosition(for: value) * FrequencyGrid.sliderSteps

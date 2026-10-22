@@ -71,6 +71,7 @@ public enum RussianCatalogue {
         "Unity and presence, to feel whole.": "Единство и присутствие, чтобы чувствовать целостность.",
         "Step": "Шаг",
         "Duration": "Длительность",
+        "Play this chakra from here.": "Играть с этой чакры.",
         "Direction": "Направление",
         "Up, then back": "Снизу вверх и обратно",
         "Down, then back": "Сверху вниз и обратно",

@@ -141,6 +141,27 @@ final class ChakraModeTests: XCTestCase {
         XCTAssertNotEqual(controller.currentChakraStepID, before)
     }
 
+    /// Choosing where the walk starts is not a request for a sound. The switch asks for
+    /// one; a click on a chakra on the figure does not.
+    func testPickingAChakraDoesNotAskForASound() {
+        let controller = makeController()
+        controller.setChakraMode(true, startSound: false)
+        let afterTheSwitch = controller.chakraPlaybackRequests
+
+        controller.pickChakraForTests(3)
+        XCTAssertEqual(
+            controller.chakraPlaybackRequests, afterTheSwitch,
+            "picking a chakra must not start the sound"
+        )
+    }
+
+    /// The switch does ask for a sound: that is what "play the chakras" means.
+    func testTheSwitchAsksForTheSound() {
+        let controller = makeController()
+        controller.setChakraMode(true)
+        XCTAssertEqual(controller.chakraPlaybackRequests, 1)
+    }
+
     // MARK: - The controls
 
     /// A new beat has to be heard at once, not at the next step.
@@ -156,11 +177,15 @@ final class ChakraModeTests: XCTestCase {
         XCTAssertEqual((left + right) / 2, 174, accuracy: 0.05, "the carrier did not move")
     }
 
-    /// The offered lengths are data, and the default is among them.
-    func testTheDurationsAreOffered() {
+    /// The offered step lengths are data, and the default is among them.
+    func testTheStepLengthsAreOffered() {
         let controller = makeController()
         let titles = controller.chakraControl.durationChoiceTitles
-        XCTAssertEqual(titles.count, ChakraSequence.durationMinutesChoices.count)
+        XCTAssertEqual(titles.count, ChakraSequence.stepSecondsChoices.count)
+        XCTAssertTrue(
+            titles.contains("30 s"),
+            "half a minute is the shortest step worth taking: \(titles)"
+        )
         XCTAssertTrue(
             titles.contains("1 min"),
             "the default has to be one of the offered choices: \(titles)"

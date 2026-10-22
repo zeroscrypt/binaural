@@ -29,7 +29,10 @@ final class MainWindowController: NSWindowController {
     )
     private let beatView = BeatDisplayView()
     private let playButton = NSButton()
-    private let volumeCaptionLabel = NSTextField(labelWithString: "")
+    /// A speaker instead of the word "Volume". The slider next to it is the volume; the
+    /// word only says what the thing under it is, and a row of controls is quieter
+    /// without it.
+    private let volumeIcon = NSImageView()
     private let volumeSlider = NSSlider()
     private let volumeLabel = NSTextField(labelWithString: "")
     private let muteButton = NSButton(checkboxWithTitle: "", target: nil, action: nil)
@@ -85,7 +88,7 @@ final class MainWindowController: NSWindowController {
     /// leaves the row to say what the app is *doing* rather than what it can be asked to
     /// do. Native names in both languages ("English", "Русский"), so a user can always
     /// find their own language in the list.
-    private let menuButton = NSButton()
+    private let menuButton = MenuButton()
     private let overflowMenu = NSMenu()
     private let overflowLanguageItem = NSMenuItem()
     private let overflowLanguageMenu = NSMenu()
@@ -264,8 +267,14 @@ final class MainWindowController: NSWindowController {
         playButton.action = #selector(togglePlayback)
         playButton.bezelStyle = .rounded
         playButton.controlSize = .large
+        // The button is a picture, not a word: a play/pause pair is read instantly and
+        // takes no room, and a button that says "Stop" while it plays is a sentence to
+        // parse. The word is still there for VoiceOver.
+        playButton.title = ""
+        playButton.setButtonType(.momentaryChange)
 
-        volumeCaptionLabel.font = .systemFont(ofSize: 13)
+        volumeIcon.imageScaling = .scaleProportionallyDown
+        volumeIcon.contentTintColor = .secondaryLabelColor
 
         volumeSlider.minValue = 0
         volumeSlider.maxValue = 1
@@ -283,7 +292,7 @@ final class MainWindowController: NSWindowController {
         // `NSView()` between the volume and the mute control is the `addStretch` of the
         // Python transport row: the mute sits at the far end, not next to the slider.
         let transport = NSStackView(views: [
-            playButton, volumeCaptionLabel, volumeSlider, volumeLabel, NSView(), muteButton
+            playButton, volumeIcon, volumeSlider, volumeLabel, NSView(), muteButton
         ])
         transport.orientation = .horizontal
         transport.alignment = .centerY
@@ -382,8 +391,8 @@ final class MainWindowController: NSWindowController {
         presetBar.onCategorySelected = { [weak self] id in self?.presetCategoryChanged(id) }
         presetBar.onPresetSelected = { [weak self] preset in self?.applyPreset(preset) }
         beatView.onLockToggled = { [weak self] locked in self?.setDifferenceLocked(locked) }
-        chakraView.onDurationMinutesChange = { [weak self] minutes in
-            self?.chakraDurationChanged(minutes)
+        chakraView.onStepSecondsChange = { [weak self] seconds in
+            self?.chakraStepSecondsChanged(seconds)
         }
         chakraView.onDirectionChange = { [weak self] direction in
             self?.chakraDirectionChanged(direction)
@@ -416,7 +425,12 @@ final class MainWindowController: NSWindowController {
     /// The two are alternatives, not additions: the mode sets both channels and keeps
     /// setting them, and a preset click would be overwritten by the next step. So the
     /// preset bar is hidden while the mode is on, and the switch is the way back.
-    func setChakraMode(_ enabled: Bool) {
+    /// - Parameter startSound: whether turning the mode on also starts the playback.
+    ///   The switch does — that is what "play the chakras" means. Picking a particular
+    ///   chakra on the figure does not: choosing where the walk starts is not the same
+    ///   thing as asking for a sound, and a user who is still deciding does not expect
+    ///   the app to start making noise at them.
+    func setChakraMode(_ enabled: Bool, startSound: Bool = true) {
         guard enabled != isChakraMode else { return }
         isChakraMode = enabled
         chakraButton.state = enabled ? .on : .off
@@ -434,7 +448,9 @@ final class MainWindowController: NSWindowController {
             // The mode makes the sound itself. A journey that walked on with the
             // playback stopped was a light show on a timer, and the step on screen had
             // nothing to do with what the ear heard.
-            startChakraPlayback()
+            if startSound {
+                startChakraPlayback()
+            }
         } else {
             stopChakraTimer()
         }
@@ -456,6 +472,11 @@ final class MainWindowController: NSWindowController {
 
     /// The tests' answer to "is the sound playing". `nil` means "ask the engine".
     var playbackRunningOverride: Bool?
+
+    /// Choose a step to play from, as a click on the figure or on its button does.
+    func pickChakraForTests(_ index: Int) {
+        chakraPicked(index)
+    }
 
     /// The step being played, for the tests and the status line.
     var currentChakraStepID: String? {
@@ -524,8 +545,14 @@ final class MainWindowController: NSWindowController {
         frequenciesChanged()
     }
 
+    /// How many times the mode asked for the sound to start. The tests read it: a test
+    /// has no audio device, and "the mode asked for a sound" is the thing worth
+    /// checking, not "a sound came out".
+    private(set) var chakraPlaybackRequests = 0
+
     /// Start the sound if it is not playing already.
     private func startChakraPlayback() {
+        chakraPlaybackRequests += 1
         // The tests answer for themselves; there is no device to open.
         guard playbackRunningOverride == nil else { return }
         guard !engine.isRunning else { return }
@@ -538,11 +565,10 @@ final class MainWindowController: NSWindowController {
 
     private func startChakraTimer() {
         stopChakraTimer()
-        let seconds = ChakraSequence.stepSeconds(
-            forJourneyOfMinutes: chakraView.selectedDurationMinutes,
-            steps: max(1, chakraJourney.count)
-        )
-        chakraTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: true) { [weak self] _ in
+        // The step length is the switch timer the user chose; the journey's total
+        // follows from it and the number of steps.
+        let interval = max(0.5, Double(chakraView.selectedStepSeconds))
+        chakraTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.advanceChakraStep() }
         }
     }
@@ -555,7 +581,7 @@ final class MainWindowController: NSWindowController {
     /// A new length for the journey. The timer is rebuilt, because a `repeats` timer
     /// cannot change its own interval, and the pace follows from the length and the
     /// number of steps.
-    private func chakraDurationChanged(_ minutes: Int) {
+    private func chakraStepSecondsChanged(_ seconds: Int) {
         guard isChakraMode else { return }
         startChakraTimer()
     }
@@ -577,13 +603,14 @@ final class MainWindowController: NSWindowController {
         applyChakraStep()
     }
 
-    /// The user clicked a chakra on the figure. The journey starts there.
+    /// The user clicked a chakra on the figure. The journey starts there — and nothing
+    /// else changes: the sound is not started, because choosing where the walk begins is
+    /// not a request for a sound.
     private func chakraPicked(_ index: Int) {
         if !isChakraMode {
-            setChakraMode(true)
+            setChakraMode(true, startSound: false)
         }
         startChakraJourney(from: index)
-        startChakraPlayback()
     }
 
     // MARK: - Lock difference (SPEC §7)
@@ -1090,12 +1117,20 @@ final class MainWindowController: NSWindowController {
             ))
         }
 
-        volumeCaptionLabel.stringValue = L10n.tr("Volume")
+        volumeIcon.image = NSImage(
+            systemSymbolName: "speaker.wave.2.fill",
+            accessibilityDescription: L10n.tr("Volume")
+        )
+        volumeIcon.setAccessibilityLabel(L10n.tr("Volume"))
         volumeSlider.setAccessibilityLabel(L10n.tr("Volume"))
         volumeSlider.setAccessibilityHelp(
             L10n.tr("Output level from 0 to 100 percent. Not medical advice: keep it low.")
         )
-        muteButton.title = L10n.tr("Mute")
+        muteButton.image = NSImage(
+            systemSymbolName: muteButton.state == .on ? "speaker.slash.fill" : "speaker.wave.2.fill",
+            accessibilityDescription: L10n.tr("Mute")
+        )
+        muteButton.setAccessibilityLabel(L10n.tr("Mute"))
 
         timerView.retranslate()
         chakraView.retranslate()
@@ -1117,7 +1152,10 @@ final class MainWindowController: NSWindowController {
         showCountdown(at: Date())
 
         let playing = engine.isRunning
-        playButton.title = L10n.tr(playing ? "Stop" : "Play")
+        playButton.image = NSImage(
+            systemSymbolName: playing ? "pause.fill" : "play.fill",
+            accessibilityDescription: L10n.tr(playing ? "Stop" : "Play")
+        )
         playButton.setAccessibilityLabel(
             L10n.tr(playing ? "Stop the binaural tone" : "Play the binaural tone")
         )
@@ -1178,9 +1216,9 @@ final class MainWindowController: NSWindowController {
     var isShowingBeatHint: Bool { beatView.isShowingHint }
     var beatHintText: String { beatView.hintText }
     var rightCaption: String { rightControl.caption }
-    var playButtonTitle: String { playButton.title }
-    var volumeCaptionTitle: String { volumeCaptionLabel.stringValue }
-    var muteTitle: String { muteButton.title }
+    var playButtonTitle: String { playButton.accessibilityLabel() ?? "" }
+    var volumeCaptionTitle: String { volumeIcon.accessibilityLabel() ?? "" }
+    var muteTitle: String { muteButton.accessibilityLabel() ?? "" }
     var statusText: String { indicator.text }
     var statusToolTip: String { indicator.toolTip ?? "" }
 

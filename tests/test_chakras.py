@@ -20,6 +20,7 @@ from binaural.core.chakras import (
     MIN_BEAT_HZ,
     STEPS,
     STEP_SECONDS_CHOICES,
+    step_text,
 )
 
 
@@ -82,16 +83,23 @@ def test_the_default_beat_is_inside_the_allowed_range():
     assert MIN_BEAT_HZ <= DEFAULT_BEAT_HZ <= MAX_BEAT_HZ
 
 
-def test_the_default_step_is_six_seconds():
-    """The reference recording held each chakra for six seconds."""
-    assert DEFAULT_STEP_SECONDS == 6.0
+def test_the_default_step_is_half_a_minute():
+    """The step is the *switch timer*: how long a chakra lasts before the next one.
+
+    The choices are half a minute, one, two and five minutes. A journey of fifteen steps
+    at half a minute is a quarter of an hour, which is a session; at five minutes it is
+    an afternoon, which is not.
+    """
+    assert DEFAULT_STEP_SECONDS == 30
+    assert list(STEP_SECONDS_CHOICES) == [30, 60, 120, 300]
     assert DEFAULT_STEP_SECONDS in STEP_SECONDS_CHOICES
 
 
-def test_the_step_choices_are_ordered_and_include_the_default():
-    assert list(STEP_SECONDS_CHOICES) == sorted(STEP_SECONDS_CHOICES)
-    assert STEP_SECONDS_CHOICES[0] == 3
-    assert DEFAULT_STEP_SECONDS in STEP_SECONDS_CHOICES
+def test_a_step_is_capped_in_whole_minutes():
+    """A step is shown in seconds below a minute and in minutes above it."""
+    assert step_text(30) == "30 s"
+    assert step_text(60) == "1 min"
+    assert step_text(300) == "5 min"
 
 
 # ---------------------------------------------------------------- the pair

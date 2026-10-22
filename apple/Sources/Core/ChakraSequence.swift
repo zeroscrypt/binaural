@@ -65,19 +65,24 @@ public enum ChakraSequence {
     /// The beat the mode starts on. 21 Hz, measured — see the type's documentation.
     public static let defaultBeatHz: Double = 21.0
 
-    /// How long one chakra lasts before the next, in seconds.
-    public static let defaultStepSeconds: Double = 6.0
-
-    /// The offered lengths of a whole journey, in minutes.
+    /// The offered lengths of one step, in seconds.
     ///
-    /// A journey is a walk from one end of the body to the other and back, so its
-    /// length is a better thing to choose than the pace of a single step: the pace
-    /// follows from the length and the number of steps, and the journey ends by itself
-    /// when the time is up.
-    public static let durationMinutesChoices: [Int] = [1, 2, 5]
+    /// This is the *switch timer*: how long a chakra lasts before the next one. The
+    /// journey's total follows from it and the number of steps, and the journey ends by
+    /// itself when it is over.
+    public static let stepSecondsChoices: [Int] = [30, 60, 120, 300]
 
-    /// The length a journey starts on, in minutes.
-    public static let defaultDurationMinutes: Int = 1
+    /// The length a step starts on, in seconds.
+    public static let defaultStepSeconds: Int = 30
+
+    /// A step length as a caption: `30 s`, `1 min`, `5 min`.
+    @MainActor
+    public static func stepText(_ seconds: Int) -> String {
+        if seconds < 60 {
+            return L10n.tr("%1 s", String(seconds))
+        }
+        return L10n.tr("%1 min", String(seconds / 60))
+    }
 
     /// Which way a journey walks first.
     public enum Direction: String, Sendable, CaseIterable {
@@ -125,19 +130,6 @@ public enum ChakraSequence {
     /// The number of steps a journey visits.
     public static func journeyLength(from start: Int, direction: Direction) -> Int {
         journey(from: start, direction: direction).count
-    }
-
-    /// How long each step of a journey lasts, in seconds.
-    ///
-    /// The whole journey is the length the user chose; the pace follows from it and the
-    /// number of steps, so the two controls cannot disagree.
-    public static func stepSeconds(
-        forJourneyOfMinutes minutes: Int,
-        steps count: Int
-    ) -> Double {
-        guard count > 0 else { return defaultStepSeconds }
-        let total = max(1, minutes) * 60
-        return max(0.5, Double(total) / Double(count))
     }
 
     /// The shortest and longest beat the mode accepts. The upper bound is roughly where
@@ -194,10 +186,6 @@ public enum ChakraSequence {
     /// The name of the mode.
     @MainActor
     public static var modeName: String { L10n.tr("Chakras") }
-
-    /// The caption of the step-duration control.
-    @MainActor
-    public static var stepCaption: String { L10n.tr("Step") }
 
     /// The caption of the beat control.
     @MainActor
