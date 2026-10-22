@@ -64,12 +64,13 @@ final class WindowLanguageTests: XCTestCase {
         let window = try XCTUnwrap(controller.window)
         window.contentView?.layoutSubtreeIfNeeded()
 
-        let row = try XCTUnwrap(controller.statusRow)
+        // The header carries the navigation, and the corner menu is the last thing in
+        // it, at its right edge.
+        let row = try XCTUnwrap(controller.headerRow)
         let titles = row.arrangedSubviews.compactMap { ($0 as? NSButton)?.title }
-        XCTAssertEqual(
-            titles, ["Chakras", "On", ""],
-            "the mode's trigger, its own switch, then the corner menu (an icon, so no "
-                + "title): \(titles)"
+        XCTAssertTrue(titles.contains("Reference"), "\(titles)")
+        XCTAssertTrue(
+            titles.contains(""), "the corner menu is an icon, so it has no title: \(titles)"
         )
 
         let rowFrame = row.convert(row.bounds, to: window.contentView)
@@ -79,6 +80,12 @@ final class WindowLanguageTests: XCTestCase {
             "the corner menu is the last thing in the row, at its right edge"
         )
         XCTAssertLessThan(menuFrame.maxY, rowFrame.maxY + 1, "the row is at the top")
+
+        // The mode's trigger and its own switch live in the catalogue column, which is
+        // where the mock-up puts the things that choose what will be played.
+        let modeRow = try XCTUnwrap(controller.statusRow)
+        let modeTitles = modeRow.arrangedSubviews.compactMap { ($0 as? NSButton)?.title }
+        XCTAssertEqual(modeTitles, ["Chakras", "On"], "\(modeTitles)")
     }
 
     /// The corner menu holds the three things that used to sit in the row as buttons: the

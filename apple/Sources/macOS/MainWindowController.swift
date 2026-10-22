@@ -28,7 +28,7 @@ final class MainWindowController: NSWindowController {
         accentText: ChannelPalette.rightText
     )
     private let beatView = BeatDisplayView()
-    private let playButton = NSButton()
+    private let playButton = PlayButton()
     /// The speaker next to the volume slider *is* the mute control: clicking it silences
     /// the sound, and the icon says so by being crossed out.
     ///
@@ -54,6 +54,8 @@ final class MainWindowController: NSWindowController {
     private let presetStatusLabel = NSTextField(labelWithString: "")
     private var presetStatusTimer: Timer?
 
+    /// The header: the brand on the left, the navigation on the right.
+    let headerRow = NSStackView()
     /// The preset block, kept as a property because the chakra mode takes its place: the
     /// two are alternative programs and only one of them is on screen at a time.
     private let presetBlock = NSStackView()
@@ -144,6 +146,19 @@ final class MainWindowController: NSWindowController {
     /// to say "off" — unticking is a gesture to be guessed. So the button is a button:
     /// pressing it turns the mode on and pressing it again turns it off.
     private let chakraButton = NSButton()
+    /// The language switch in the header: RU and EN, side by side.
+    private let languageControl = NSSegmentedControl()
+    /// The brand, in the header's left corner.
+    private let brandName = NSTextField(labelWithString: "Binaural")
+    private let brandTagline = NSTextField(labelWithString: "")
+    /// The navigation, in the header's right corner.
+    private let referenceButton = NSButton()
+    /// The two frequency cards with the beat between them.
+    private let frequencyRow = NSStackView()
+    /// The theme switch in the header: the moon.
+    private let themeButton = NSButton()
+    /// The catalogue down the left: the preset categories.
+    private let categorySidebar = CategorySidebarView()
     /// The mode's own switch: ticked while the mode is on, and unticking it is the
     /// explicit way out.
     private let chakraModeCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
@@ -221,12 +236,12 @@ final class MainWindowController: NSWindowController {
             // built once here, so the default frame has to cover every row rather than
             // scroll. Python's `setMinimumSize(720, 620)` is the same idea for the same
             // reason.
-            contentRect: NSRect(x: 0, y: 0, width: 600, height: 780),
+            contentRect: NSRect(x: 0, y: 0, width: 1080, height: 520),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
-        window.minSize = NSSize(width: 580, height: 700)
+        window.minSize = NSSize(width: 980, height: 460)
         // The title is not shown. macOS 26 draws the window's title as a floating glass
         // plate above the traffic lights, and a plate that only repeats the app's name
         // is a plate that says nothing — the row underneath it says what the app wants
@@ -251,8 +266,16 @@ final class MainWindowController: NSWindowController {
             window.onNudge = { [weak self] delta in self?.nudge(delta) }
             window.onSwitchChannel = { [weak self] in self?.toggleActiveChannel() }
         }
+        // The theme is the app's own, not the system's: the mock-up puts the switch
+        // in the header, and a switch that does not switch anything would be a lie.
+        if UserDefaults.standard.object(forKey: Self.themeDefaultsKey) != nil {
+            NSApp.appearance = NSAppearance(
+                named: usesDarkTheme ? .darkAqua : .aqua
+            )
+        }
         restoreSession()
         retranslate()
+        updateThemeButton()
 
         languageObserver = NotificationCenter.default.addObserver(
             forName: L10n.languageDidChange,
@@ -324,8 +347,61 @@ final class MainWindowController: NSWindowController {
         statusBar.spacing = 0
         statusBar.translatesAutoresizingMaskIntoConstraints = false
 
+        // The header: the brand on the left, the navigation on the right. The mock-up
+        // puts them in the title bar, and it is right to: a title bar is the one strip
+        // of a window that is always about the application rather than about what is
+        // in it, and the things worth reaching for — the reference, the settings, the
+        // language, the theme — are about the application.
+        brandName.font = .systemFont(ofSize: 17, weight: .semibold)
+        brandTagline.font = .systemFont(ofSize: 11)
+        brandTagline.textColor = .secondaryLabelColor
+        let brand = NSStackView(views: [brandName, brandTagline])
+        brand.orientation = .vertical
+        brand.alignment = .leading
+        brand.spacing = 0
+
+        referenceButton.title = L10n.tr("Reference")
+        referenceButton.target = self
+        referenceButton.action = #selector(referenceTapped)
+        referenceButton.bezelStyle = .inline
+        referenceButton.isBordered = false
+        referenceButton.font = .systemFont(ofSize: 13)
+        referenceButton.contentTintColor = .secondaryLabelColor
+
+        languageControl.segmentStyle = .rounded
+        languageControl.trackingMode = .selectOne
+        languageControl.target = self
+        languageControl.action = #selector(languageSegmentChanged)
+        languageControl.font = .systemFont(ofSize: 12)
+        languageControl.segmentCount = L10n.languages.count
+        for (index, code) in L10n.languages.enumerated() {
+            languageControl.setLabel(code.rawValue.uppercased(), forSegment: index)
+        }
+
+        themeButton.bezelStyle = .inline
+        themeButton.isBordered = false
+        themeButton.image = NSImage(
+            systemSymbolName: "moon.stars", accessibilityDescription: L10n.tr("Theme")
+        )
+        themeButton.contentTintColor = .secondaryLabelColor
+        themeButton.target = self
+        themeButton.action = #selector(themeToggled)
+        themeButton.setAccessibilityLabel(L10n.tr("Theme"))
+
+        let header = headerRow
+        for view in [brand, NSView(), referenceButton, languageControl, themeButton, menuButton] {
+            header.addArrangedSubview(view)
+        }
+        header.orientation = .horizontal
+        header.alignment = .centerY
+        header.spacing = 16
+        // The traffic lights sit on the left of the title bar, and the bar is
+        // transparent, so the brand has to leave room for them.
+        header.edgeInsets = NSEdgeInsets(top: 8, left: 78, bottom: 8, right: 0)
+        header.translatesAutoresizingMaskIntoConstraints = false
+
         let statusRow = NSStackView(views: [
-            NSView(), chakraButton, chakraModeCheckbox, menuButton
+            chakraButton, chakraModeCheckbox
         ])
         statusRowView = statusRow
         statusRow.orientation = .horizontal
@@ -339,8 +415,9 @@ final class MainWindowController: NSWindowController {
 
         playButton.target = self
         playButton.action = #selector(togglePlayback)
-        playButton.bezelStyle = .rounded
-        playButton.controlSize = .large
+        // The button draws the disc itself, so it has no bezel and no image.
+        playButton.isBordered = false
+        playButton.title = ""
         // The button is a picture, not a word: a play/pause pair is read instantly and
         // takes no room, and a button that says "Stop" while it plays is a sentence to
         // parse. The word is still there for VoiceOver.
@@ -401,17 +478,61 @@ final class MainWindowController: NSWindowController {
         // The chips live in the panel's first tab: they set the frequencies, so they
         // belong with what is playing.
         chakraView.presetSlot.addArrangedSubview(presetBlock)
-        let stack = NSStackView(views: [
-            statusRow, ears, beatView, transport,
-            chakraView, errorLabel, statusBar
+        // The catalogue down the left: the mode's switch and the preset categories.
+        let sidebar = NSStackView(views: [statusRow, categorySidebar])
+        sidebar.orientation = .vertical
+        sidebar.alignment = .leading
+        sidebar.spacing = 12
+        sidebar.translatesAutoresizingMaskIntoConstraints = false
+
+        // The middle: the two channels with the beat between them, the transport, and
+        // the presets. The beat belongs between the two cards, because the beat *is*
+        // the difference between them, and the mock-up is right about that: the
+        // number in the middle is the one the two numbers on the sides produce.
+        frequencyRow.addArrangedSubview(leftControl)
+        frequencyRow.addArrangedSubview(beatView)
+        frequencyRow.addArrangedSubview(rightControl)
+        frequencyRow.orientation = .horizontal
+        frequencyRow.alignment = .top
+        frequencyRow.spacing = 16
+        frequencyRow.translatesAutoresizingMaskIntoConstraints = false
+
+        // The mode takes the middle: the panel sits where the frequency cards are, so
+        // switching to the mode replaces them rather than being added below them.
+        let centre = NSStackView(views: [
+            frequencyRow, chakraView, transport, presetBlock
         ])
+        centre.orientation = .vertical
+        centre.alignment = .leading
+        centre.spacing = 16
+        centre.translatesAutoresizingMaskIntoConstraints = false
+
+        // The right: the session. The timer says how long it lasts, the headphone check
+        // says whether it can be heard at all.
+        let checkButton = NSButton(
+            title: L10n.tr("Check headphones…"),
+            target: self,
+            action: #selector(headphoneCheckTapped)
+        )
+        checkButton.bezelStyle = .rounded
+        checkButton.controlSize = .regular
+
+        let right = NSStackView(views: [timerView, checkButton])
+        right.orientation = .vertical
+        right.alignment = .leading
+        right.spacing = 12
+        right.translatesAutoresizingMaskIntoConstraints = false
+
+        let body = NSStackView(views: [sidebar, centre, right])
+        body.orientation = .horizontal
+        body.alignment = .top
+        body.spacing = 24
+        body.translatesAutoresizingMaskIntoConstraints = false
+
+        let stack = NSStackView(views: [header, body, errorLabel, statusBar])
         stack.orientation = .vertical
         stack.alignment = .leading
-        stack.spacing = 16
-        // The row with the mode's switch and the corner menu is a header, not a
-        // section: it sits close under the title bar and close above the ear panels,
-        // because the space around it was air nobody was using.
-        stack.setCustomSpacing(8, after: statusRow)
+        stack.spacing = 0
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         let content = NSView()
@@ -422,15 +543,23 @@ final class MainWindowController: NSWindowController {
             stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -24),
             stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 10),
             // Content hugs the top; the window may be taller than it needs to be.
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -20)
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -20),
+            header.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            body.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            // The catalogue and the session are fixed columns; the middle takes what is
+            // left, which is where the frequencies and the mode live.
+            sidebar.widthAnchor.constraint(equalToConstant: 200),
+            right.widthAnchor.constraint(equalToConstant: 260),
+            frequencyRow.widthAnchor.constraint(lessThanOrEqualTo: centre.widthAnchor),
+            // The beat is the difference between the two numbers beside it, so it is a
+            // column of its own rather than a panel that takes the room they need.
+            beatView.widthAnchor.constraint(equalToConstant: 290),
+            chakraView.widthAnchor.constraint(equalTo: centre.widthAnchor),
+            presetBlock.widthAnchor.constraint(equalTo: centre.widthAnchor),
+            transport.widthAnchor.constraint(equalTo: centre.widthAnchor),
+            errorLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
+            statusBar.widthAnchor.constraint(equalTo: stack.widthAnchor)
         ]
-        // `.leading` alignment keeps each row at its natural width, so the rows that
-        // should span the window are pinned to the stack's width by hand.
-        for row in [statusRow as NSView, ears, beatView, transport,
-                    chakraView, errorLabel, statusBar] {
-            row.translatesAutoresizingMaskIntoConstraints = false
-            constraints.append(row.widthAnchor.constraint(equalTo: stack.widthAnchor))
-        }
         constraints += [
             statusRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             statusBarSeparator.heightAnchor.constraint(equalToConstant: 1),
@@ -441,8 +570,10 @@ final class MainWindowController: NSWindowController {
             // The button is a picture, so it is as wide as the picture: a fixed 120 pt
             // was a wide empty box around a 17 pt glyph. SPEC §7.2's 44 px target is
             // still met, and the button now fits what it shows.
-            playButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
-            playButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            // The disc is the size the mock-up shows: big enough to be the thing the
+            // eye lands on, and a circle rather than a rectangle.
+            playButton.widthAnchor.constraint(equalToConstant: 56),
+            playButton.heightAnchor.constraint(equalToConstant: 56),
             volumeSlider.widthAnchor.constraint(greaterThanOrEqualToConstant: 160),
             volumeSlider.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             volumeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
@@ -485,6 +616,13 @@ final class MainWindowController: NSWindowController {
         chakraView.onChakraPicked = { [weak self] index in self?.chakraPicked(index) }
         chakraView.onHoldChange = { [weak self] _ in self?.chakraHoldChanged() }
         chakraView.onSumChange = { [weak self] summing in self?.chakraSumChanged(summing) }
+        // The catalogue on the left drives the same chips as before: choosing a
+        // category here is choosing a category there.
+        categorySidebar.onSelect = { [weak self] id in
+            guard let self else { return }
+            self.presetBar.select(categoryID: id ?? "")
+            self.categorySidebar.select(categoryID: id)
+        }
     }
 
     // MARK: - The chakra mode
@@ -539,6 +677,13 @@ final class MainWindowController: NSWindowController {
         // the mode only changes what is written beside them. The presets are the one
         // thing the mode takes away — it owns both frequencies while it runs.
         presetBlock.isHidden = enabled
+        // The mode takes the middle of the window: the figure, its aura and the tabs
+        // are what the mode is about, and the two frequency cards would be saying the
+        // same thing twice.
+        frequencyRow.isHidden = enabled
+        // The panel is the mode's face: outside the mode the middle of the window is
+        // the two frequencies, and the figure and the aura come with the mode.
+        chakraView.isHidden = !enabled
         applyDrone()
         // The tab follows the mode: the step being played while the journey runs, and
         // the chips that choose a pair when it does not.
@@ -1269,6 +1414,50 @@ final class MainWindowController: NSWindowController {
         onReferenceRequested?()
     }
 
+    /// The language was picked in the header.
+    @objc private func languageSegmentChanged() {
+        let index = languageControl.selectedSegment
+        let codes = L10n.languages
+        guard index >= 0, index < codes.count else { return }
+        L10n.setLanguage(codes[index].rawValue)
+    }
+
+    /// The theme was switched: the app follows its own choice from now on, and
+    /// remembers it.
+    @objc private func themeToggled() {
+        let dark = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        let next: NSAppearance.Name = dark ? .aqua : .darkAqua
+        NSApp.appearance = NSAppearance(named: next)
+        UserDefaults.standard.set(next == .darkAqua, forKey: Self.themeDefaultsKey)
+        updateThemeButton()
+    }
+
+    /// Where the theme choice is kept.
+    ///
+    /// The system's own defaults, not the session: the theme is a property of the
+    /// machine, not of a listening session, and a session file that carried it would be
+    /// copied between machines with it.
+    private static let themeDefaultsKey = "binaural.darkTheme"
+
+    /// Whether the app is in the dark theme, whatever the system says.
+    private var usesDarkTheme: Bool {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: Self.themeDefaultsKey) != nil {
+            return defaults.bool(forKey: Self.themeDefaultsKey)
+        }
+        return NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+    }
+
+    /// The moon shows the theme the app is in; clicking it switches to the other one.
+    private func updateThemeButton() {
+        let dark = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        themeButton.image = NSImage(
+            systemSymbolName: dark ? "moon.stars.fill" : "sun.max.fill",
+            accessibilityDescription: L10n.tr("Theme")
+        )
+        themeButton.toolTip = L10n.tr("Switches between the light and the dark theme.")
+    }
+
     @objc private func languageSelected(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String else { return }
         // `L10n` posts the change; the window and the menus all re-read it.
@@ -1281,6 +1470,12 @@ final class MainWindowController: NSWindowController {
     /// the whole session, so captions cannot simply be re-created.
     func retranslate() {
         window?.title = L10n.tr("Binaural")
+        brandTagline.stringValue = L10n.tr("Two frequencies. One effect.")
+        referenceButton.title = L10n.tr("Reference")
+        themeButton.setAccessibilityLabel(L10n.tr("Theme"))
+        themeButton.toolTip = L10n.tr("Switches between the light and the dark theme.")
+        languageControl.selectedSegment = L10n.languages.firstIndex(of: L10n.language) ?? 0
+        categorySidebar.retranslate()
         leftControl.retranslate(caption: L10n.tr("LEFT EAR"), rangeHint: L10n.tr("1 – 20000 Hz"))
         rightControl.retranslate(caption: L10n.tr("RIGHT EAR"), rangeHint: L10n.tr("1 – 20000 Hz"))
         beatView.retranslate()
@@ -1322,14 +1517,7 @@ final class MainWindowController: NSWindowController {
         showCountdown(at: Date())
 
         let playing = engine.isRunning
-        let symbol = NSImage(
-            systemSymbolName: playing ? "pause.fill" : "play.fill",
-            accessibilityDescription: L10n.tr(playing ? "Stop" : "Play")
-        )?.withSymbolConfiguration(
-            NSImage.SymbolConfiguration(pointSize: 17, weight: .regular)
-        )
-        symbol?.size = NSSize(width: 17, height: 17)
-        playButton.image = symbol
+        playButton.isPlaying = playing
         playButton.setAccessibilityLabel(
             L10n.tr(playing ? "Stop the binaural tone" : "Play the binaural tone")
         )

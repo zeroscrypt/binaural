@@ -178,7 +178,11 @@ final class ChakraModeTests: XCTestCase {
     func testTheModeIsOffUntilItIsAskedFor() {
         let controller = makeController()
         XCTAssertFalse(controller.isChakraModeActive)
-        XCTAssertFalse(controller.chakraControl.isHidden, "the panel is always on screen")
+        XCTAssertTrue(
+            controller.chakraControl.isHidden,
+            "the panel is the mode's face: with the mode off the middle of the window "
+                + "is the two frequencies"
+        )
         XCTAssertFalse(controller.presetBlockControl.isHidden, "the presets are not hidden by it")
     }
 
@@ -200,7 +204,11 @@ final class ChakraModeTests: XCTestCase {
         controller.setChakraMode(false)
 
         XCTAssertFalse(controller.isChakraModeActive)
-        XCTAssertFalse(controller.chakraControl.isHidden, "the panel stays")
+        XCTAssertTrue(
+            controller.chakraControl.isHidden,
+            "the panel is the mode's face: with the mode off the middle of the window "
+                + "is the two frequencies"
+        )
         XCTAssertFalse(controller.presetBlockControl.isHidden)
     }
 

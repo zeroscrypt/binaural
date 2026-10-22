@@ -1263,9 +1263,10 @@ final class ChakraView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         translatesAutoresizingMaskIntoConstraints = false
-        // The panel is always on screen: the figure and its aura are the app's face,
-        // and the mode only changes what is written beside them.
-        isHidden = false
+        // The panel is the mode's face: it is on screen while the mode runs and gone
+        // when it does not, and the middle of the window belongs to the two
+        // frequencies the rest of the time.
+        isHidden = true
         setUp()
     }
 

@@ -28,6 +28,12 @@ enum RussianWindowAdditions {
         "Unmute": "Включить звук",
         // The mode's own switch, beside the button that selects it.
         "On": "Вкл.",
+        // The header: the brand's line, the navigation, the catalogue and the theme.
+        "Two frequencies. One effect.": "Две частоты. Один эффект.",
+        "All presets": "Все пресеты",
+        "Reference": "Справочник",
+        "Theme": "Тема",
+        "Switches between the light and the dark theme.": "Переключает светлую и тёмную темы.",
         // The step the session settles on and holds, and the choice of leaving it to
         // the timer.
         "Hold": "Держать",

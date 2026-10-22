@@ -70,6 +70,9 @@ final class L10nKeysTests: XCTestCase {
         "Step", "Beat", "%1 s",
         // the mode's own switch, beside the button that selects the mode
         "On",
+        // the header: the brand's line, the navigation, the catalogue and the theme
+        "Two frequencies. One effect.", "All presets", "Reference", "Theme",
+        "Switches between the light and the dark theme.",
         // the step the session settles on and holds
         "Hold", "Auto",
         // the picture of the waves, as against the beat that makes them
