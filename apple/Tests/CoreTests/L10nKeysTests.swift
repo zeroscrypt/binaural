@@ -67,7 +67,7 @@ final class L10nKeysTests: XCTestCase {
         "Seeing clearly before you decide.",
         "Unity and presence, to feel whole.",
         "Step", "Beat", "%1 s",
-        "Direction", "Play this chakra from here.", "Up, then back", "Down, then back",
+        "Direction", "Up, then back", "Down, then back",
         "The default 21 Hz sits in the alpha band.",
         // the language control in the main window (SPEC §7.4)
         "Language",

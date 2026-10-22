@@ -87,68 +87,68 @@ final class ChakraFigureView: NSView {
     private enum Body {
         /// The body's width as a fraction of its height. A figure in the lotus pose is
         /// wider than it is tall at the knees, and the whole shape has to fit the panel.
-        static let aspect: CGFloat = 0.46
+        static let aspect: CGFloat = 0.44
 
-        /// The head: an oval from the crown to the chin.
-        static let headCentreY: CGFloat = 0.100
-        static let headHalfWidth: CGFloat = 0.048
-        static let headHalfHeight: CGFloat = 0.080
+        /// The head: an oval from the crown to the chin. A sixth of the seated height,
+        /// which is the proportion the chakra diagrams use — the head is read, not
+        /// measured.
+        static let headCentreY: CGFloat = 0.075
+        static let headHalfWidth: CGFloat = 0.050
+        static let headHalfHeight: CGFloat = 0.074
 
         /// The trunk, upright: neck, shoulders, ribs, waist, hips.
-        static let neckTop: CGFloat = 0.170
-        static let neckBottom: CGFloat = 0.235
-        static let neckHalfWidth: CGFloat = 0.026
-        static let shoulderY: CGFloat = 0.250
-        static let shoulderHalfWidth: CGFloat = 0.112
-        static let armpitY: CGFloat = 0.320
-        static let waistY: CGFloat = 0.430
-        static let waistHalfWidth: CGFloat = 0.090
-        static let hipY: CGFloat = 0.500
-        static let hipHalfWidth: CGFloat = 0.106
-        static let lapY: CGFloat = 0.570
+        static let neckTop: CGFloat = 0.135
+        static let neckBottom: CGFloat = 0.190
+        static let neckHalfWidth: CGFloat = 0.031
+        static let shoulderY: CGFloat = 0.200
+        static let shoulderHalfWidth: CGFloat = 0.124
+        static let armpitY: CGFloat = 0.265
+        static let waistY: CGFloat = 0.360
+        static let waistHalfWidth: CGFloat = 0.092
+        static let hipY: CGFloat = 0.430
+        static let hipHalfWidth: CGFloat = 0.107
+        static let lapY: CGFloat = 0.478
 
-        /// The crossed legs: a wide, low mound with the knees at the sides and the feet
-        /// crossed in front.
+        /// The crossed legs. The knees are the widest point and the feet are crossed in
+        /// front at the bottom centre, so the shape is a wide triangle with its point
+        /// down — which is what a lotus pose looks like from the front.
         static let base: [(x: CGFloat, y: CGFloat)] = [
-            (0.000, 0.545),
-            (0.155, 0.560),
-            (0.296, 0.645),   // right knee
-            (0.312, 0.760),
-            (0.248, 0.840),
-            (0.118, 0.868),
-            (0.000, 0.858),   // the crossed feet at the front
-            (-0.118, 0.868),
-            (-0.248, 0.840),
-            (-0.312, 0.760),
-            (-0.296, 0.645),
-            (-0.155, 0.560)
+            (0.000, 0.480),
+            (0.110, 0.495),
+            (0.186, 0.570),   // the knee, the widest point
+            (0.206, 0.650),
+            (0.176, 0.760),   // the shin angling in
+            (0.116, 0.856),
+            (0.056, 0.890),   // the foot
+            (0.000, 0.884),
+            (-0.056, 0.890),
+            (-0.116, 0.856),
+            (-0.176, 0.760),
+            (-0.206, 0.650),
+            (-0.186, 0.570),
+            (-0.110, 0.495)
         ]
 
         /// The feet, crossed in front of the lap.
         static let feet: [(x: CGFloat, y: CGFloat)] = [
-            (0.000, 0.790),
-            (0.058, 0.812),
-            (0.052, 0.850),
-            (0.000, 0.856),
-            (-0.052, 0.850),
-            (-0.058, 0.812)
+            (0.000, 0.800),
+            (0.050, 0.822),
+            (0.044, 0.858),
+            (0.000, 0.864),
+            (-0.044, 0.858),
+            (-0.050, 0.822)
         ]
 
-        /// The arm, from the shoulder joint to the hand resting on the knee.
+        /// The arm, from the shoulder joint to the hand resting on the knee. It is
+        /// stroked rather than outlined: an arm is a limb, not a plate, and two lines
+        /// round a thin shape read as a stick.
         static let arm: [(x: CGFloat, y: CGFloat)] = [
-            (0.104, 0.258),   // shoulder joint
-            (0.168, 0.400),   // upper arm
-            (0.232, 0.540),   // elbow
-            (0.268, 0.650),   // forearm
-            (0.282, 0.700),   // wrist
-            (0.292, 0.730),   // hand
-            (0.268, 0.748),   // fingertips
-            (0.242, 0.716),   // palm
-            (0.232, 0.660),   // inner wrist
-            (0.196, 0.552),   // inner elbow
-            (0.140, 0.412),   // inner upper arm
-            (0.108, 0.320)    // armpit
+            (0.098, 0.212),   // the shoulder joint
+            (0.150, 0.360),   // the upper arm
+            (0.178, 0.500),   // the elbow
+            (0.188, 0.560)    // the hand, on the knee
         ]
+        static let armWidth: CGFloat = 0.028
 
         /// The seven chakras and the earth below them, as heights down the body.
         ///
@@ -158,14 +158,14 @@ final class ChakraFigureView: NSView {
         /// ribcage, the sacral just below the navel, the root at the base of the spine.
         /// The earth is below the body, not on it.
         static let marks: [(x: CGFloat, y: CGFloat)] = [
-            (0, 0.055),   // crown
-            (0, 0.135),   // third eye
-            (0, 0.205),   // throat
-            (0, 0.330),   // heart
-            (0, 0.440),   // solar plexus
-            (0, 0.515),   // sacral
-            (0, 0.590),   // root
-            (0, 0.960)    // earth, below the body
+            (0, 0.038),   // crown
+            (0, 0.098),   // third eye
+            (0, 0.175),   // throat
+            (0, 0.270),   // heart
+            (0, 0.365),   // solar plexus
+            (0, 0.430),   // sacral
+            (0, 0.478),   // root
+            (0, 0.965)    // earth, below the body
         ]
     }
 
@@ -215,14 +215,28 @@ final class ChakraFigureView: NSView {
             (-Body.neckHalfWidth, Body.neckBottom)
         ]))
 
-        // The crossed legs, the feet in front of them, and the arms.
+        // The crossed legs and the feet in front of them.
         line.append(smoothPath(Body.base))
         line.append(smoothPath(Body.feet))
-        line.append(smoothPath(Body.arm))
-        line.append(smoothPath(Body.arm.map { (-$0.x, $0.y) }))
 
         ink.setStroke()
         line.stroke()
+
+        // The arms, drawn as strokes: an arm is a limb, and two lines round a thin
+        // shape read as a stick rather than an arm.
+        let arms = NSBezierPath()
+        for side in [1.0, -1.0] as [CGFloat] {
+            let points = Body.arm.map { CGPoint(x: side * $0.x, y: $0.y) }
+            arms.move(to: point(points[0].x, points[0].y))
+            for index in 1..<points.count {
+                arms.line(to: point(points[index].x, points[index].y))
+            }
+        }
+        arms.lineWidth = Body.armWidth * bounds.height
+        arms.lineCapStyle = .round
+        arms.lineJoinStyle = .round
+        ink.setStroke()
+        arms.stroke()
 
         drawMarks()
     }
@@ -334,9 +348,6 @@ final class ChakraView: NSView {
     var onChakraPicked: ((Int) -> Void)?
 
     private let figure = ChakraFigureView()
-    /// The eight steps as buttons. The marks on the figure are small, and a small mark
-    /// is a hard mark to hit; these are the same steps with a whole finger each.
-    private var chakraButtons: [ChakraButton] = []
     private let frequencyLabel = NSTextField(labelWithString: "")
     private let nameLabel = NSTextField(labelWithString: "")
     private let descriptionLabel = NSTextField(labelWithString: "")
@@ -432,26 +443,6 @@ final class ChakraView: NSView {
         noteLabel.maximumNumberOfLines = 2
         noteLabel.stringValue = ChakraSequence.defaultBeatNote
 
-        // The steps as buttons, in the order the sequence walks them.
-        chakraButtons = ChakraSequence.steps.indices.map { index in
-            let button = ChakraButton(frame: .zero)
-            button.fill = ChakraPalette.color(forStepIndex: index)
-            button.setAccessibilityLabel(
-                ChakraSequence.name(of: ChakraSequence.steps[index])
-            )
-            button.setAccessibilityHelp(
-                L10n.tr("Play this chakra from here.")
-            )
-            button.target = self
-            button.action = #selector(chakraButtonTapped(_:))
-            button.tag = index
-            return button
-        }
-        let chakraRow = NSStackView(views: chakraButtons)
-        chakraRow.orientation = .horizontal
-        chakraRow.alignment = .centerY
-        chakraRow.spacing = 6
-
         let durationRow = NSStackView(views: [durationCaptionLabel, durationPopup])
         durationRow.orientation = .horizontal
         durationRow.alignment = .centerY
@@ -476,7 +467,7 @@ final class ChakraView: NSView {
         controls.spacing = 16
 
         let text = NSStackView(views: [
-            frequencyLabel, nameLabel, descriptionLabel, chakraRow, controls,
+            frequencyLabel, nameLabel, descriptionLabel, controls,
             directionCheckbox, noteLabel
         ])
         text.orientation = .vertical
@@ -507,8 +498,6 @@ final class ChakraView: NSView {
                     font: beatField.font ?? NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
                 )
             ),
-            // SPEC §7.2: the steps are buttons, so they are click targets.
-            chakraRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
         ])
 
         setAccessibilityLabel(ChakraSequence.modeName)
@@ -558,9 +547,6 @@ final class ChakraView: NSView {
         descriptionLabel.stringValue = ChakraSequence.description(of: step)
         figure.currentIndex = index
         figure.reachedIndex = reachedIndex
-        for (buttonIndex, button) in chakraButtons.enumerated() {
-            button.isCurrent = buttonIndex == index
-        }
         setAccessibilityValue("\(ChakraSequence.name(of: step)), \(FrequencyGrid.text(step.hz)) Hz")
     }
 
@@ -627,11 +613,6 @@ final class ChakraView: NSView {
     var figureReachedIndex: Int { figure.reachedIndex }
 
     // MARK: - Actions
-
-    /// A step was chosen. The journey starts there.
-    @objc private func chakraButtonTapped(_ sender: NSButton) {
-        onChakraPicked?(sender.tag)
-    }
 
     @objc private func durationChanged() {
         guard !isSyncing,

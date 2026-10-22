@@ -96,10 +96,21 @@ def test_the_default_step_is_half_a_minute():
 
 
 def test_a_step_is_capped_in_whole_minutes():
-    """A step is shown in seconds below a minute and in minutes above it."""
-    assert step_text(30) == "30 s"
-    assert step_text(60) == "1 min"
-    assert step_text(300) == "5 min"
+    """A step is shown in seconds below a minute and in minutes above it.
+
+    The language is pinned: the app opens in Russian, and a test that reads English
+    captions has to say so rather than depend on the machine's locale.
+    """
+    from binaural import i18n
+
+    previous = i18n.language()
+    i18n.set_language("en")
+    try:
+        assert step_text(30) == "30 s"
+        assert step_text(60) == "1 min"
+        assert step_text(300) == "5 min"
+    finally:
+        i18n.set_language(previous)
 
 
 # ---------------------------------------------------------------- the pair

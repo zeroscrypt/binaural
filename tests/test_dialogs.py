@@ -60,12 +60,20 @@ SPEAKERS_DEVICE = AudioDevice("Динамики Mac mini", "builtin", True)
 
 @pytest.fixture(scope="session")
 def qapp():
+    """A QApplication, and the interface language pinned to English.
+
+    The app opens in Russian, so a test that reads English captions has to say so
+    rather than depend on what the machine's locale happens to be.
+    """
     app = QApplication.instance()
     if app is None:
         try:
             app = QApplication([])
         except Exception as exc:  # pragma: no cover - depends on the machine
             pytest.skip(f"No usable Qt display: {exc}")
+    from binaural import i18n
+
+    i18n.set_language("en")
     yield app
 
 

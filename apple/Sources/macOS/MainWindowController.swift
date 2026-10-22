@@ -426,11 +426,12 @@ final class MainWindowController: NSWindowController {
     /// setting them, and a preset click would be overwritten by the next step. So the
     /// preset bar is hidden while the mode is on, and the switch is the way back.
     /// - Parameter startSound: whether turning the mode on also starts the playback.
-    ///   The switch does — that is what "play the chakras" means. Picking a particular
-    ///   chakra on the figure does not: choosing where the walk starts is not the same
-    ///   thing as asking for a sound, and a user who is still deciding does not expect
-    ///   the app to start making noise at them.
-    func setChakraMode(_ enabled: Bool, startSound: Bool = true) {
+    ///   It does not, by default. The mode is a *program* the user steps into, and the
+    ///   app is a sound app: starting to make noise is the Play button's job, and a
+    ///   button that starts playing on its own is a button that can surprise someone.
+    ///   Picking a particular chakra on the figure does not start it either — choosing
+    ///   where the walk begins is not the same thing as asking for a sound.
+    func setChakraMode(_ enabled: Bool, startSound: Bool = false) {
         guard enabled != isChakraMode else { return }
         isChakraMode = enabled
         chakraButton.state = enabled ? .on : .off

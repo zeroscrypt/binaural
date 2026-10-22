@@ -48,7 +48,6 @@ __all__ = [
     "default_beat_note",
     "step_seconds_text",
     "step_text",
-    "play_from_here_caption",
     "duration_caption",
     "direction_caption",
     "up_then_back_caption",
@@ -256,11 +255,6 @@ def step_text(seconds: int) -> str:
 def duration_caption() -> str:
     """The caption of the journey-length control."""
     return tr("Duration")
-
-
-def play_from_here_caption() -> str:
-    """The help text on a step's button."""
-    return tr("Play this chakra from here.")
 
 
 def direction_caption() -> str:

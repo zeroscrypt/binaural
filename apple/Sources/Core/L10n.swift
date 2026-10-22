@@ -89,6 +89,9 @@ public enum L10n {
     /// The source language. English needs no table, so it has none.
     public static let sourceLanguage: LanguageCode = .en
 
+    /// The language the app opens in when nothing has been chosen yet.
+    public static let defaultLanguage: LanguageCode = .ru
+
     /// Every supported language, in menu order.
     public static var languages: [LanguageCode] { LanguageCode.allCases }
 
@@ -132,12 +135,25 @@ public enum L10n {
     /// detection of `i18n.resolve_initial_language`.
     ///
     /// - Parameter locale: the system locale; injected by the tests.
+    /// The language for this launch: the stored choice, else the system language if
+    /// it is one of ours, else the app's own.
+    ///
+    /// The app's own language is Russian. A first launch that greets a Russian speaker
+    /// in English is the wrong first impression, and the choice is one click away in
+    /// the corner menu. A system set to English still gets English — the default is
+    /// the fallback, not an override.
     public static func resolveInitialLanguage(locale: Locale = .current) -> LanguageCode {
         if let stored = LanguageCode.parse(store.string(forKey: settingsKey)) {
             return stored
         }
+        // The system language is looked up in the set of languages the app *has*,
+        // rather than against a list of literals here: a third language is one entry in
+        // `LanguageCode` and not a second place to remember it.
         let identifier = locale.identifier.lowercased()
-        return identifier.hasPrefix("ru") ? .ru : sourceLanguage
+        if let match = LanguageCode.allCases.first(where: { identifier.hasPrefix($0.rawValue) }) {
+            return match
+        }
+        return defaultLanguage
     }
 
     /// Install the language resolved for this launch. Called once, before any view is

@@ -40,7 +40,20 @@ SUPPORTED_LANGUAGES: dict[str, str] = {
     "ru": "Русский",
 }
 
-_DEFAULT_LANGUAGE = "en"
+#: The language the catalogue's keys are written in. The keys are the English source
+#: strings, and this is the language a translation is a translation *of*.
+#:
+#: It is not the same thing as the language the app starts in, and keeping them apart
+#: matters: a translation function that treats the current language as the source one
+#: returns the key unchanged, which is exactly what a missing translation looks like.
+_SOURCE_LANGUAGE = "en"
+
+#: The language the app starts in when nothing has been chosen yet.
+#:
+#: Russian, not the system locale: the app's own language is Russian, and a first
+#: launch that greets a Russian speaker in English is the wrong first impression. The
+#: choice is still one click away in the corner menu, and it is remembered.
+_DEFAULT_LANGUAGE = "ru"
 _SETTINGS_KEY = "ui/language"
 _CONTEXT = "Binaural"
 
@@ -74,11 +87,13 @@ def language() -> str:
 
 
 def resolve_initial_language() -> str:
-    """Stored preference, else the system locale, else English.
+    """Stored preference, else the system language if it is one of ours, else the
+    app's own.
 
-    The first run has nothing in QSettings, so a Russian system is detected
-    through :class:`QLocale` and the choice is then persisted by
-    :func:`set_language`.
+    The first run has nothing in QSettings, so the app opens in Russian — the
+    language it is written in — and the choice is then persisted by
+    :func:`set_language`. A system set to English still gets English: the
+    default is the fallback, not an override.
     """
     try:
         stored = QSettings().value(_SETTINGS_KEY)
@@ -90,9 +105,10 @@ def resolve_initial_language() -> str:
             return code
 
     try:
-        locale = QLocale.system()
-        if locale.language() == QLocale.Language.Russian:
-            return "ru"
+        system = QLocale.system().language().name
+        for code in SUPPORTED_LANGUAGES:
+            if system.lower().startswith(code.lower()):
+                return code
     except Exception:
         pass
     return _DEFAULT_LANGUAGE
@@ -120,7 +136,7 @@ def set_language(code: str) -> str:
 
 
 def _translate(text: str, context: str) -> str:
-    if _current == _DEFAULT_LANGUAGE:
+    if _current == _SOURCE_LANGUAGE:
         # Source language: Qt returns the source unchanged without a
         # translator, which keeps lupdate/lconvert tooling honest.
         return QCoreApplication.translate(context, text)

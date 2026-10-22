@@ -145,7 +145,7 @@ final class ChakraModeTests: XCTestCase {
     /// one; a click on a chakra on the figure does not.
     func testPickingAChakraDoesNotAskForASound() {
         let controller = makeController()
-        controller.setChakraMode(true, startSound: false)
+        controller.setChakraMode(true)
         let afterTheSwitch = controller.chakraPlaybackRequests
 
         controller.pickChakraForTests(3)
@@ -155,11 +155,13 @@ final class ChakraModeTests: XCTestCase {
         )
     }
 
-    /// The switch does ask for a sound: that is what "play the chakras" means.
-    func testTheSwitchAsksForTheSound() {
+    /// The switch does **not** start the sound. The mode is a program the user steps
+    /// into; starting to make noise is the Play button's job, and a button that starts
+    /// playing on its own is a button that can surprise someone.
+    func testTheSwitchDoesNotStartTheSound() {
         let controller = makeController()
         controller.setChakraMode(true)
-        XCTAssertEqual(controller.chakraPlaybackRequests, 1)
+        XCTAssertEqual(controller.chakraPlaybackRequests, 0)
     }
 
     // MARK: - The controls

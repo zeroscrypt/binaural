@@ -75,6 +75,9 @@ def make_window(qapp, tmp_path, monkeypatch):
     settings = QtCore.QSettings("binaural", "binaural")
     settings.clear()
     settings.sync()
+    # The app opens in Russian, so a test that reads English captions has to say so
+    # rather than depend on what the machine's locale happens to be.
+    i18n.set_language("en")
 
     built: list[MainWindow] = []
 
