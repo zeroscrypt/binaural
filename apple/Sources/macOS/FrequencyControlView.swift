@@ -161,10 +161,10 @@ final class FrequencyControlView: NSView {
         header.spacing = 8
         header.distribution = .fill
 
-        // The field and its arrows share one row. The arrows belong to the number, and putting
-        // them beside it is what turns "nudge by a step" into a mouse action instead of
-        // an `↑`/`↓` shortcut only.
-        let entryRow = NSStackView(views: [field, unitLabel, NSView(), lowerButton, raiseButton])
+        // The field and its steps share one row: the minus sits to the left of the
+        // field, the plus keeps its place on the right — a stepper the number sits
+        // between, not a pair of arrows parked beside the readout.
+        let entryRow = NSStackView(views: [lowerButton, field, unitLabel, NSView(), raiseButton])
         entryRow.orientation = .horizontal
         entryRow.alignment = .centerY
         entryRow.spacing = 6
