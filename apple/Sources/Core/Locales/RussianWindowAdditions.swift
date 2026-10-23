@@ -65,7 +65,10 @@ enum RussianWindowAdditions {
         ),
         "Built with Swift and AVAudioEngine. Two applications are built from this repository; they share their frequency arithmetic, not their code.": (
             "Сделано на Swift и AVAudioEngine. Из этого репозитория собираются два приложения: у них общая арифметика частот, а не общий код."
-        )
+        ),
+        // The preset cards speak of the beat itself; a card outside the tabulated bands
+        // (a hand-edited preset) falls back to the bare number.
+        "%1 Hz": "%1 Гц"
     ]
 }
 
