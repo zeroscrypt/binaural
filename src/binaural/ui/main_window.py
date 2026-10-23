@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
     QComboBox,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -112,6 +113,11 @@ def timer_choice_title(minutes: int) -> str:
     return tr("%1 min", _format_hz(minutes))
 
 
+# The durations the timer card offers as one-click chips: what a user reaches for
+# most often, each inside ``TIMER_CHOICES`` so a chip lands on a stored choice.
+TIMER_QUICK = (5, 10, 15, 30, 60)
+
+
 def _now() -> float:
     """The clock the playback timer counts down against.
 
@@ -164,6 +170,18 @@ class MainWindow(QMainWindow):
         self._headphone_report: HeadphoneReport | None = None
         # Kept so the settings dialog cannot outlive the window it edits.
         self._settings_dialog = None
+        # The presets' third view (SPEC's modern composition): a search shows every
+        # registry entry at once, the header's quick button shows the whole catalogue,
+        # and the chosen category alone otherwise. The state lives here because the
+        # three views share one chip row.
+        self._search_text = ""
+        self._showing_all = False
+        self._shown_presets: list[Preset] = []
+        # The three zones of the modern composition; ``None`` until built, so a resize
+        # during construction cannot reach a column that does not exist yet.
+        self._centre: QWidget | None = None
+        self._sidebar: QWidget | None = None
+        self._right_column: QWidget | None = None
 
         self.setWindowTitle(tr("Binaural"))
         self.setMinimumSize(720, 620)
@@ -171,52 +189,20 @@ class MainWindow(QMainWindow):
         central = QWidget(self)
         central_layout = QVBoxLayout(central)
         central_layout.setContentsMargins(
-            theme.SPACE_XL, theme.SPACE_XL, theme.SPACE_XL, theme.SPACE_LG
+            theme.SPACE_LG, theme.SPACE_MD, theme.SPACE_LG, theme.SPACE_SM
         )
-        central_layout.setSpacing(theme.SPACE_LG)
+        central_layout.setSpacing(theme.SPACE_MD)
         self.setCentralWidget(central)
 
-        # --- the corner menu ------------------------------------------------
-        # The headphone check, the frequency reference and the language. They live in
-        # the menu bar as well, but they are here too, behind one button: the window
-        # should not carry three controls for things a user reaches for once, and the
-        # row it does carry is for saying what the app is *doing*, not what it can be
-        # asked to do.
-        top = QHBoxLayout()
-        top.setSpacing(theme.SPACE_SM)
-        top.addStretch(1)
-        self._more_button = QToolButton(self)
-        self._more_button.setText(tr("More"))
-        self._more_button.setAccessibleName(tr("More"))
-        self._more_button.setPopupMode(
-            QToolButton.ToolButtonPopupMode.InstantPopup
-        )
-        top.addWidget(self._more_button)
-        central_layout.addLayout(top)
-
-        # --- ear panels ---------------------------------------------------
-        ears = QHBoxLayout()
-        ears.setSpacing(theme.SPACE_LG)
-        self._left = FreqControl(tr(LEFT_EAR), "left")
-        self._right = FreqControl(tr(RIGHT_EAR), "secondary")
-        ears.addWidget(self._left, 1)
-        ears.addWidget(self._right, 1)
-        central_layout.addLayout(ears)
-
-        self._left.valueChanged.connect(self._on_left_changed)
-        self._right.valueChanged.connect(self._on_right_changed)
-
-        # --- beat card ----------------------------------------------------
-        self._beat = BeatDisplay(self)
-        self._beat.lockToggled.connect(self.set_difference_locked)
-        central_layout.addWidget(self._beat)
-
-        # --- transport (with the playback timer, SPEC §5 F5) ----------------
-        central_layout.addLayout(self._build_transport())
-
-        # --- presets ------------------------------------------------------
-        central_layout.addStretch(1)
-        central_layout.addWidget(self._build_presets())
+        # The modern composition the task asks for: a header over the whole window,
+        # then three zones — the preset catalogue, the frequencies, the session.
+        self._build_header(central_layout)
+        body = QHBoxLayout()
+        body.setSpacing(theme.SPACE_MD)
+        self._build_sidebar(body)
+        body.addWidget(self._build_centre(), 1)
+        self._build_right_column(body)
+        central_layout.addLayout(body, 1)
 
         self._build_status_bar()
         self._build_menu()
@@ -234,6 +220,349 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ build
 
+    # ------------------------------------------------------------------ header
+
+    def _build_header(self, parent_layout: QVBoxLayout) -> None:
+        """The header of the modern composition: over the whole window.
+
+        Who the app is and what it is doing stay left, and the one shortcut a run
+        needs; language, theme and the reference stay in the menus.
+        """
+        bar = QWidget(self)
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(theme.SPACE_SM)
+
+        self._brand = QLabel(tr("Binaural"), bar)
+        self._brand.setFont(theme.font("title"))
+        row.addWidget(self._brand)
+
+        # What the audio session is doing right now, where a user looks for it.
+        self._session_status = QLabel(self._session_status_text(), bar)
+        self._session_status.setFont(theme.font("body"))
+        self._session_status.setStyleSheet(f"color: {theme.color('muted-fg')};")
+        row.addWidget(self._session_status)
+
+        row.addStretch(1)
+
+        self._quick_presets = QToolButton(bar)
+        self._quick_presets.setText(tr("All presets"))
+        self._quick_presets.setAccessibleName(tr("All presets"))
+        self._quick_presets.clicked.connect(self._show_all_presets)
+        row.addWidget(self._quick_presets)
+
+        # The corner menu keeps its place — least-used answers live furthest right.
+        # Language and the theme live in the menus; this button is where the
+        # least-used answers stay.
+        self._more_button = QToolButton(bar)
+        self._more_button.setText(tr("More"))
+        self._more_button.setAccessibleName(tr("More"))
+        self._more_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        # The style's own menu-indicator drew itself under the caption — without an
+        # icon the arrow lands below the text and reads like a second widget. The
+        # caption alone is the affordance; the menu still opens on click.
+        self._more_button.setStyleSheet("QToolButton::menu-indicator { image: none; }")
+        row.addWidget(self._more_button)
+
+        parent_layout.addWidget(bar)
+        theme.theme_choice_changed.connect(self._on_theme_changed)
+
+    # ------------------------------------------------------------------ sidebar
+
+    @staticmethod
+    def _category_caption(entry: PresetCategory) -> str:
+        return f"{entry.localized_name()} — {len(entry.presets)}"
+
+    def _build_sidebar(self, body: QHBoxLayout) -> None:
+        """The preset catalogue as its own column (the modern composition).
+
+        A search over the whole registry, then every category as one wide row with its
+        count. The counts are the registry's own numbers, never literals: a category
+        that grows must show a bigger number, not a stale one.
+        """
+        panel = QFrame(self)
+        panel.setObjectName("card")
+        panel.setProperty("role", "card")
+        panel.setFixedWidth(200)
+        self._sidebar = panel
+        column = QVBoxLayout(panel)
+        column.setContentsMargins(
+            theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM
+        )
+        column.setSpacing(theme.SPACE_XS)
+
+        self._preset_search = QLineEdit(panel)
+        self._preset_search.setPlaceholderText(tr("Search presets…"))
+        self._preset_search.setClearButtonEnabled(True)
+        self._preset_search.setAccessibleName(tr("Search presets…"))
+        self._preset_search.setAccessibleDescription(
+            tr("Filters every category at once while you type.")
+        )
+        self._preset_search.textChanged.connect(self._on_preset_search)
+        column.addWidget(self._preset_search)
+
+        # The whole registry first, one wide row above the categories.
+        self._all_button = self._make_chip(
+            tr("All presets"),
+            tr("Shows every preset in the registry."),
+            parent=panel,
+            level="category",
+        )
+        self._all_button.clicked.connect(self._show_all_presets)
+        column.addWidget(self._all_button)
+
+        self._category_buttons: dict[str, QPushButton] = {}
+        for entry in PRESET_CATEGORIES:
+            button = self._make_chip(
+                self._category_caption(entry),
+                self._category_description(entry),
+                parent=panel,
+                level="category",
+            )
+            button.clicked.connect(
+                lambda _checked=False, cid=entry.id: self.select_preset_category(cid)
+            )
+            self._category_buttons[entry.id] = button
+            column.addWidget(button)
+
+        column.addStretch(1)
+        body.addWidget(panel, 0)
+
+    # ------------------------------------------------------------------ centre
+
+    def _build_centre(self) -> QWidget:
+        """The frequency area: the two ears with the beat between them.
+
+        The mock-up puts BEAT/CARRIER in its own column between the ears — the number a
+        listener tracks is the difference, and it reads best right where the eye crosses
+        between the two channels it is made of.
+        """
+        centre = QWidget(self)
+        self._centre = centre
+        column = QVBoxLayout(centre)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(theme.SPACE_LG)
+
+        ears = QHBoxLayout()
+        ears.setSpacing(theme.SPACE_MD)
+        self._left = FreqControl(tr(LEFT_EAR), "left")
+        self._right = FreqControl(tr(RIGHT_EAR), "secondary")
+        self._beat = BeatDisplay(self)
+        self._beat.lockToggled.connect(self.set_difference_locked)
+        ears.addWidget(self._left, 1)
+        ears.addWidget(self._beat, 0)
+        ears.addWidget(self._right, 1)
+        column.addLayout(ears)
+
+        self._left.valueChanged.connect(self._on_left_changed)
+        self._right.valueChanged.connect(self._on_right_changed)
+
+        column.addLayout(self._build_transport())
+
+        column.addStretch(1)
+        column.addWidget(self._build_presets())
+        return centre
+
+    # ------------------------------------------------------------------ right
+
+    def _build_right_column(self, body: QHBoxLayout) -> None:
+        """The session column: the timer card and the headphones card.
+
+        The timer lives here rather than inside the transport row — both cards are
+        statements about the *session* (what will happen, which device is in use), and
+        the mock-up keeps them beside each other.
+        """
+        holder = QWidget(self)
+        self._right_column = holder
+        column = QVBoxLayout(holder)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(theme.SPACE_MD)
+        column.addWidget(self._build_timer_card())
+        column.addWidget(self._build_headphone_card(), 1)
+        body.addWidget(holder, 0)
+
+    def _build_timer_card(self) -> QFrame:
+        """The timer as its own card: the popup and the frequent durations.
+
+        ``TIMER_CHOICES`` is the only source of the offered durations, and a choice
+        applies the moment it is made — a picker that waits for a second button
+        would promise to remember a value it does not hold. Anything outside the
+        offered set lands on the nearest one, the way a stored session always has.
+        """
+        card = QFrame(self)
+        card.setObjectName("card")
+        card.setProperty("role", "card")
+        card.setFixedWidth(240)
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(
+            theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM
+        )
+        layout.setSpacing(theme.SPACE_SM)
+
+        caption_row = QHBoxLayout()
+        caption_row.setSpacing(theme.SPACE_SM)
+        self._timer_caption = QLabel(tr("Timer"), card)
+        self._timer_caption.setFont(theme.font("body"))
+        caption_row.addWidget(self._timer_caption)
+        caption_row.addStretch(1)
+        self._countdown = QLabel("", card)
+        self._countdown.setFont(theme.font("body"))
+        self._countdown.setMinimumWidth(72)
+        self._countdown.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+        self._countdown.setStyleSheet(f"color: {theme.color('muted-fg')};")
+        self._countdown.setAccessibleName(tr("Time left"))
+        self._countdown.setVisible(False)
+        caption_row.addWidget(self._countdown)
+        layout.addLayout(caption_row)
+
+        self._timer_select = QComboBox(card)
+        self._timer_select.setMinimumHeight(44)
+        self._timer_select.setAccessibleName(tr("Timer"))
+        self._timer_select.setAccessibleDescription(
+            tr("How long a session plays before it stops by itself.")
+        )
+        self._timer_select.activated.connect(self._on_timer_activated)
+        layout.addWidget(self._timer_select)
+        self._rebuild_timer_choices()
+
+        # The durations people reach for, as one-click choices of their own.
+        quick_row = QHBoxLayout()
+        quick_row.setSpacing(theme.SPACE_XS)
+        self._timer_quick_group = QButtonGroup(self)
+        self._timer_quick_buttons: dict[int, QToolButton] = {}
+        for minutes in TIMER_QUICK:
+            button = QToolButton(card)
+            # Bare numbers: five full "15 min" chips cannot fit the card's width, and
+            # a squeezed chip that shows "…" is not a choice a user can read. The
+            # popup next to them carries the full wording; the accessible name keeps
+            # it too, so VoiceOver reads "15 min" whatever the chip shows.
+            button.setText(f"{minutes}")
+            button.setCheckable(True)
+            button.setMinimumHeight(36)
+            button.setMinimumWidth(40)
+            button.setAccessibleName(timer_choice_title(minutes))
+            button.clicked.connect(
+                lambda _checked=False, m=minutes: self.select_timer_minutes(m)
+            )
+            self._timer_quick_group.addButton(button)
+            quick_row.addWidget(button)
+            self._timer_quick_buttons[minutes] = button
+        quick_row.addStretch(1)
+        layout.addLayout(quick_row)
+
+        self._mark_timer_choice()
+        return card
+
+    def _mark_timer_choice(self) -> None:
+        """Light the quick chip of the chosen duration, when it is one of them."""
+        for minutes, button in self._timer_quick_buttons.items():
+            button.setChecked(minutes == self._timer_minutes)
+
+    def _build_headphone_card(self) -> QFrame:
+        """The headphones card: which device is in use, and the check at hand."""
+        card = QFrame(self)
+        card.setObjectName("card")
+        card.setProperty("role", "card")
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(
+            theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM, theme.SPACE_SM
+        )
+        layout.setSpacing(theme.SPACE_SM)
+
+        caption = QLabel(tr("Headphones"), card)
+        caption.setFont(theme.font("body"))
+        layout.addWidget(caption)
+
+        # A second reading of the same status the status bar carries: the card is
+        # where a user looks for "which device am I on", the bar is where transient
+        # messages live. One source, two views.
+        # The one audio-status indicator in the window, where the mockup puts the
+        # session's device state: inside the headphones card itself.
+        self.status_indicator = StatusIndicator(card)
+        self.status_indicator.set_report(self._headphone_report)
+        layout.addWidget(self.status_indicator)
+
+        self._check_headphones_button = QPushButton(tr("Check headphones…"), card)
+        self._check_headphones_button.setMinimumHeight(36)
+        self._check_headphones_button.setAccessibleName(tr("Check headphones…"))
+        self._check_headphones_button.clicked.connect(self.run_headphone_check)
+        layout.addWidget(self._check_headphones_button)
+        return card
+
+    # ------------------------------------------------------------------ narrow
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt virtual
+        """Narrow windows lose their columns — see :meth:`_apply_collapse`."""
+        super().resizeEvent(event)
+        self._apply_collapse()
+
+    def _apply_collapse(self) -> None:
+        """Narrow windows lose the columns in the order a dragging user would lose them.
+
+        The thresholds come from the columns' own minimum sizes rather than literals:
+        a threshold above the real minimum would promise a collapse the window cannot
+        reach, and one below would hide a column that still fits.
+        """
+        if (
+            self._centre is None
+            or self._sidebar is None
+            or self._right_column is None
+        ):
+            return
+        central = self.centralWidget()
+        if central is None:
+            return
+        centre_min = self._centre.minimumSizeHint().width()
+        sidebar_min = self._sidebar.minimumSizeHint().width()
+        right_min = self._right_column.minimumSizeHint().width()
+        gap = theme.SPACE_MD
+        width = central.width()
+        self._sidebar.setVisible(width >= centre_min + gap + right_min + gap + sidebar_min)
+        self._right_column.setVisible(width >= centre_min + gap + right_min)
+
+    # ------------------------------------------------------------------ theme
+
+    def _mark_theme_actions(self, _dark: bool | None = None) -> None:
+        """The menu mirrors the stored choice, whichever control set it."""
+        for choice, action in self._theme_actions.items():
+            action.setChecked(theme.initial_theme_choice() == choice)
+
+    def _on_theme_changed(self, dark: bool) -> None:
+        """The colour scheme changed: re-read everything the build baked in.
+
+        The application stylesheet is already re-applied by :func:`theme.apply_theme`;
+        what is left here are the pieces this window set inline.
+        """
+        del dark  # the tokens themselves know which scheme is current
+        self._restyle()
+
+    def _restyle(self) -> None:
+        """Re-read the theme tokens on every widget that captured colours at build."""
+        self._session_status.setStyleSheet(f"color: {theme.color('muted-fg')};")
+        self._volume_value.setStyleSheet(f"color: {theme.color('muted-fg')};")
+        self._countdown.setStyleSheet(f"color: {theme.color('muted-fg')};")
+        self._notice.setStyleSheet(f"color: {theme.color('muted-fg')};")
+        self._presets_caption.setStyleSheet(f"color: {theme.color('muted-fg')};")
+        self._error_label.setStyleSheet(f"color: {theme.color('destructive')};")
+        self._left.restyle()
+        self._right.restyle()
+        self._beat.restyle()
+        self.status_indicator.restyle()
+
+    # ------------------------------------------------------------------ status
+
+    def _session_status_text(self) -> str:
+        """What the audio session is doing, in the current language."""
+        return tr("Playing") if self._playing else tr("Stopped")
+
+    def _update_session_status(self) -> None:
+        """Refresh the header's session label (state or language changed)."""
+        text = self._session_status_text()
+        self._session_status.setText(text)
+        self._session_status.setAccessibleName(text)
+
     def _build_transport(self) -> QHBoxLayout:
         row = QHBoxLayout()
         row.setSpacing(theme.SPACE_MD)
@@ -249,12 +578,6 @@ class MainWindow(QMainWindow):
         self._play_button.setShortcut("Space")
         self._play_button.clicked.connect(self.toggle_playback)
         row.addWidget(self._play_button)
-
-        row.addSpacing(theme.SPACE_LG)
-
-        # The timer sits with the volume: it is one more control of the same kind, and
-        # a row of its own underneath put the window's controls in two places.
-        row.addLayout(self._build_timer())
 
         row.addSpacing(theme.SPACE_LG)
 
@@ -289,45 +612,6 @@ class MainWindow(QMainWindow):
         )
         self._save_preset_button.clicked.connect(self.save_preset)
         row.addWidget(self._save_preset_button)
-
-        return row
-
-    def _build_timer(self) -> QHBoxLayout:
-        """The playback timer of SPEC §5 F5: a duration picker and a visible countdown.
-
-        ``TIMER_CHOICES`` is the only source of the offered durations and ``0`` is off,
-        so a session timer and a settings timer can never offer two different sets. The
-        countdown is *text*, not a ring: SPEC §7.2 wants reduced-motion respected, and a
-        label needs no animation at all. While the timer is off the label is empty and
-        hidden rather than reading ``00:00``, which would look like a finished session.
-        """
-        row = QHBoxLayout()
-        row.setSpacing(theme.SPACE_MD)
-
-        self._timer_caption = QLabel(tr("Timer"), self)
-        self._timer_caption.setFont(theme.font("body"))
-        row.addWidget(self._timer_caption)
-
-        self._timer_select = QComboBox(self)
-        self._timer_select.setMinimumHeight(44)
-        self._timer_select.setAccessibleName(tr("Timer"))
-        self._timer_select.setAccessibleDescription(
-            tr("How long a session plays before it stops by itself.")
-        )
-        self._timer_select.activated.connect(self._on_timer_activated)
-        row.addWidget(self._timer_select)
-        self._rebuild_timer_choices()
-
-        self._countdown = QLabel("", self)
-        self._countdown.setFont(theme.font("body"))
-        self._countdown.setMinimumWidth(72)
-        self._countdown.setAlignment(
-            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-        )
-        self._countdown.setStyleSheet(f"color: {theme.color('muted-fg')};")
-        self._countdown.setAccessibleName(tr("Time left"))
-        self._countdown.setVisible(False)
-        row.addWidget(self._countdown)
 
         return row
 
@@ -370,29 +654,7 @@ class MainWindow(QMainWindow):
         self._presets_caption.setStyleSheet(f"color: {theme.color('muted-fg')};")
         column.addWidget(self._presets_caption)
 
-        # --- level 1: the category chips ------------------------------------
-        category_row = QHBoxLayout()
-        category_row.setSpacing(theme.SPACE_SM)
-        self._category_group = QButtonGroup(self)
-        self._category_group.setExclusive(True)
-        self._category_buttons: dict[str, QPushButton] = {}
-        for index, entry in enumerate(PRESET_CATEGORIES):
-            button = self._make_chip(
-                entry.localized_name(),
-                self._category_description(entry),
-                parent=box,
-                level="category",
-            )
-            button.clicked.connect(
-                lambda _checked=False, cid=entry.id: self.select_preset_category(cid)
-            )
-            self._category_group.addButton(button, index)
-            category_row.addWidget(button)
-            self._category_buttons[entry.id] = button
-        category_row.addStretch(1)
-        column.addLayout(category_row)
-
-        # --- level 2: the presets of the selected category ------------------
+        # --- the presets of the current view --------------------------------
         self._preset_row = QHBoxLayout()
         self._preset_row.setSpacing(theme.SPACE_SM)
         column.addLayout(self._preset_row)
@@ -461,7 +723,8 @@ class MainWindow(QMainWindow):
             widget.deleteLater()
 
         self._preset_buttons = []
-        for index, preset in enumerate(presets_in(self._selected_category)):
+        self._shown_presets = self._presets_for_current_view()
+        for index, preset in enumerate(self._shown_presets):
             button = self._make_chip(
                 preset.localized_title(),
                 self._preset_description(preset.beat_hz),
@@ -472,6 +735,60 @@ class MainWindow(QMainWindow):
             self._preset_row.addWidget(button)
             self._preset_buttons.append(button)
         self._preset_row.addStretch(1)
+
+    def _presets_for_current_view(self) -> list[Preset]:
+        """The presets the chip row shows: the search over everything when it has
+        words, the whole registry when the header or the sidebar asked for it, the
+        chosen category otherwise."""
+        if self._search_text:
+            return [preset for preset in PRESETS if self._preset_matches(preset)]
+        if self._showing_all:
+            return list(PRESETS)
+        return list(presets_in(self._selected_category))
+
+    def _preset_matches(self, preset: Preset) -> bool:
+        """Does the preset say the query the user typed?
+
+        The fields a preset can be found by: its own title (which already says the
+        band and the beat), its beat in digits, its category's name. Nothing is
+        searched that the user cannot see on some preset somewhere.
+        """
+        query = self._search_text.casefold()
+        if not query:
+            return True
+        fields = [preset.localized_title(), preset.beat_text, f"{preset.beat_hz:.1f}"]
+        for entry in PRESET_CATEGORIES:
+            if entry.id == preset.category_id:
+                fields.append(entry.localized_name())
+                break
+        return any(query in field.casefold() for field in fields)
+
+    def _show_all_presets(self) -> None:
+        """Show the whole registry, and say so in the sidebar's own row too."""
+        self._showing_all = True
+        self._mark_category()
+        self._rebuild_preset_chips()
+
+    def _on_preset_search(self, text: str) -> None:
+        """The search view: whatever the query says, across every category."""
+        self._search_text = text.strip()
+        if self._search_text:
+            self._showing_all = False
+        self._rebuild_preset_chips()
+
+    def _remember_category(self, category_id: str) -> None:
+        """Persist the category a just-applied preset belongs to.
+
+        Applying a preset from a search or from "All presets" must not yank the chip
+        row back to one category: the view is where the user chose to look, and the
+        marking alone says which chip is playing. The category still lands in the
+        session, so the next start restores an honest state.
+        """
+        wanted = resolved_category(category_id)
+        if wanted != self._selected_category:
+            self._selected_category = wanted
+            self._session.preset_category = wanted
+        self._mark_category()
 
     @staticmethod
     def _preset_description(beat_hz: float) -> str:
@@ -500,6 +817,7 @@ class MainWindow(QMainWindow):
         An unknown id — a hand-edited `preset_category` — falls back to the default
         rather than emptying the row, which is the whole point of a fallback.
         """
+        self._showing_all = False
         wanted = resolved_category(category_id)
         if wanted != self._selected_category:
             self._selected_category = wanted
@@ -510,7 +828,10 @@ class MainWindow(QMainWindow):
 
     def _mark_category(self) -> None:
         for cid, button in self._category_buttons.items():
-            button.setChecked(cid == self._selected_category)
+            button.setChecked(
+                not self._showing_all and cid == self._selected_category
+            )
+        self._all_button.setChecked(self._showing_all)
 
     def apply_preset(self, preset: Preset | float) -> None:
         """One click sets both channels so the difference is the preset's beat.
@@ -524,8 +845,9 @@ class MainWindow(QMainWindow):
         left, right = frequencies_for(preset)
         self.set_frequencies(left, right)
         # F3: a preset sets its own difference, so the chip that produced it is the one
-        # that stays highlighted.
-        self.select_preset_category(preset.category_id)
+        # that stays highlighted. The view a search or "All presets" put the user in
+        # survives the click; the preset's category is remembered for the next start.
+        self._remember_category(preset.category_id)
         self._mark_preset(preset.id)
         self._session.last_preset = preset.id
         self.save_session()
@@ -569,14 +891,14 @@ class MainWindow(QMainWindow):
     def _mark_preset(self, preset_id: str | None) -> None:
         """Highlight the preset that produced the frequencies on screen, when it is one
         of the chips currently shown."""
-        presets = presets_in(self._selected_category)
         for index, button in enumerate(self._preset_buttons):
-            button.setChecked(index < len(presets) and presets[index].id == preset_id)
+            shown = index < len(self._shown_presets) and (
+                self._shown_presets[index].id == preset_id
+            )
+            button.setChecked(shown)
 
     def _build_status_bar(self) -> None:
         bar = self.statusBar()
-        self.status_indicator = StatusIndicator(bar)
-        bar.addPermanentWidget(self.status_indicator, 1)
 
         self._error_label = QLabel(self)
         self._error_label.setFont(theme.font("caption"))
@@ -604,6 +926,28 @@ class MainWindow(QMainWindow):
             self._language_group.addAction(action)
             self._language_menu.addAction(action)
             self._language_actions[code] = action
+
+        # Theme in the same menu as language: both are "how the app presents itself",
+        # and the header stays clear of choices a session does not revisit every minute.
+        self._theme_menu = self._view_menu.addMenu(tr("Theme"))
+        self._theme_group = QActionGroup(self)
+        self._theme_group.setExclusive(True)
+        self._theme_actions: dict[bool | None, QAction] = {}
+        for choice, text in (
+            (False, tr("Light")),
+            (None, tr("Follow the system")),
+            (True, tr("Dark")),
+        ):
+            action = QAction(text, self)
+            action.setCheckable(True)
+            action.setChecked(choice == theme.initial_theme_choice())
+            action.triggered.connect(
+                lambda _checked=False, c=choice: theme.set_theme_choice(c)
+            )
+            self._theme_group.addAction(action)
+            self._theme_menu.addAction(action)
+            self._theme_actions[choice] = action
+        theme.theme_choice_changed.connect(self._mark_theme_actions)
 
         self._help_menu = menu_bar.addMenu(tr("&Help"))
 
@@ -677,6 +1021,23 @@ class MainWindow(QMainWindow):
         self._more_button.setText(tr("More"))
         self._more_button.setAccessibleName(tr("More"))
 
+        self._brand.setText(tr("Binaural"))
+        self._quick_presets.setText(tr("All presets"))
+        self._quick_presets.setAccessibleName(tr("All presets"))
+        self._update_session_status()
+        self._preset_search.setPlaceholderText(tr("Search presets…"))
+        self._preset_search.setAccessibleName(tr("Search presets…"))
+        self._all_button.setText(tr("All presets"))
+        self._all_button.setAccessibleName(tr("All presets"))
+        # The stored choice did not change with the language, but its caption did.
+        for choice, action in self._theme_actions.items():
+            text = {
+                False: tr("Light"),
+                None: tr("Follow the system"),
+                True: tr("Dark"),
+            }[choice]
+            action.setText(text)
+
         self._left.retranslate(tr(LEFT_EAR))
         self._right.retranslate(tr(RIGHT_EAR))
         self._beat.retranslate()
@@ -706,7 +1067,15 @@ class MainWindow(QMainWindow):
         )
         self._countdown.setAccessibleName(tr("Time left"))
         self._rebuild_timer_choices()
+        for minutes, button in self._timer_quick_buttons.items():
+            button.setText(f"{minutes}")
+            button.setAccessibleName(timer_choice_title(minutes))
+        self._mark_timer_choice()
         self._show_countdown()
+
+        self._check_headphones_button.setText(tr("Check headphones…"))
+        self._check_headphones_button.setAccessibleName(tr("Check headphones…"))
+        self.status_indicator.retranslate()
 
         self._save_preset_button.setText(tr("Save preset"))
         self._save_preset_button.setAccessibleName(tr("Save preset"))
@@ -715,6 +1084,10 @@ class MainWindow(QMainWindow):
         )
 
         self._presets_caption.setText(tr("Presets"))
+        self._preset_search.setPlaceholderText(tr("Search presets…"))
+        self._preset_search.setAccessibleName(tr("Search presets…"))
+        self._all_button.setText(tr("All presets"))
+        self._all_button.setAccessibleName(tr("All presets"))
         self._notice.setAccessibleName(tr("Note"))
         # A transient note is stored as its English key, so a language switch has to
         # render it again rather than leave the old language's words on screen.
@@ -726,7 +1099,7 @@ class MainWindow(QMainWindow):
             button = self._category_buttons.get(entry.id)
             if button is None:
                 continue
-            button.setText(entry.localized_name())
+            button.setText(self._category_caption(entry))
             button.setAccessibleName(entry.localized_name())
             button.setAccessibleDescription(self._category_description(entry))
         self._mark_category()
@@ -1130,6 +1503,7 @@ class MainWindow(QMainWindow):
         if playing == self._playing:
             return
         self._playing = playing
+        self._update_session_status()
         self._play_button.setText(tr("Stop") if playing else tr("Play"))
         self._play_button.setAccessibleName(
             tr("Stop the binaural tone") if playing else tr("Play the binaural tone")
@@ -1187,6 +1561,7 @@ class MainWindow(QMainWindow):
         # clear the very widget that is delivering the signal.
         if changed:
             self._rebuild_timer_choices(select=wanted)
+        self._mark_timer_choice()
         if self._playing:
             self.arm_timer()
         else:

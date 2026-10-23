@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QLocale, QPoint, QRect, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF
+from PySide6.QtCore import QLocale, Qt, Signal
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QDoubleSpinBox,
@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QSlider,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -53,108 +54,14 @@ def _hz_to_slider(hz: float) -> int:
     return int(round(min(1.0, max(0.0, ratio)) * SLIDER_STEPS))
 
 
-STEPPER_WIDTH = 26
-
-
 class _FreqSpinBox(QDoubleSpinBox):
-    """A spinbox that paints its own stepper.
+    """The exact-entry field of one ear.
 
-    Qt's native stepper arrows turn into unreadable blobs once the widget has a
-    custom background, so the two triangles are drawn here. Clicking and
-    auto-repeat keep working through the built-in stepBySlot behaviour.
+    The step buttons are controls of their own and stand to the left and the
+    right of this field — the same composition the macOS build uses — so the
+    spinbox itself is Qt's plain one: it keeps the keyboard steps (arrow keys,
+    0.1 at a time) and the `C` locale for the dot.
     """
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
-        self._arrow_color = QColor(theme.color("muted-fg"))
-        self._arrow_hover = QColor(theme.color("foreground"))
-        self._hover_step = 0  # 0 none, 1 up, 2 down
-        self.setMouseTracking(True)
-
-    def set_arrow_color(self, color: str) -> None:
-        self._arrow_color = QColor(color)
-        self.update()
-
-    def step_area(self, up: bool) -> QRect:
-        """Hit rect of one half of the stepper, in widget coordinates."""
-        width = min(STEPPER_WIDTH, max(24, self.width() // 6))
-        box = QRect(
-            self.width() - width - 1, 1, width, self.height() - 2
-        )
-        if up:
-            box.setHeight(box.height() // 2)
-        else:
-            box.setTop(box.top() + box.height() // 2)
-        return box
-
-    def mouseMoveEvent(self, event) -> None:  # noqa: N802 - Qt virtual
-        self._hover_step = 0
-        if self.step_area(True).contains(event.position().toPoint()):
-            self._hover_step = 1
-        elif self.step_area(False).contains(event.position().toPoint()):
-            self._hover_step = 2
-        self.update()
-        super().mouseMoveEvent(event)
-
-    def leaveEvent(self, event) -> None:  # noqa: N802 - Qt virtual
-        self._hover_step = 0
-        self.update()
-        super().leaveEvent(event)
-
-    def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt virtual
-        point = event.position().toPoint()
-        if event.button() == Qt.MouseButton.LeftButton:
-            if self.step_area(True).contains(point):
-                self.stepBy(1)
-                event.accept()
-                return
-            if self.step_area(False).contains(point):
-                self.stepBy(-1)
-                event.accept()
-                return
-        super().mousePressEvent(event)
-
-    def paintEvent(self, event) -> None:  # noqa: N802 - Qt virtual
-        super().paintEvent(event)
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        colour = self._arrow_hover if self._hover_step else self._arrow_color
-
-        def triangle(box: QRect, up: bool) -> None:
-            width = 9
-            height = 5
-            cx = box.center().x()
-            cy = box.center().y()
-            if up:
-                points = [
-                    QPoint(cx, cy - height),
-                    QPoint(cx - width, cy + height - 1),
-                    QPoint(cx + width, cy + height - 1),
-                ]
-            else:
-                points = [
-                    QPoint(cx, cy + height),
-                    QPoint(cx - width, cy - height + 1),
-                    QPoint(cx + width, cy - height + 1),
-                ]
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(colour)
-            painter.drawPolygon(QPolygonF(points))
-
-        if self.isEnabled():
-            triangle(self.step_area(True), True)
-            triangle(self.step_area(False), False)
-
-        # A hairline separates the stepper from the text, matching the QSS edge.
-        pen = QPen(QColor(theme.color("border")))
-        pen.setWidthF(1.0)
-        painter.setPen(pen)
-        top = self.step_area(True)
-        painter.drawLine(top.left(), top.bottom(), top.right(), top.bottom())
-        painter.drawLine(
-            top.right(), top.top() - 1, top.right(), self.height() - 1
-        )
 
 
 class _ChannelSwatch(QWidget):
@@ -244,20 +151,44 @@ class FreqControl(QFrame):
         self._spin.setKeyboardTracking(False)
         # Frequencies are always written with a dot, whatever the OS locale is.
         self._spin.setLocale(QLocale.c())
-        # Room for the hand-drawn stepper on the right.
-        self._spin.setStyleSheet(
-            f"padding-right: {STEPPER_WIDTH + 6}px;"
-        )
         self._spin.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self._spin.setFont(theme.font("title"))
         self._spin.setMinimumHeight(44)
-        # The arrows are drawn *inside* the spinbox rather than being controls of their
-        # own, so the step they take is a tooltip on it. The wording is the macOS stepper's
-        # accessibility help, so both implementations describe one control in one voice.
-        self._spin.setToolTip(
-            tr("Raises or lowers the frequency by 0.1 hertz. Keep it held down to repeat.")
+
+        # The step buttons stand to the left and the right of the number — a stepper
+        # the field sits between, the same one the macOS build draws. Holding one
+        # repeats, which is what makes a wide sweep bearable at 0.1 hertz a step.
+        self._lower = QToolButton(self)
+        self._lower.setText("\u2212")
+        self._lower.setAutoRaise(True)
+        self._lower.setAutoRepeat(True)
+        self._lower.setFont(theme.font("title"))
+        self._lower.setAccessibleName(tr("Lower the frequency"))
+        self._lower.setAccessibleDescription(
+            tr("Lowers the frequency by 0.1 hertz. Keep it held down to repeat.")
         )
-        layout.addWidget(self._spin)
+        self._lower.clicked.connect(lambda: self.nudge(-0.1))
+
+        self._raise = QToolButton(self)
+        self._raise.setText("+")
+        self._raise.setAutoRaise(True)
+        self._raise.setAutoRepeat(True)
+        self._raise.setFont(theme.font("title"))
+        self._raise.setAccessibleName(tr("Raise the frequency"))
+        self._raise.setAccessibleDescription(
+            tr("Raises the frequency by 0.1 hertz. Keep it held down to repeat.")
+        )
+        self._raise.clicked.connect(lambda: self.nudge(0.1))
+
+        for button in (self._lower, self._raise):
+            button.setMinimumSize(28, 28)
+
+        entry_row = QHBoxLayout()
+        entry_row.setSpacing(theme.SPACE_XS)
+        entry_row.addWidget(self._lower)
+        entry_row.addWidget(self._spin, 1)
+        entry_row.addWidget(self._raise)
+        layout.addLayout(entry_row)
 
         self._slider = QSlider(Qt.Orientation.Horizontal, self)
         self._slider.setRange(0, SLIDER_STEPS)
@@ -332,13 +263,14 @@ class FreqControl(QFrame):
         """Colour token for this channel: ``left`` = left ear, ``secondary`` = right ear."""
         self._accent = token
         colour = theme.color(token)
-        table = theme.DARK if theme.prefers_dark() else theme.LIGHT
+        table = theme.DARK if theme.chosen_dark() else theme.LIGHT
         # Captions are 16px body text and need 4.5:1; only the 42px number is
         # allowed the weaker SPEC shade.
         text_colour = table.get(f"{token}-text", colour)
         self._swatch.set_color(colour)
-        self._spin.set_arrow_color(colour)
         self._caption.setStyleSheet(f"color: {text_colour};")
+        for button in (self._lower, self._raise):
+            button.setStyleSheet(f"QToolButton {{ color: {colour}; }}")
         self._display.setStyleSheet(f"color: {colour};")
         self._slider.setStyleSheet(
             f"QSlider::sub-page:horizontal {{ background: {colour}; }}"
@@ -350,6 +282,14 @@ class FreqControl(QFrame):
         # supposed to be saving the reader from. An inline sheet is set on the frame
         # itself and touches nothing else, so the themed background and radius stay.
         self.setStyleSheet(f"QFrame#panel {{ border: 1px solid {colour}; }}")
+
+    def restyle(self) -> None:
+        """Re-read the theme tokens after a theme change (SPEC §7.1).
+
+        Every colour this widget bakes in at build time goes through
+        :meth:`set_accent`, so restyling *is* re-accenting.
+        """
+        self.set_accent(self._accent)
 
     def set_slider_from_value(self, hz: float) -> None:
         self._slider.setValue(_hz_to_slider(hz))

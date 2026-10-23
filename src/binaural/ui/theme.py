@@ -15,7 +15,8 @@ import subprocess
 import sys
 from functools import lru_cache
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QObject, QSettings, Qt
+from PySide6.QtCore import Signal as _Signal
 from PySide6.QtGui import QColor, QFont, QPalette
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -23,6 +24,7 @@ __all__ = [
     "TOKENS",
     "LIGHT",
     "DARK",
+    "THEME_CHOICES",
     "RADIUS",
     "RADIUS_SM",
     "SPACE_XS",
@@ -41,6 +43,10 @@ __all__ = [
     "build_stylesheet",
     "apply_theme",
     "prefers_dark",
+    "chosen_dark",
+    "initial_theme_choice",
+    "set_theme_choice",
+    "theme_choice_changed",
     "reduced_motion",
     "animations_enabled",
 ]
@@ -142,6 +148,84 @@ def tr(text: str) -> str:
     return _tr(text, context=_CONTEXT)
 
 
+# ------------------------------------------------------------ the three theme states
+
+#: The three states the interface offers: light, whatever the system says, dark.
+#: Booleans name the first and the last; ``None`` names the middle one.
+THEME_CHOICES = ("light", "system", "dark")
+
+_THEME_KEY = "ui/theme_choice"
+
+
+class _ThemeBus(QObject):
+    """Owns the signal so it survives module-level function scope."""
+
+    theme_changed = _Signal(bool)
+
+
+_theme_bus = _ThemeBus()
+#: Emits ``dark`` after the theme is applied — the whole app, not one widget.
+theme_choice_changed = _theme_bus.theme_changed
+
+#: The stored choice: ``True`` dark, ``False`` light, ``None`` follow the system.
+_choice: bool | None = None
+
+
+def initial_theme_choice() -> bool | None:
+    """The stored choice, else ``None`` — the system's own state.
+
+    A corrupt stored value means "no choice" rather than an exception: a broken
+    setting must not stop the app from starting.
+    """
+    return _choice
+
+
+def set_theme_choice(dark: bool | None, app=None) -> bool:
+    """Store and apply the three-state choice: ``True`` dark, ``False`` light,
+    ``None`` follow the system again.
+
+    Returns whether the window is dark after the call. The store is ``QSettings``
+    — the same place the language lives — so a theme survives the restart; the
+    never-raising rule of :func:`binaural.i18n.set_language` applies here too,
+    because persistence is a convenience.
+    """
+    global _choice
+    _choice = dark
+    try:
+        settings = QSettings()
+        if dark is None:
+            settings.remove(_THEME_KEY)
+        else:
+            settings.setValue(_THEME_KEY, "dark" if dark else "light")
+        settings.sync()
+    except Exception:
+        pass  # persistence is a convenience, never a blocker
+    return apply_theme(app or QApplication.instance(), dark)
+
+
+def chosen_dark() -> bool:
+    """Whether the UI is dark right now: the choice when there is one, else the
+    system's own colour scheme."""
+    if _choice is not None:
+        return _choice
+    return prefers_dark()
+
+
+def _load_stored_choice() -> bool | None:
+    try:
+        stored = QSettings().value(_THEME_KEY)
+    except Exception:
+        stored = None
+    if stored is None:
+        return None
+    text = str(stored).strip().lower()
+    if text == "dark":
+        return True
+    if text == "light":
+        return False
+    return None
+
+
 # --------------------------------------------------------------------- tokens
 
 
@@ -151,8 +235,9 @@ def tokens(dark: bool) -> dict[str, str]:
 
 
 def color(name: str, dark: bool | None = None) -> str:
-    """One token by role; ``dark`` defaults to the app's current colour scheme."""
-    table = DARK if (prefers_dark() if dark is None else dark) else LIGHT
+    """One token by role; ``dark`` defaults to the app's current scheme — the
+    user's choice when it exists, the system's own otherwise."""
+    table = DARK if (chosen_dark() if dark is None else dark) else LIGHT
     try:
         return table[name]
     except KeyError:  # a typo must not black out the UI
@@ -548,14 +633,25 @@ def prefers_dark(app: QApplication | None = None) -> bool:
     return scheme == Qt.ColorScheme.Dark
 
 
-def apply_theme(app: QApplication, dark: bool | None = None) -> bool:
-    """Palette + stylesheet + UI font for the whole app. Returns ``dark``."""
+def apply_theme(app: QApplication | None, dark: bool | None = None) -> bool:
+    """Palette + stylesheet + UI font for the whole app. Returns ``dark``.
+
+    ``dark=None`` reads the stored choice first and falls back to the system —
+    this is the one place that settles the question and announces the result.
+    """
+    global _choice
     if dark is None:
-        dark = prefers_dark(app)
+        _choice = _load_stored_choice()
+        dark = chosen_dark()
+    elif dark != _choice:
+        _choice = dark
+    if app is None:
+        return dark
     app.setPalette(build_palette(dark))
     app.setStyleSheet(build_stylesheet(dark))
     base = QFont(font_family())
     app.setFont(base)
+    _theme_bus.theme_changed.emit(dark)
     return dark
 
 

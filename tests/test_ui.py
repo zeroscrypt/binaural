@@ -695,22 +695,35 @@ def test_freq_control_never_emits_internally(qapp):
     control.deleteLater()
 
 
-def test_freq_control_stepper_arrows_are_clickable(qapp):
-    """The hand-drawn stepper must step the value, not just look right."""
+def test_freq_control_step_buttons_flank_the_field(qapp):
+    """The minus sits left of the field and the plus right of it; both step."""
     control = FreqControl("LEFT EAR", "primary")
+    control.set_value(200.0)
     control.show()
     qapp.processEvents()
 
-    upper = control._spin.step_area(True)
-    lower = control._spin.step_area(False)
-    assert upper.isValid() and lower.isValid()
+    # The row order is the user's own reading order: minus, field, unit, plus.
+    root = control.layout()
+    row = None
+    for i in range(root.count()):
+        sub = root.itemAt(i).layout()
+        if sub is None:
+            continue
+        members = [sub.itemAt(j).widget() for j in range(sub.count())]
+        if control._lower in members and control._spin in members:
+            row = sub
+            break
+    assert row is not None, "the stepper row keeps minus, field and plus together"
+    members = [row.itemAt(i).widget() for i in range(row.count())]
+    assert members.index(control._lower) < members.index(control._spin) < members.index(
+        control._raise
+    )
 
     before = control.value()
-    upper.setLeft(upper.left() + 4)
-    QTest.mouseClick(control._spin, Qt.MouseButton.LeftButton, pos=upper.center())
+    QTest.mouseClick(control._raise, Qt.MouseButton.LeftButton)
     assert control.value() == pytest.approx(round(before + 0.1, 1))
 
-    QTest.mouseClick(control._spin, Qt.MouseButton.LeftButton, pos=lower.center())
+    QTest.mouseClick(control._lower, Qt.MouseButton.LeftButton)
     assert control.value() == pytest.approx(before)
     control.close()
     control.deleteLater()
