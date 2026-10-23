@@ -325,9 +325,11 @@ final class L10nTests: XCTestCase {
         // a button that selects the chakra mode and a checkbox beside it, and the
         // Python app has no call site for either. The tabbed panel and the step the
         // session holds add three more. The preset cards shout the beat in the bare
-        // number as a fallback outside the tabulated bands — one more. The ceiling is 19.
+        // number as a fallback outside the tabulated bands — one more. The three-state
+        // theme, the header's session status, the preset search and the two mouse steps
+        // by the frequency are six more. The ceiling is 27.
         XCTAssertLessThanOrEqual(
-            additions.count, 19,
+            additions.count, 27,
             "the additions are a documented superset, not a second catalogue"
         )
         for (key, value) in additions {

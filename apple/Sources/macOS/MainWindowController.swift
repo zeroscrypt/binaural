@@ -38,6 +38,11 @@ final class MainWindowController: NSWindowController {
     private let volumeIcon = NSButton()
     private let volumeSlider = NSSlider()
     private let volumeLabel = NSTextField(labelWithString: "")
+    private var sidebarColumnView: NSView?
+    private var sidebarWidthConstraint: NSLayoutConstraint?
+    private var rightColumnView: NSView?
+    private var rightWidthConstraint: NSLayoutConstraint?
+    private var resizeObserver: NSObjectProtocol?
     private let timerView = TimerControlView()
     /// The right-hand column's headphone card: its caption, its own speaker state and
     /// the check button, all fed the same facts the bottom status line gets, so the
@@ -163,11 +168,19 @@ final class MainWindowController: NSWindowController {
     /// The two frequency cards with the beat between them.
     private let frequencyRow = NSStackView()
     /// The theme switch in the header: the moon.
-    private let themeButton = NSButton()
+    private let themeControl = NSSegmentedControl()
+    /// The one-line audio-session status, in the header the way the mock-up shows it.
+    private let sessionStatusLabel = NSTextField(labelWithString: "")
+    /// The quick way to the full preset library.
+    private let presetsHeaderButton = NSButton(title: "", target: nil, action: nil)
     /// The catalogue down the left: the preset categories.
     private let categorySidebar = CategorySidebarView()
+    /// The sidebar's search: by text among all the presets, in whatever column it shows.
+    private let presetSearchField = NSSearchField()
     /// The presets, as cards.
-    private let presetCards = PresetCardsView()
+    let presetCards = PresetCardsView()
+    /// The full preset library, in a window of its own.
+    private lazy var presetLibraryController = PresetLibraryController(owner: self)
     /// The mode's own switch: ticked while the mode is on, and unticking it is the
     /// explicit way out.
     private let chakraModeCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
@@ -201,7 +214,7 @@ final class MainWindowController: NSWindowController {
     private var presetCategoryID: String
     /// Id of the preset that produced the frequencies on screen, `nil` when the user has
     /// moved a control since. Python's `apply_preset` also stores this in `last_preset`.
-    private var lastPresetID: String?
+    var lastPresetID: String?
     /// Written once, after the first successful `start()`, and on every change after.
     /// Never on the audio thread.
     private(set) var saves = 0
@@ -250,7 +263,11 @@ final class MainWindowController: NSWindowController {
             backing: .buffered,
             defer: false
         )
-        window.minSize = NSSize(width: 980, height: 460)
+        // The minimum sits below both compactness thresholds — the collapse is
+        // something a real window reaches — and its height is the content's own
+        // measured least (the session column's cards set it), not an invented round
+        // number the layout would have to ignore.
+        window.minSize = NSSize(width: 800, height: 600)
         // The title is not shown. macOS 26 draws the window's title as a floating glass
         // plate above the traffic lights, and a plate that only repeats the app's name
         // is a plate that says nothing — the row underneath it says what the app wants
@@ -274,17 +291,29 @@ final class MainWindowController: NSWindowController {
             window.onTogglePlayback = { [weak self] in self?.togglePlayback() }
             window.onNudge = { [weak self] delta in self?.nudge(delta) }
             window.onSwitchChannel = { [weak self] in self?.toggleActiveChannel() }
+            window.onPrepareResize = { [weak self] width in
+                let target = MainWindowController.self
+                self?.setCompactness(
+                    hideSidebar: width < target.sidebarCollapseWidth,
+                    hideRight: width < target.rightCollapseWidth
+                )
+            }
         }
-        // The theme is the app's own, not the system's: the mock-up puts the switch
-        // in the header, and a switch that does not switch anything would be a lie.
-        if UserDefaults.standard.object(forKey: Self.themeDefaultsKey) != nil {
-            NSApp.appearance = NSAppearance(
-                named: usesDarkTheme ? .darkAqua : .aqua
-            )
+        // The narrow-window answer: the columns leave in the order the mock-up's
+        // hierarchy puts them — the catalogue first, then the session column — and the
+        // frequencies with their readouts always stay.
+        resizeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResizeNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.applyWindowCompactness() }
         }
+        applyWindowCompactness()
+        // The theme follows the stored three-state choice; `nil` means the system.
+        applyThemeStyle()
         restoreSession()
         retranslate()
-        updateThemeButton()
 
         languageObserver = NotificationCenter.default.addObserver(
             forName: L10n.languageDidChange,
@@ -397,18 +426,48 @@ final class MainWindowController: NSWindowController {
             languageControl.setLabel(code.rawValue.uppercased(), forSegment: index)
         }
 
-        themeButton.bezelStyle = .inline
-        themeButton.isBordered = false
-        themeButton.image = NSImage(
-            systemSymbolName: "moon.stars", accessibilityDescription: L10n.tr("Theme")
+        // The theme is one control with the three states the shared task names: light,
+        // whatever the system says, and dark. The pictures are not self-explanatory in
+        // isolation, so every segment also carries an accessibility label.
+        themeControl.segmentCount = Self.themeSymbols.count
+        themeControl.segmentStyle = .roundRect
+        themeControl.controlSize = .regular
+        themeControl.target = self
+        themeControl.action = #selector(themeChosen(_:))
+        themeControl.setAccessibilityLabel(L10n.tr("Theme"))
+        themeControl.setAccessibilityHelp(
+            L10n.tr("Switches between the light and the dark theme.")
         )
-        themeButton.contentTintColor = .secondaryLabelColor
-        themeButton.target = self
-        themeButton.action = #selector(themeToggled)
-        themeButton.setAccessibilityLabel(L10n.tr("Theme"))
+        for (index, symbol) in Self.themeSymbols.enumerated() {
+            themeControl.setImage(
+                NSImage(systemSymbolName: symbol, accessibilityDescription: nil),
+                forSegment: index
+            )
+        }
+        themeControl.setSelected(
+            true, forSegment: Self.segment(for: themeStyle)
+        )
+
+        sessionStatusLabel.font = .systemFont(ofSize: 11)
+        sessionStatusLabel.textColor = .secondaryLabelColor
+
+        presetsHeaderButton.bezelStyle = .accessoryBarAction
+        presetsHeaderButton.controlSize = .regular
+        presetsHeaderButton.target = self
+        presetsHeaderButton.action = #selector(showPresetLibrary)
+        presetsHeaderButton.title = L10n.tr("All presets")
+        presetsHeaderButton.image = NSImage(
+            systemSymbolName: "square.on.square.dashed", accessibilityDescription: nil
+        )
+        presetsHeaderButton.imagePosition = .imageLeading
+        presetsHeaderButton.setAccessibilityLabel(L10n.tr("All presets"))
+        presetsHeaderButton.setAccessibilityHelp(L10n.tr("All presets"))  // placeholder help until retranslate()
 
         let header = headerRow
-        for view in [brand, NSView(), referenceButton, languageControl, themeButton, menuButton] {
+        for view in [
+            brand, sessionStatusLabel, NSView(), presetsHeaderButton,
+            referenceButton, languageControl, themeControl, menuButton
+        ] {
             header.addArrangedSubview(view)
         }
         header.orientation = .horizontal
@@ -500,7 +559,13 @@ final class MainWindowController: NSWindowController {
         // belong with what is playing.
         chakraView.presetSlot.addArrangedSubview(presetBlock)
         // The catalogue down the left: the mode's switch and the preset categories.
-        let sidebar = NSStackView(views: [statusRow, categorySidebar])
+        presetSearchField.placeholderString = L10n.tr("Search presets…")
+        presetSearchField.font = .systemFont(ofSize: 12)
+        presetSearchField.translatesAutoresizingMaskIntoConstraints = false
+        presetSearchField.heightAnchor.constraint(equalToConstant: 28).isActive = true
+        presetSearchField.delegate = self
+
+        let sidebar = NSStackView(views: [statusRow, presetSearchField, categorySidebar])
         sidebar.orientation = .vertical
         sidebar.alignment = .leading
         sidebar.spacing = 12
@@ -524,6 +589,7 @@ final class MainWindowController: NSWindowController {
         // the range of beats. The chips they replace are still there, because they are
         // what the tests drive, and they are hidden.
         presetCards.onPick = { [weak self] id in self?.presetPicked(id) }
+        presetLibraryController.retranslate()
         let presetsBlock = NSStackView(views: [
             NSTextField(labelWithString: L10n.tr("Presets")), presetCards, presetBlock
         ])
@@ -580,6 +646,8 @@ final class MainWindowController: NSWindowController {
             checkButton.widthAnchor.constraint(equalTo: headphoneContent.widthAnchor)
         ])
 
+        sidebarColumnView = sidebar
+        rightColumnView = right
         let body = NSStackView(views: [sidebar, centre, right])
         body.orientation = .horizontal
         body.alignment = .top
@@ -611,8 +679,11 @@ final class MainWindowController: NSWindowController {
             headphoneCard.widthAnchor.constraint(equalTo: right.widthAnchor),
             frequencyRow.widthAnchor.constraint(lessThanOrEqualTo: centre.widthAnchor),
             // The beat is the difference between the two numbers beside it, so it is a
-            // column of its own rather than a panel that takes the room they need.
-            beatView.widthAnchor.constraint(equalToConstant: 320),
+            // column of its own rather than a panel that takes the room they need. It
+            // prefers its full 320 pt and yields down to 240 before anything else in the
+            // centre does — the numbers themselves never shrink.
+                        withPriority(.init(900), beatView.widthAnchor.constraint(lessThanOrEqualToConstant: 320)),
+            beatView.widthAnchor.constraint(greaterThanOrEqualToConstant: 240),
             chakraView.widthAnchor.constraint(equalTo: centre.widthAnchor),
             presetBlock.widthAnchor.constraint(equalTo: centre.widthAnchor),
             presetsBlock.widthAnchor.constraint(equalTo: centre.widthAnchor),
@@ -649,6 +720,15 @@ final class MainWindowController: NSWindowController {
             chakraButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             chakraModeCheckbox.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
         ]
+        // The columns' own widths are the constraints that pin the window's least
+        // width, so the collapse keeps a hold of them: hiding a view does not
+        // deactivate anything, a stopped constraint does.
+        sidebarWidthConstraint = constraints.first {
+            ($0.firstItem as? NSView) == sidebar && $0.firstAttribute == .width
+        }
+        rightWidthConstraint = constraints.first {
+            ($0.firstItem as? NSView) == right && $0.firstAttribute == .width
+        }
         NSLayoutConstraint.activate(constraints)
 
         window?.contentView = content
@@ -1054,6 +1134,11 @@ final class MainWindowController: NSWindowController {
         // An unknown id from a hand-edited file degrades to the default (F3), so the
         // document and the chips cannot drift apart.
         presetCategoryID = PresetCatalogue.resolvedCategoryID(id)
+        // The category is what the search was searching in; a new category is a new
+        // question, so the field goes empty with it.
+        if !presetSearchField.stringValue.isEmpty {
+            presetSearchField.stringValue = ""
+        }
         refreshPresetCards()
         scheduleSave()
     }
@@ -1094,6 +1179,7 @@ final class MainWindowController: NSWindowController {
         // names the preset that produced them, the way Python's status bar does.
         presetBar.markPreset(preset.id)
         presetCards.markedPresetID = preset.id
+        presetLibraryController.refresh()
         // Stored the way Python stores it (`last_preset`), so the chip is highlighted
         // again on the next launch.
         lastPresetID = preset.id
@@ -1466,6 +1552,16 @@ final class MainWindowController: NSWindowController {
         )
         check.target = self
         check.toolTip = L10n.tr("Re-reads the default audio output device and offers the L/R test.")
+        // Naming the current pair is what the model already persists (`last_preset`),
+        // so the menu carries the action the data can honestly hold.
+        let save = NSMenuItem(
+            title: L10n.tr("Save preset"),
+            action: #selector(savePresetTapped),
+            keyEquivalent: ""
+        )
+        save.target = self
+        overflowMenu.addItem(save)
+        overflowMenu.addItem(.separator())
         overflowMenu.addItem(check)
 
         let reference = NSMenuItem(
@@ -1499,6 +1595,97 @@ final class MainWindowController: NSWindowController {
         onReferenceRequested?()
     }
 
+    /// Which columns are on screen at this width: the catalogue leaves first, then the
+    /// session column. The thresholds are the widths the columns' own required sizes
+    /// actually stop fitting at — hiding them is not a choice the window has to survive,
+    /// it is what lets it become narrow at all, so both are reachable from `minSize`.
+    func applyWindowCompactness() {
+        guard let width = window?.contentRect(forFrameRect: window?.frame ?? .zero).width,
+              width > 0
+        else { return }
+        setCompactness(hideSidebar: width < Self.sidebarCollapseWidth,
+                       hideRight: width < Self.rightCollapseWidth)
+    }
+
+    /// A constraint with an explicit priority: the plain property assignment, one
+    /// line instead of a dance.
+    private func withPriority(
+        _ priority: NSLayoutConstraint.Priority, _ constraint: NSLayoutConstraint
+    ) -> NSLayoutConstraint {
+        constraint.priority = priority
+        return constraint
+    }
+
+    private func setCompactness(hideSidebar: Bool, hideRight: Bool) {
+        if sidebarColumnView?.isHidden != hideSidebar {
+            sidebarColumnView?.isHidden = hideSidebar
+            // The column's width is a required constraint: as long as it stays active
+            // it pins the window's least size at the column's own width, which is
+            // exactly what would keep the window from ever becoming narrow.
+            sidebarWidthConstraint?.isActive = !hideSidebar
+        }
+        if rightColumnView?.isHidden != hideRight {
+            rightColumnView?.isHidden = hideRight
+            rightWidthConstraint?.isActive = !hideRight
+        }
+    }
+
+    /// The widths at which the columns leave: the centre's own least size is what
+    /// decides the numbers — a threshold above the real minimum would promise a
+    /// collapse the window could never reach.
+    static let sidebarCollapseWidth: CGFloat = 1280
+    static let rightCollapseWidth: CGFloat = 1050
+
+    /// The search text drives the centre's cards: an empty query is the chosen
+    /// category the way it always was; typing searches across the registry.
+    private func applyPresetFilter(_ raw: String) {
+        let query = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if query.isEmpty {
+            refreshPresetCards()
+            return
+        }
+        presetCards.presets = PresetCatalogue.presets.filter {
+            PresetCard.matches(preset: $0, query: query)
+        }
+        presetCards.markedPresetID = lastPresetID
+    }
+
+    @objc private func showPresetLibrary() {
+        presetLibraryController.present()
+    }
+
+    /// Naming the current pair (the model's own `last_preset`, exactly what the Python
+    /// window stores) in a small sheet: the name is the only thing asked for.
+    @objc private func savePresetTapped() {
+        let alert = NSAlert()
+        alert.messageText = L10n.tr("Save preset")
+        alert.informativeText = L10n.tr(
+            "Current frequencies: left %1, right %2.",
+            FrequencyControlView.formatter.string(from: NSNumber(value: leftControl.value)) ?? "",
+            FrequencyControlView.formatter.string(from: NSNumber(value: rightControl.value)) ?? ""
+        )
+        alert.accessoryView = savePresetField
+        alert.addButton(withTitle: L10n.tr("Save preset"))
+        alert.addButton(withTitle: L10n.tr("Cancel"))
+        alert.window.initialFirstResponder = savePresetField
+        if alert.runModal() == .alertFirstButtonReturn {
+            let name = savePresetField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            // The model holds a name or nothing; an empty answer means a named nothing,
+            // which would be a lie in the document, so it stores nil like Python does.
+            lastPresetID = name.isEmpty ? nil : name
+            if !isRestoring { scheduleSave() }
+        }
+        savePresetField.stringValue = ""
+    }
+
+    /// The field the save dialog asks the name in. The dialog takes it as its
+    /// accessory view, so the field's own metrics and behaviour are defined once.
+    private let savePresetField: NSTextField = {
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        field.placeholderString = L10n.tr("Preset name")
+        return field
+    }()
+
     /// The language was picked in the header.
     @objc private func languageSegmentChanged() {
         let index = languageControl.selectedSegment
@@ -1507,14 +1694,61 @@ final class MainWindowController: NSWindowController {
         L10n.setLanguage(codes[index].rawValue)
     }
 
-    /// The theme was switched: the app follows its own choice from now on, and
-    /// remembers it.
-    @objc private func themeToggled() {
-        let dark = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        let next: NSAppearance.Name = dark ? .aqua : .darkAqua
-        NSApp.appearance = NSAppearance(named: next)
-        UserDefaults.standard.set(next == .darkAqua, forKey: Self.themeDefaultsKey)
-        updateThemeButton()
+    /// The theme, as the shared task names it: light, whatever the system says, or dark.
+    enum ThemeStyle: String {
+        case light
+        case system
+        case dark
+    }
+
+    /// The theme the window shows, from the stored preference.
+    ///
+    /// The system's own defaults, not the session: the theme is a property of the
+    /// machine, not of a listening session, and a session file that carried it would be
+    /// copied between machines with it. The old two-state key (`binaural.darkTheme`)
+    /// migrates: a preference that said "dark" and never named a style keeps meaning
+    /// dark after this control replaces the moon.
+    var themeStyle: ThemeStyle {
+        let defaults = UserDefaults.standard
+        if let raw = defaults.string(forKey: Self.themeStyleKey) {
+            return ThemeStyle(rawValue: raw) ?? .system
+        }
+        if defaults.object(forKey: Self.legacyThemeKey) != nil {
+            return defaults.bool(forKey: Self.legacyThemeKey) ? .dark : .light
+        }
+        return .system
+    }
+
+    @objc private func themeChosen(_ sender: NSSegmentedControl) {
+        let style = Self.style(forSegment: sender.selectedSegment)
+        UserDefaults.standard.set(style.rawValue, forKey: Self.themeStyleKey)
+        applyThemeStyle()
+    }
+
+    /// One place puts the stored choice into effect. `nil` means "follow the system",
+    /// which is what an explicit `NSAppearance` would otherwise pin against.
+    func applyThemeStyle() {
+        let style = themeStyle
+        if style == .system {
+            NSApp.appearance = nil
+        } else {
+            NSApp.appearance = NSAppearance(named: style == .dark ? .darkAqua : .aqua)
+        }
+        themeControl.setSelected(true, forSegment: Self.segment(for: style))
+    }
+
+    /// The pictures of the three states: a sun, the half-lit circle of whatever the
+    /// system does, and a moon.
+    private static let themeSymbols = [
+        "sun.max.fill", "circle.lefthalf.filled", "moon.stars.fill"
+    ]
+
+    private static func segment(for style: ThemeStyle) -> Int {
+        [ThemeStyle.light, .system, .dark].firstIndex(of: style) ?? 1
+    }
+
+    private static func style(forSegment segment: Int) -> ThemeStyle {
+        [ThemeStyle.light, .system, .dark].first { Self.segment(for: $0) == segment } ?? .system
     }
 
     /// Where the theme choice is kept.
@@ -1522,26 +1756,9 @@ final class MainWindowController: NSWindowController {
     /// The system's own defaults, not the session: the theme is a property of the
     /// machine, not of a listening session, and a session file that carried it would be
     /// copied between machines with it.
-    private static let themeDefaultsKey = "binaural.darkTheme"
-
-    /// Whether the app is in the dark theme, whatever the system says.
-    private var usesDarkTheme: Bool {
-        let defaults = UserDefaults.standard
-        if defaults.object(forKey: Self.themeDefaultsKey) != nil {
-            return defaults.bool(forKey: Self.themeDefaultsKey)
-        }
-        return NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-    }
-
-    /// The moon shows the theme the app is in; clicking it switches to the other one.
-    private func updateThemeButton() {
-        let dark = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        themeButton.image = NSImage(
-            systemSymbolName: dark ? "moon.stars.fill" : "sun.max.fill",
-            accessibilityDescription: L10n.tr("Theme")
-        )
-        themeButton.toolTip = L10n.tr("Switches between the light and the dark theme.")
-    }
+    private static let themeStyleKey = "binaural.themeStyle"
+    /// The theme's previous two-state key, read only on migration above.
+    private static let legacyThemeKey = "binaural.darkTheme"
 
     @objc private func languageSelected(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String else { return }
@@ -1557,8 +1774,10 @@ final class MainWindowController: NSWindowController {
         window?.title = L10n.tr("Binaural")
         brandTagline.stringValue = L10n.tr("Two frequencies. One effect.")
         referenceButton.title = L10n.tr("Reference")
-        themeButton.setAccessibilityLabel(L10n.tr("Theme"))
-        themeButton.toolTip = L10n.tr("Switches between the light and the dark theme.")
+        themeControl.setAccessibilityLabel(L10n.tr("Theme"))
+        themeControl.setAccessibilityHelp(
+            L10n.tr("Switches between the light and the dark theme.")
+        )
         languageControl.selectedSegment = L10n.languages.firstIndex(of: L10n.language) ?? 0
         categorySidebar.retranslate()
         leftControl.retranslate(caption: L10n.tr("LEFT EAR"), rangeHint: L10n.tr("1 – 20000 Hz"))
@@ -1587,6 +1806,13 @@ final class MainWindowController: NSWindowController {
         checkButton.title = L10n.tr("Check headphones…")
         sessionIndicator.retranslate()
         presetCards.retranslate()
+        presetLibraryController.retranslate()
+        // The theme's three segments carry their own names, and the header's quick
+        // controls read the strings again with the language.
+        themeControl.setLabel(L10n.tr("Light"), forSegment: 0)
+        themeControl.setLabel(L10n.tr("Follow the system"), forSegment: 1)
+        themeControl.setLabel(L10n.tr("Dark"), forSegment: 2)
+        presetsHeaderButton.title = L10n.tr("All presets")
         chakraButton.title = L10n.tr("Chakras")
         chakraButton.setAccessibilityLabel(L10n.tr("Chakras"))
         chakraModeCheckbox.title = L10n.tr("On")
@@ -1608,6 +1834,9 @@ final class MainWindowController: NSWindowController {
 
         let playing = engine.isRunning
         playButton.isPlaying = playing
+        // The one-line session status, the way the mock-up carries it in the header.
+        sessionStatusLabel.stringValue = L10n.tr(playing ? "Playing" : "Stopped")
+        sessionStatusLabel.setAccessibilityValue(sessionStatusLabel.stringValue)
         playButton.setAccessibilityLabel(
             L10n.tr(playing ? "Stop the binaural tone" : "Play the binaural tone")
         )
@@ -2035,6 +2264,44 @@ final class MainWindowController: NSWindowController {
         timerView.setMinutes(minutes)
         timerSelectionChanged(timerView.selectedMinutes)
     }
+
+    // MARK: - The modern interface, for the tests
+
+    /// Pick one of the three theme states the way the segment's click does: through the
+    /// same code path that stores and applies the choice.
+    func chooseTheme(_ style: ThemeStyle) {
+        UserDefaults.standard.set(style.rawValue, forKey: Self.themeStyleKey)
+        applyThemeStyle()
+    }
+
+    /// The theme control, so a test can read which segment is lit.
+    var themeSegments: NSSegmentedControl { themeControl }
+
+    /// The sidebar's search field, read and written like the user types.
+    var presetSearchText: String {
+        get { presetSearchField.stringValue }
+        set { presetSearchField.stringValue = newValue; applyPresetFilter(newValue) }
+    }
+
+    /// The channel views, for tests that drive the field's own commit path.
+    var leftFrequencyForTest: FrequencyControlView { leftControl }
+    var rightFrequencyForTest: FrequencyControlView { rightControl }
+
+    /// Type a duration into the card's own manual field, the way the keyboard would.
+    func typeTimerMinutes(_ text: String) {
+        timerView.typeManualMinutes(text)
+    }
+
+    /// The full preset library, for tests that read what it shows.
+    var presetLibraryForTest: PresetLibraryController { presetLibraryController }
+
+    /// The category the centre's cards are drawn from, so a test can compare the
+    /// unfiltered count with what the search found.
+    var selectedPresetCategoryForTest: String { presetCategoryID }
+
+    /// Which of the two side columns are on screen at the window's current width.
+    var isSidebarShown: Bool? { sidebarColumnView.map { !$0.isHidden } }
+    var isRightColumnShown: Bool? { rightColumnView.map { !$0.isHidden } }
 }
 
 extension MainWindowController: NSWindowDelegate {
@@ -2051,6 +2318,22 @@ extension MainWindowController: NSWindowDelegate {
         onWindowCloseRequested?()
         return false
     }
+
+    /// The columns leave *before* the window becomes narrow, not after: their widths
+    /// are required constraints, and a window whose minimum size they pin is a window
+    /// that could never reach the width at which they would be asked to leave. This
+    /// hook is the only place the collapse happens early enough.
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        let width = sender.contentRect(
+            forFrameRect: NSRect(origin: .zero, size: frameSize)
+        ).width
+        setCompactness(
+            hideSidebar: width < Self.sidebarCollapseWidth,
+            hideRight: width < Self.rightCollapseWidth
+        )
+        // `didResize` puts the final state right after; this is only the door opening.
+        return frameSize
+    }
 }
 
 /// The window, with the shortcuts SPEC §7 puts on it.
@@ -2066,10 +2349,26 @@ final class MainWindow: NSWindow {
     var onTogglePlayback: (() -> Void)?
     var onNudge: ((Double) -> Void)?
     var onSwitchChannel: (() -> Void)?
+    /// The collapse runs ahead of a programmatic frame change: `windowWillResize`
+    /// answers the drag path, and this answers `setContentSize` — the accessibility
+    /// highway, a restored frame, a zoom — which bypasses the delegate.
+    var onPrepareResize: ((CGFloat) -> Void)?
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if event.type == .keyDown, handle(event) { return true }
         return super.performKeyEquivalent(with: event)
+    }
+
+    override func setContentSize(_ size: NSSize) {
+        onPrepareResize?(size.width)
+        super.setContentSize(size)
+    }
+
+    /// Every frame change — the accessibility resize, a restored frame — passes here,
+    /// so the collapse runs before the constraints see the new width.
+    override func setFrame(_ frameRect: NSRect, display: Bool) {
+        onPrepareResize?(frameRect.width)
+        super.setFrame(frameRect, display: display)
     }
 
     private func handle(_ event: NSEvent) -> Bool {
@@ -2101,5 +2400,14 @@ final class MainWindow: NSWindow {
         default:
             return false
         }
+    }
+}
+extension MainWindowController: NSSearchFieldDelegate {
+
+    /// Every keystroke of the sidebar's search rebuilds the cards, on the main thread
+    /// the notification arrives on.
+    func controlTextDidChange(_ notification: Notification) {
+        guard (notification.object as? NSTextField) === presetSearchField else { return }
+        applyPresetFilter(presetSearchField.stringValue)
     }
 }

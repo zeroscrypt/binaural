@@ -68,7 +68,20 @@ enum RussianWindowAdditions {
         ),
         // The preset cards speak of the beat itself; a card outside the tabulated bands
         // (a hand-edited preset) falls back to the bare number.
-        "%1 Hz": "%1 Гц"
+        "%1 Hz": "%1 Гц",
+        // The three theme states the shared task names: the control's segments carry
+        // pictures, so the words live in the labels the ears read.
+        "Light": "Светлая",
+        "Follow the system": "Как в системе",
+        "Dark": "Тёмная",
+        // The one-line session status in the header.
+        "Playing": "Играет",
+        "Stopped": "Стоит",
+        // The search among the presets: the sidebar's own field and the library's.
+        "Search presets…": "Поиск по пресетам…",
+        // The two mouse steps beside the number, one each.
+        "Raise the frequency": "Повысить частоту",
+        "Lower the frequency": "Понизить частоту"
     ]
 }
 

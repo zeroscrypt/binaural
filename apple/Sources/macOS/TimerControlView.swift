@@ -29,6 +29,10 @@ final class TimerControlView: NSView {
     private let clockLabel = NSTextField(labelWithString: "")
     private let popup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let quickRow = NSStackView()
+    /// Typing a duration straight into the card: the field takes minutes as a whole
+    /// number, and the card's own snapping decides which offered duration results.
+    private let manualField = NSTextField(frame: NSRect(x: 0, y: 0, width: 72, height: 24))
+    private let manualButton = NSButton(title: "", target: nil, action: nil)
     private var quickButtons: [Int: NSButton] = [:]
 
     private var minutes = Session.defaultTimerMinutes
@@ -77,7 +81,34 @@ final class TimerControlView: NSView {
             quickButtons[choice] = button
         }
 
-        let stack = NSStackView(views: [captionLabel, clockLabel, popup, quickRow])
+        // The manual answer, for every duration the quick row does not name: digits in,
+        // `Apply` to commit. Any value snaps to the nearest offered duration — the same
+        // snapping the stored session goes through — so the popup stays the one place
+        // the truth about what can be clicked lives.
+        manualField.placeholderString = "15"
+        manualField.font = .monospacedDigitSystemFont(ofSize: 13, weight: .regular)
+        manualField.alignment = .right
+        manualField.target = self
+        manualField.action = #selector(manualEntered)
+        manualField.setAccessibilityLabel(L10n.tr("Timer"))
+        manualField.setAccessibilityHelp(L10n.tr("How long a new session plays before it stops by itself."))
+        manualField.translatesAutoresizingMaskIntoConstraints = false
+        manualField.widthAnchor.constraint(equalToConstant: 72).isActive = true
+
+        manualButton.bezelStyle = .rounded
+        manualButton.controlSize = .regular
+        manualButton.target = self
+        manualButton.action = #selector(manualEntered)
+        manualButton.setAccessibilityLabel(L10n.tr("Apply"))
+        manualField.heightAnchor.constraint(greaterThanOrEqualToConstant: 30).isActive = true
+        manualButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 30).isActive = true
+
+        let manualRow = NSStackView(views: [manualField, manualButton])
+        manualRow.orientation = .horizontal
+        manualRow.alignment = .centerY
+        manualRow.spacing = 6
+
+        let stack = NSStackView(views: [captionLabel, clockLabel, popup, quickRow, manualRow])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 8
@@ -149,6 +180,13 @@ final class TimerControlView: NSView {
     /// The duration currently selected, in minutes.
     var selectedMinutes: Int { minutes }
 
+    /// Type into the manual field and press its own commit — one path for the user and
+    /// a test to walk, so the manual answer cannot drift from what it is on screen.
+    func typeManualMinutes(_ text: String) {
+        manualField.stringValue = text
+        manualEntered()
+    }
+
     /// Show the countdown. An empty string means the timer is off and the clock goes
     /// back to the chosen duration.
     func updateCountdown(_ text: String) {
@@ -192,6 +230,19 @@ final class TimerControlView: NSView {
         onSelectMinutes?(raw)
     }
 
+    @objc private func manualEntered() {
+        guard !isSyncing,
+              let parsed = Int(manualField.stringValue.trimmingCharacters(in: .whitespaces)),
+              parsed >= 0
+        else { manualField.stringValue = "" ; return }
+        // The offered durations are data: a typed value lands on the nearest one of
+        // them, which is exactly what restoring a session does.
+        minutes = parsed == 0 ? Session.timerOff : Self.closestChoice(to: parsed)
+        setMinutes(minutes)
+        onSelectMinutes?(minutes)
+        manualField.stringValue = ""
+    }
+
     @objc private func quickChoice(_ sender: NSButton) {
         guard let raw = quickButtons.first(where: { $0.value === sender })?.key, raw != minutes
         else { return }
@@ -203,6 +254,7 @@ final class TimerControlView: NSView {
 
     /// Re-read the captions after a language switch (SPEC §7.4), keeping the selection.
     func retranslate() {
+        manualButton.title = L10n.tr("Apply")
         captionLabel.stringValue = L10n.tr("Timer")
         popup.setAccessibilityLabel(L10n.tr("Timer"))
         setAccessibilityLabel(L10n.tr("Timer"))

@@ -68,6 +68,37 @@ final class PresetCardsView: NSView {
     func retranslate() {
         rebuild()
     }
+
+    /// Fill the library's shelf: the shown presets as the same cards the centre shows,
+    /// three in a row, the shelf itself growing downwards.
+    ///
+    /// The library keeps its own list of cards because it *is* the same data with a
+    /// different filter — two sources of cards would be two sources of truth.
+    func showPresets(_ presets: [Preset], marked: String?, into container: NSStackView) {
+        container.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        var row: [NSView] = []
+        var rows: [NSStackView] = []
+        for preset in presets {
+            let card = PresetCard(preset: preset)
+            card.onPick = { [weak self] id in self?.onPick?(id) }
+            card.isMarked = preset.id == marked
+            row.append(card)
+            if row.count == 3 {
+                rows.append(self.shelfRow(row))
+                row.removeAll(keepingCapacity: true)
+            }
+        }
+        if !row.isEmpty { rows.append(shelfRow(row)) }
+        for shelf in rows { container.addArrangedSubview(shelf) }
+    }
+
+    private func shelfRow(_ views: [NSView]) -> NSStackView {
+        let shelf = NSStackView(views: views)
+        shelf.orientation = .horizontal
+        shelf.alignment = .leading
+        shelf.spacing = 10
+        return shelf
+    }
 }
 
 /// One preset, as a card: a coloured field, a mark, the band and the range of beats.
@@ -88,6 +119,9 @@ final class PresetCard: NSView {
     private let band: BrainwaveBand?
     private let iconView = NSImageView()
     private let nameLabel = NSTextField(labelWithString: "")
+    /// The beat itself, the number the preset exists to set — the card's own large
+    /// digit, in the unit the window speaks.
+    private let beatLabel = NSTextField(labelWithString: "")
     private let rangeLabel = NSTextField(labelWithString: "")
 
     init(preset: Preset) {
@@ -103,10 +137,12 @@ final class PresetCard: NSView {
         iconView.contentTintColor = .white
         nameLabel.font = .systemFont(ofSize: 12, weight: .semibold)
         nameLabel.textColor = .white
+        beatLabel.font = .systemFont(ofSize: 15, weight: .semibold)
+        beatLabel.textColor = .white
         rangeLabel.font = .systemFont(ofSize: 10)
         rangeLabel.textColor = NSColor.white.withAlphaComponent(0.85)
 
-        let stack = NSStackView(views: [iconView, nameLabel, rangeLabel])
+        let stack = NSStackView(views: [iconView, nameLabel, beatLabel, rangeLabel])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 2
@@ -121,23 +157,40 @@ final class PresetCard: NSView {
             iconView.widthAnchor.constraint(equalToConstant: 22),
             iconView.heightAnchor.constraint(equalToConstant: 22),
             widthAnchor.constraint(equalToConstant: 112),
-            heightAnchor.constraint(equalToConstant: 100)
+            heightAnchor.constraint(equalToConstant: 112)
         ])
 
         // The band's own name and range travel with the registry (SPEC F3), so the card
-        // reads them rather than repeating them.
+        // reads them rather than repeating them. The beat is the number the user set.
         nameLabel.stringValue = band?.name(for: L10n.language) ?? L10n.tr("%1 Hz", Self.beatText(preset.beatHz))
+        beatLabel.stringValue = L10n.tr("%1 Hz", Self.beatText(preset.beatHz))
         rangeLabel.stringValue = Self.rangeText(for: band)
         iconView.image = NSImage(
             systemSymbolName: Self.symbol(for: band),
             accessibilityDescription: nil
         )
-        setAccessibilityLabel(nameLabel.stringValue + " " + rangeLabel.stringValue)
+        setAccessibilityLabel(
+            nameLabel.stringValue + " " + beatLabel.stringValue + " " + rangeLabel.stringValue
+        )
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not used: the window is built in code")
+    }
+
+    /// One matcher, used by the sidebar's search and the library's: a preset matches
+    /// when its beat, its category, its band or the band's own range say the query.
+    /// `3`, `sleep`, `delta` — all three reach the same card.
+    static func matches(preset: Preset, query: String) -> Bool {
+        let haystacks = [
+            Self.beatText(preset.beatHz),
+            preset.title(for: L10n.language),
+            PresetCatalogue.category(id: preset.categoryID)?.name(for: L10n.language).lowercased() ?? "",
+            preset.band?.name(for: L10n.language).lowercased() ?? "",
+            preset.band?.jsonRangeLabel.lowercased() ?? ""
+        ]
+        return haystacks.contains { $0.contains(query) }
     }
 
     /// The beat without the trailing ".0" the double would print: `5 Hz`, `5.5 Hz`.

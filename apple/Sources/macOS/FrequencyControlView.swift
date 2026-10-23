@@ -62,7 +62,12 @@ final class FrequencyControlView: NSView {
     private let captionLabel = NSTextField(labelWithString: "")
     private let rangeHintLabel = NSTextField(labelWithString: "")
     private let field = TallTargetTextField()
-    private let stepper = NSStepper()
+    /// The explicit mouse steps beside the number: the minus and the plus do what the
+    /// stepper did, and read as directions rather than as a hidden widget.
+    private let lowerButton = NSButton(title: "", target: nil, action: nil)
+    private let raiseButton = NSButton(title: "", target: nil, action: nil)
+    /// The unit, spoken once beside the number rather than guessed from the field.
+    private let unitLabel = NSTextField(labelWithString: "")
     private let slider = NSSlider()
     private var isSyncing = false
 
@@ -121,12 +126,26 @@ final class FrequencyControlView: NSView {
         // resolution — and 0.1 Hz is the only step worth having here, since a tenth of a
         // hertz off the carrier is invisible but a tenth of a hertz off the *difference*
         // is right at the edge of what a listener can tell apart at low beat rates.
-        stepper.minValue = FrequencyGrid.minHz
-        stepper.maxValue = FrequencyGrid.maxHz
-        stepper.increment = 0.1
-        stepper.valueWraps = false
-        stepper.target = self
-        stepper.action = #selector(stepperMoved)
+        for (button, symbol, selector) in [
+            (lowerButton, "minus", #selector(lowerTapped)),
+            (raiseButton, "plus", #selector(raiseTapped))
+        ] {
+            button.bezelStyle = .recessed
+            button.controlSize = .regular
+            button.isBordered = false
+            button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+            button.contentTintColor = accent
+            button.target = self
+            button.action = selector
+            button.setButtonType(.momentaryChange)
+            button.widthAnchor.constraint(equalToConstant: 28).isActive = true
+            button.heightAnchor.constraint(equalToConstant: 28).isActive = true
+        }
+
+        // The unit sits right of the number: `Hz` in English, `Гц` in Russian — the same
+        // word the beat card speaks — and its own spot between the digits and the steps.
+        unitLabel.font = .monospacedDigitSystemFont(ofSize: 15, weight: .medium)
+        unitLabel.textColor = .secondaryLabelColor
 
         slider.minValue = 0
         slider.maxValue = FrequencyGrid.sliderSteps
@@ -145,7 +164,7 @@ final class FrequencyControlView: NSView {
         // The field and its arrows share one row. The arrows belong to the number, and putting
         // them beside it is what turns "nudge by a step" into a mouse action instead of
         // an `↑`/`↓` shortcut only.
-        let entryRow = NSStackView(views: [field, stepper])
+        let entryRow = NSStackView(views: [field, unitLabel, NSView(), lowerButton, raiseButton])
         entryRow.orientation = .horizontal
         entryRow.alignment = .centerY
         entryRow.spacing = 6
@@ -157,6 +176,11 @@ final class FrequencyControlView: NSView {
         stack.edgeInsets = NSEdgeInsets(top: 14, left: 14, bottom: 14, right: 14)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
+
+        // The digits take the room there is; the unit and the two step buttons keep
+        // their own, so the numbers never squeeze out their neighbours.
+        field.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -192,7 +216,7 @@ final class FrequencyControlView: NSView {
 
     /// Frequencies are always written with a dot, whatever the OS locale is — the
     /// `QLocale.c()` decision of `freq_control.py`.
-    private static let formatter: NumberFormatter = {
+    static let formatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.numberStyle = .decimal
@@ -263,8 +287,13 @@ final class FrequencyControlView: NSView {
         )
         field.setAccessibilityLabel(L10n.tr("%1 frequency in hertz", caption))
         field.setAccessibilityHelp(L10n.tr("Type an exact value between 1 and 20000, in steps of 0.1 hertz."))
-        stepper.setAccessibilityLabel(L10n.tr("%1 frequency in hertz", caption))
-        stepper.setAccessibilityHelp(
+        unitLabel.stringValue = L10n.tr("Hz")
+        lowerButton.setAccessibilityLabel(L10n.tr("Lower the frequency"))
+        lowerButton.setAccessibilityHelp(
+            L10n.tr("Raises or lowers the frequency by 0.1 hertz. Keep it held down to repeat.")
+        )
+        raiseButton.setAccessibilityLabel(L10n.tr("Raise the frequency"))
+        raiseButton.setAccessibilityHelp(
             L10n.tr("Raises or lowers the frequency by 0.1 hertz. Keep it held down to repeat.")
         )
         slider.setAccessibilityLabel(L10n.tr("%1 frequency slider", caption))
@@ -283,21 +312,52 @@ final class FrequencyControlView: NSView {
         } else {
             field.stringValue = String(format: "%.1f", value)
         }
-        stepper.doubleValue = value
         slider.doubleValue = FrequencyGrid.sliderPosition(for: value) * FrequencyGrid.sliderSteps
+    }
+
+    /// Escape's own answer, factored out of the delegate so a test can walk the same
+    /// code: the readout goes back to the sound's value, nothing is committed.
+    func cancelEditing() {
+        field.stringValue = String(format: "%.1f", value)
+        window?.makeFirstResponder(nil)
+    }
+
+    /// Type into the field without going through the formatter, the way a keyboard does.
+    var fieldText: String {
+        get { field.stringValue }
+        set { field.stringValue = newValue }
+    }
+
+    /// The field's own commit, for a test that leaves the half-typed state to it.
+    func commitFieldForTest() {
+        commitField()
     }
 
     @objc private func commitField() {
         guard !isSyncing else { return }
-        setValue(field.doubleValue, notify: true)
+        // The dot and the comma are one decimal point here: a Russian keyboard typing
+        // `,` is not an error, it is the same number. Anything unparseable — an empty
+        // half-typed value, `inf`, garbage — keeps the field as it is and the sound as
+        // it is: a bad edit is refused, not half-applied into the engine.
+        let raw = field.stringValue.replacingOccurrences(of: ",", with: ".")
+        // The field is the readout: `setValue` writes the quantised value back into it,
+        // so a nudge while editing cannot surprise the user with a stale buffer.
+        guard let parsed = Double(raw), parsed.isFinite else { return }
+        setValue(parsed, notify: true)
     }
 
     /// The arrows. `NSStepper` auto-repeats while the mouse is held on it, so this only has
     /// to turn "the user moved it" into a value change and let `setValue` push the result
     /// back into the field, the readout and the slider.
-    @objc private func stepperMoved() {
-        guard !isSyncing else { return }
-        setValue(stepper.doubleValue, notify: true)
+    /// The minus and the plus: one step of the grid each, the direction the glyph says.
+    /// `0.1` is the step the window's keyboard shortcuts move by — F1's grid — so the
+    /// mouse, the keys and the buttons all agree on what one step is.
+    @objc private func lowerTapped() {
+        nudge(-0.1)
+    }
+
+    @objc private func raiseTapped() {
+        nudge(0.1)
     }
 
     @objc private func sliderMoved() {
@@ -313,5 +373,17 @@ extension FrequencyControlView: NSTextFieldDelegate {
     /// stay in the field while the readout says something else.
     func controlTextDidEndEditing(_ obj: Notification) {
         commitField()
+    }
+
+    /// `Escape` cancels the edit: the field returns to the sound's own value and
+    /// nothing is committed that the user typed halfway. The engine is never touched.
+    func control(
+        _ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector
+    ) -> Bool {
+        guard commandSelector == #selector(NSResponder.cancelOperation(_:)) else {
+            return false
+        }
+        cancelEditing()
+        return true
     }
 }

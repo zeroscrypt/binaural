@@ -56,6 +56,8 @@ final class L10nKeysTests: XCTestCase {
         "Headphones in use", "Use headphones", "Unknown device",
         // timer (SPEC §5 F5)
         "Timer", "Off", "%1 min", "%1 Hz",
+        "Light", "Follow the system", "Dark", "Playing", "Stopped",
+        "Search presets…", "Raise the frequency", "Lower the frequency",
         // the chakra mode: seven solfeggio steps, root to crown
         "Chakras",
         "Earth", "Ground and stability: the body's own base.",
