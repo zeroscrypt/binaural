@@ -16,7 +16,6 @@ final class MainWindowController: NSWindowController {
     private let store: SessionStore
     private let session: Session
 
-    private let indicator = HeadphoneIndicatorView()
     private let leftControl = FrequencyControlView(
         ear: .left,
         accent: ChannelPalette.left,
@@ -43,7 +42,8 @@ final class MainWindowController: NSWindowController {
     private var rightColumnView: NSView?
     private var rightWidthConstraint: NSLayoutConstraint?
     private var resizeObserver: NSObjectProtocol?
-    private let timerView = TimerControlView()
+    /// The timer card, for tests that verify where the card sits in the window.
+    let timerView = TimerControlView()
     /// The right-hand column's headphone card: its caption, its own speaker state and
     /// the check button, all fed the same facts the bottom status line gets, so the
     /// two views cannot disagree.
@@ -157,18 +157,12 @@ final class MainWindowController: NSWindowController {
     /// to say "off" — unticking is a gesture to be guessed. So the button is a button:
     /// pressing it turns the mode on and pressing it again turns it off.
     private let chakraButton = NSButton()
-    /// The language switch in the header: RU and EN, side by side.
-    private let languageControl = NSSegmentedControl()
     /// The brand, in the header's left corner.
     private let brandMark = BrandMark()
     private let brandName = NSTextField(labelWithString: "Binaural")
     private let brandTagline = NSTextField(labelWithString: "")
-    /// The navigation, in the header's right corner.
-    private let referenceButton = NSButton()
     /// The two frequency cards with the beat between them.
     private let frequencyRow = NSStackView()
-    /// The theme switch in the header: the moon.
-    private let themeControl = NSSegmentedControl()
     /// The one-line audio-session status, in the header the way the mock-up shows it.
     private let sessionStatusLabel = NSTextField(labelWithString: "")
     /// The quick way to the full preset library.
@@ -197,6 +191,11 @@ final class MainWindowController: NSWindowController {
     private let overflowMenu = NSMenu()
     private let overflowLanguageItem = NSMenuItem()
     private let overflowLanguageMenu = NSMenu()
+    /// The theme lives beside the language in the same menu: both change how the app
+    /// presents itself, and neither is a thing a session revisits every minute. The
+    /// header keeps what a run actually reaches for.
+    private let overflowThemeItem = NSMenuItem()
+    private let overflowThemeMenu = NSMenu()
     /// The top row, kept so a test can read what is on it.
     private var statusRowView: NSView?
 
@@ -361,29 +360,10 @@ final class MainWindowController: NSWindowController {
         chakraModeCheckbox.action = #selector(chakraModeSwitched)
         chakraModeCheckbox.font = .systemFont(ofSize: 13)
 
-        // The status line: what the app wants the reader to know right now, in the
-        // colour the state deserves.
-        //
-        // It sits at the **bottom**, in a strip of its own, the way a status bar does —
-        // and the way the Qt window already does it, where the indicator is a permanent
-        // widget of the `QStatusBar`. The top row is then only the mode's switch and the
-        // corner menu: what the app can be *asked* to do, with the top of the window
-        // given over to that, and the bottom to what it is *doing*.
-        let statusLine = NSStackView(views: [indicator])
-        statusLine.orientation = .horizontal
-        statusLine.alignment = .centerY
-        statusLine.spacing = 0
-        statusLine.translatesAutoresizingMaskIntoConstraints = false
-
-        let statusBarSeparator = NSBox()
-        statusBarSeparator.boxType = .separator
-        statusBarSeparator.translatesAutoresizingMaskIntoConstraints = false
-
-        let statusBar = NSStackView(views: [statusBarSeparator, statusLine])
-        statusBar.orientation = .vertical
-        statusBar.alignment = .leading
-        statusBar.spacing = 0
-        statusBar.translatesAutoresizingMaskIntoConstraints = false
+        // The state line the mock-up keeps is the headphone card in the session
+        // column: one indicator, in the place the user looks at. A bottom strip would
+        // repeat it — two permanent copies of one state — and the transient words the
+        // window does say go to `presetStatusLabel` and `errorLabel` instead.
 
         // The header: the brand on the left, the navigation on the right. The mock-up
         // puts them in the title bar, and it is right to: a title bar is the one strip
@@ -408,46 +388,9 @@ final class MainWindowController: NSWindowController {
         brand.alignment = .leading
         brand.spacing = 0
 
-        referenceButton.title = L10n.tr("Reference")
-        referenceButton.target = self
-        referenceButton.action = #selector(referenceTapped)
-        referenceButton.bezelStyle = .inline
-        referenceButton.isBordered = false
-        referenceButton.font = .systemFont(ofSize: 13)
-        referenceButton.contentTintColor = .secondaryLabelColor
-
-        languageControl.segmentStyle = .rounded
-        languageControl.trackingMode = .selectOne
-        languageControl.target = self
-        languageControl.action = #selector(languageSegmentChanged)
-        languageControl.font = .systemFont(ofSize: 12)
-        languageControl.segmentCount = L10n.languages.count
-        for (index, code) in L10n.languages.enumerated() {
-            languageControl.setLabel(code.rawValue.uppercased(), forSegment: index)
-        }
-
-        // The theme is one control with the three states the shared task names: light,
-        // whatever the system says, and dark. The pictures are not self-explanatory in
-        // isolation, so every segment also carries an accessibility label.
-        themeControl.segmentCount = Self.themeSymbols.count
-        themeControl.segmentStyle = .roundRect
-        themeControl.controlSize = .regular
-        themeControl.target = self
-        themeControl.action = #selector(themeChosen(_:))
-        themeControl.setAccessibilityLabel(L10n.tr("Theme"))
-        themeControl.setAccessibilityHelp(
-            L10n.tr("Switches between the light and the dark theme.")
-        )
-        for (index, symbol) in Self.themeSymbols.enumerated() {
-            themeControl.setImage(
-                NSImage(systemSymbolName: symbol, accessibilityDescription: nil),
-                forSegment: index
-            )
-        }
-        themeControl.setSelected(
-            true, forSegment: Self.segment(for: themeStyle)
-        )
-
+        // The theme is one choice with the three states the shared task names: light,
+        // whatever the system says, and dark. In the menu each carries an accessibility
+        // label of its own, and the menu marks the live state.
         sessionStatusLabel.font = .systemFont(ofSize: 11)
         sessionStatusLabel.textColor = .secondaryLabelColor
 
@@ -464,9 +407,10 @@ final class MainWindowController: NSWindowController {
         presetsHeaderButton.setAccessibilityHelp(L10n.tr("All presets"))  // placeholder help until retranslate()
 
         let header = headerRow
+        // Language, theme and the reference stay in the menus: the header carries what
+        // the session is doing and the paths a run actually needs.
         for view in [
-            brand, sessionStatusLabel, NSView(), presetsHeaderButton,
-            referenceButton, languageControl, themeControl, menuButton
+            brand, sessionStatusLabel, NSView(), presetsHeaderButton, menuButton
         ] {
             header.addArrangedSubview(view)
         }
@@ -654,7 +598,7 @@ final class MainWindowController: NSWindowController {
         body.spacing = 24
         body.translatesAutoresizingMaskIntoConstraints = false
 
-        let stack = NSStackView(views: [header, body, errorLabel, statusBar])
+        let stack = NSStackView(views: [header, body, errorLabel])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 0
@@ -688,13 +632,10 @@ final class MainWindowController: NSWindowController {
             presetBlock.widthAnchor.constraint(equalTo: centre.widthAnchor),
             presetsBlock.widthAnchor.constraint(equalTo: centre.widthAnchor),
             transport.widthAnchor.constraint(equalTo: centre.widthAnchor),
-            errorLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
-            statusBar.widthAnchor.constraint(equalTo: stack.widthAnchor)
+            errorLabel.widthAnchor.constraint(equalTo: stack.widthAnchor)
         ]
         constraints += [
             statusRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-            statusBarSeparator.heightAnchor.constraint(equalToConstant: 1),
-            statusLine.heightAnchor.constraint(greaterThanOrEqualToConstant: 24),
             menuButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             menuButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
             ears.heightAnchor.constraint(greaterThanOrEqualToConstant: 200),
@@ -733,6 +674,19 @@ final class MainWindowController: NSWindowController {
 
         window?.contentView = content
         rebuildOverflowMenu()
+        // Let the solver settle once and take what the content itself needs as the
+        // window's own least. The invented round 600 let a 623-tall window exist
+        // *below* what the session column's cards require, and a window shorter than
+        // its cards is a window that draws them through its own title bar. Measuring
+        // beats inventing: the cards' least is a thing the layout already knows.
+        content.layoutSubtreeIfNeeded()
+        let least = content.fittingSize
+        if least.height > 0 {
+            window?.minSize = NSSize(
+                width: max(800, least.width),
+                height: max(600, least.height)
+            )
+        }
     }
 
     private func connect() {
@@ -1518,10 +1472,9 @@ final class MainWindowController: NSWindowController {
         showReport(headphoneReport)
     }
 
-    /// One report to every surface that shows the headphone state: the bottom status
-    /// line and the right-hand column's card, so the two cannot disagree.
+    /// One report to every surface that shows the headphone state: the card in the
+    /// right-hand column (there is exactly one copy of the state on screen).
     private func showReport(_ report: HeadphoneReport) {
-        indicator.apply(report: report)
         sessionIndicator.apply(report: report)
         noteHeadphoneReport(report)
     }
@@ -1589,6 +1542,48 @@ final class MainWindowController: NSWindowController {
         overflowLanguageItem.title = L10n.tr("Language")
         overflowLanguageItem.submenu = overflowLanguageMenu
         overflowMenu.addItem(overflowLanguageItem)
+
+        // Theme in the same menu as language: both are "how the app presents itself",
+        // and the header stays clear of choices a session does not revisit every minute.
+        overflowThemeMenu.removeAllItems()
+        for style in [ThemeStyle.light, ThemeStyle.system, ThemeStyle.dark] {
+            let item = NSMenuItem(
+                title: Self.themeName(style),
+                action: #selector(themeMenuSelected(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = style.rawValue
+            item.state = style == themeStyle ? .on : .off
+            overflowThemeMenu.addItem(item)
+        }
+        overflowThemeItem.title = L10n.tr("Theme")
+        overflowThemeItem.submenu = overflowThemeMenu
+        overflowMenu.addItem(overflowThemeItem)
+    }
+
+    /// The menu item for one theme state — the same path the old header segment drove:
+    /// store the choice, then put it on the app.
+    @objc private func themeMenuSelected(_ sender: NSMenuItem) {
+        let raw = sender.representedObject as? String
+        chooseTheme(ThemeStyle(rawValue: raw ?? "") ?? .system)
+    }
+
+    /// The caption of one theme state, in the interface language.
+    private static func themeName(_ style: ThemeStyle) -> String {
+        switch style {
+        case .light: return L10n.tr("Light")
+        case .system: return L10n.tr("Follow the system")
+        case .dark: return L10n.tr("Dark")
+        }
+    }
+
+    /// Re-mark the theme submenu to the live choice, whichever control set it.
+    private func markThemeMenuItems() {
+        for item in overflowThemeMenu.items {
+            let raw = item.representedObject as? String
+            item.state = raw == themeStyle.rawValue ? .on : .off
+        }
     }
 
     @objc private func referenceTapped() {
@@ -1686,14 +1681,6 @@ final class MainWindowController: NSWindowController {
         return field
     }()
 
-    /// The language was picked in the header.
-    @objc private func languageSegmentChanged() {
-        let index = languageControl.selectedSegment
-        let codes = L10n.languages
-        guard index >= 0, index < codes.count else { return }
-        L10n.setLanguage(codes[index].rawValue)
-    }
-
     /// The theme, as the shared task names it: light, whatever the system says, or dark.
     enum ThemeStyle: String {
         case light
@@ -1719,14 +1706,9 @@ final class MainWindowController: NSWindowController {
         return .system
     }
 
-    @objc private func themeChosen(_ sender: NSSegmentedControl) {
-        let style = Self.style(forSegment: sender.selectedSegment)
-        UserDefaults.standard.set(style.rawValue, forKey: Self.themeStyleKey)
-        applyThemeStyle()
-    }
-
     /// One place puts the stored choice into effect. `nil` means "follow the system",
-    /// which is what an explicit `NSAppearance` would otherwise pin against.
+    /// which is what an explicit `NSAppearance` would otherwise pin against. The choice
+    /// came from the menu now, so the menu is what gets re-marked.
     func applyThemeStyle() {
         let style = themeStyle
         if style == .system {
@@ -1734,21 +1716,7 @@ final class MainWindowController: NSWindowController {
         } else {
             NSApp.appearance = NSAppearance(named: style == .dark ? .darkAqua : .aqua)
         }
-        themeControl.setSelected(true, forSegment: Self.segment(for: style))
-    }
-
-    /// The pictures of the three states: a sun, the half-lit circle of whatever the
-    /// system does, and a moon.
-    private static let themeSymbols = [
-        "sun.max.fill", "circle.lefthalf.filled", "moon.stars.fill"
-    ]
-
-    private static func segment(for style: ThemeStyle) -> Int {
-        [ThemeStyle.light, .system, .dark].firstIndex(of: style) ?? 1
-    }
-
-    private static func style(forSegment segment: Int) -> ThemeStyle {
-        [ThemeStyle.light, .system, .dark].first { Self.segment(for: $0) == segment } ?? .system
+        markThemeMenuItems()
     }
 
     /// Where the theme choice is kept.
@@ -1773,17 +1741,13 @@ final class MainWindowController: NSWindowController {
     func retranslate() {
         window?.title = L10n.tr("Binaural")
         brandTagline.stringValue = L10n.tr("Two frequencies. One effect.")
-        referenceButton.title = L10n.tr("Reference")
-        themeControl.setAccessibilityLabel(L10n.tr("Theme"))
-        themeControl.setAccessibilityHelp(
-            L10n.tr("Switches between the light and the dark theme.")
-        )
-        languageControl.selectedSegment = L10n.languages.firstIndex(of: L10n.language) ?? 0
+        // Language and theme live in the menus, whose rebuild below re-reads
+        // every title they carry.
         categorySidebar.retranslate()
         leftControl.retranslate(caption: L10n.tr("LEFT EAR"), rangeHint: L10n.tr("1 – 20000 Hz"))
         rightControl.retranslate(caption: L10n.tr("RIGHT EAR"), rangeHint: L10n.tr("1 – 20000 Hz"))
         beatView.retranslate()
-        indicator.retranslate()
+        sessionIndicator.retranslate()
         // Both transient notes are catalogue keys, so a language switch must re-read the one
         // that is currently on screen rather than leaving it in the previous language.
         if let key = showingNotice { showNoticeNow(key) }
@@ -1807,11 +1771,6 @@ final class MainWindowController: NSWindowController {
         sessionIndicator.retranslate()
         presetCards.retranslate()
         presetLibraryController.retranslate()
-        // The theme's three segments carry their own names, and the header's quick
-        // controls read the strings again with the language.
-        themeControl.setLabel(L10n.tr("Light"), forSegment: 0)
-        themeControl.setLabel(L10n.tr("Follow the system"), forSegment: 1)
-        themeControl.setLabel(L10n.tr("Dark"), forSegment: 2)
         presetsHeaderButton.title = L10n.tr("All presets")
         chakraButton.title = L10n.tr("Chakras")
         chakraButton.setAccessibilityLabel(L10n.tr("Chakras"))
@@ -1900,8 +1859,8 @@ final class MainWindowController: NSWindowController {
     var playButtonTitle: String { playButton.accessibilityLabel() ?? "" }
     var volumeCaptionTitle: String { volumeSlider.accessibilityLabel() ?? "" }
     var muteTitle: String { volumeIcon.accessibilityLabel() ?? "" }
-    var statusText: String { indicator.text }
-    var statusToolTip: String { indicator.toolTip ?? "" }
+    var statusText: String { sessionIndicator.text }
+    var statusToolTip: String { sessionIndicator.toolTip ?? "" }
 
     // MARK: - Preset state the tests agree on (SPEC §5 F3)
 
@@ -1988,7 +1947,6 @@ final class MainWindowController: NSWindowController {
     /// Drive the headphone indicator (SPEC §7). M2-b wires the CoreAudio heuristic and
     /// the perceptual L/R test to it.
     func setHeadphoneState(_ state: HeadphoneIndicatorView.State, deviceName: String? = nil) {
-        indicator.setState(state, deviceName: deviceName)
         sessionIndicator.setState(state, deviceName: deviceName)
     }
 
@@ -2274,8 +2232,25 @@ final class MainWindowController: NSWindowController {
         applyThemeStyle()
     }
 
-    /// The theme control, so a test can read which segment is lit.
-    var themeSegments: NSSegmentedControl { themeControl }
+    /// The theme submenu, so a test reads where the choice is made now, and marks it
+    /// the way the user sees it.
+    var themeMenuTitles: [String] { overflowThemeMenu.items.map(\.title) }
+
+    /// Whether a theme state's menu item carries the tick.
+    func themeMenuItemIsOn(_ style: ThemeStyle) -> Bool {
+        overflowThemeMenu.items.first {
+            ($0.representedObject as? String) == style.rawValue
+        }?.state == .on
+    }
+
+    /// Pick a theme state as its menu item would, going through the item's own action
+    /// so there is one code path and not two.
+    func selectThemeMenuItem(_ style: ThemeStyle) {
+        guard let item = overflowThemeMenu.items.first(where: {
+            ($0.representedObject as? String) == style.rawValue
+        }), let action = item.action else { return }
+        NSApp.sendAction(action, to: item.target, from: item)
+    }
 
     /// The sidebar's search field, read and written like the user types.
     var presetSearchText: String {
@@ -2287,10 +2262,14 @@ final class MainWindowController: NSWindowController {
     var leftFrequencyForTest: FrequencyControlView { leftControl }
     var rightFrequencyForTest: FrequencyControlView { rightControl }
 
-    /// Type a duration into the card's own manual field, the way the keyboard would.
-    func typeTimerMinutes(_ text: String) {
-        timerView.typeManualMinutes(text)
+    /// Press one of the quick chips as the user does: the choice applies at once —
+    /// the card has no separate Apply, per the review.
+    func tapTimerQuickChoice(_ minutes: Int) {
+        timerView.tapQuickChoice(minutes)
     }
+
+    /// The quick durations the card offers as chips, in order.
+    var timerQuickChoices: [Int] { TimerControlView.quickChoicesForTest }
 
     /// The full preset library, for tests that read what it shows.
     var presetLibraryForTest: PresetLibraryController { presetLibraryController }

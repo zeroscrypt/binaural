@@ -48,26 +48,27 @@ final class InterfaceStateTests: XCTestCase {
 
     // MARK: - The three theme states
 
-    /// With no stored choice the app follows the system, and the middle segment is the
-    /// one lit — following the system is what an explicit appearance would pin against,
-    /// so nothing is set at all.
+    /// With no stored choice the app follows the system, and the system item is the one
+    /// ticked — following the system is what an explicit appearance would pin against,
+    /// so nothing is set at all. The choice is made in the menu now, where the mock-up's
+    /// header used to carry it.
     func testTheThemeFollowsTheSystemUntilOneIsChoosen() {
         let controller = makeController()
         XCTAssertEqual(controller.themeStyle, .system)
         XCTAssertTrue(
-            controller.themeSegments.isSelected(forSegment: 1),
-            "the middle segment says 'whatever the system says'"
+            controller.themeMenuItemIsOn(.system),
+            "the system item carries the tick"
         )
         XCTAssertNil(NSApp.appearance)
     }
 
-    /// Clicking a segment stores the style and puts its appearance on the app.
+    /// Choosing via its menu item stores the style and puts its appearance on the app.
     func testChoosingALightThemeAppliesAndStoresIt() {
         let controller = makeController()
-        controller.chooseTheme(.light)
+        controller.selectThemeMenuItem(.light)
 
         XCTAssertEqual(controller.themeStyle, .light)
-        XCTAssertTrue(controller.themeSegments.isSelected(forSegment: 0))
+        XCTAssertTrue(controller.themeMenuItemIsOn(.light))
         XCTAssertEqual(NSApp.appearance?.name, NSAppearance.Name.aqua)
         XCTAssertEqual(
             UserDefaults.standard.string(forKey: themeKey), "light",
@@ -76,7 +77,7 @@ final class InterfaceStateTests: XCTestCase {
     }
 
     /// A stored dark choice comes up dark on the next start, not merely while the
-    /// segment is lit.
+    /// menu item is ticked.
     func testAStoredDarkChoiceComesUpDarkAfterTheRestart() {
         UserDefaults.standard.set("dark", forKey: themeKey)
         _ = makeController()
@@ -92,18 +93,34 @@ final class InterfaceStateTests: XCTestCase {
         UserDefaults.standard.set(true, forKey: legacyThemeKey)
         let controller = makeController()
         XCTAssertEqual(controller.themeStyle, .dark)
-        XCTAssertTrue(controller.themeSegments.isSelected(forSegment: 2))
+        XCTAssertTrue(controller.themeMenuItemIsOn(.dark))
     }
 
     /// Coming back to the system state removes the app's own appearance again.
     func testComingBackToTheSystemRemovesThePinnedAppearance() {
         let controller = makeController()
-        controller.chooseTheme(.dark)
+        controller.selectThemeMenuItem(.dark)
         XCTAssertEqual(NSApp.appearance?.name, NSAppearance.Name.darkAqua)
 
-        controller.chooseTheme(.system)
+        controller.selectThemeMenuItem(.system)
         XCTAssertNil(NSApp.appearance)
         XCTAssertEqual(UserDefaults.standard.string(forKey: themeKey), "system")
+    }
+
+    /// The theme's three states are offered in the menu, in the interface language.
+    func testTheThemeMenuNamesTheThreeStates() {
+        let controller = makeController()
+        XCTAssertEqual(
+            controller.themeMenuTitles,
+            ["Light", "Follow the system", "Dark"]
+        )
+
+        L10n.setLanguage("ru")
+        XCTAssertEqual(
+            controller.themeMenuTitles,
+            ["Светлая", "Как в системе", "Тёмная"]
+        )
+        L10n.setLanguage("en")
     }
 
     // MARK: - The sidebar's search
@@ -233,6 +250,62 @@ final class InterfaceStateTests: XCTestCase {
         XCTAssertEqual(controller.isRightColumnShown, false)
     }
 
+    /// The accessibility highway resizes through `setFrame`, and the layout that
+    /// answers it must keep every column inside the window: a right column that
+    /// resolved its ambiguous vertical place onto the window's very top leaks above
+    /// the frame and loses its caption and clock.
+    func testAFrameResizeKeepsTheColumnsInsideTheWindow() throws {
+        let controller = makeController()
+        let window = try XCTUnwrap(controller.window)
+        window.setFrame(
+            NSRect(x: 20, y: 40, width: 1560, height: 700), display: true
+        )
+        window.contentView?.layoutSubtreeIfNeeded()
+
+        let content = try XCTUnwrap(window.contentView)
+        let timer = controller.timerView.convert(controller.timerView.bounds, to: content)
+        let contentHeight = content.bounds.height
+        XCTAssertTrue(
+            timer.maxY <= contentHeight,
+            "the timer card stays inside the window: \(timer)"
+        )
+        // The content view is not flipped: y grows up from its bottom edge, so "the
+        // card sits under the header" is the header's own bottom edge above the card's
+        // top edge.
+        let header = controller.headerRow.convert(
+            controller.headerRow.bounds, to: content
+        )
+        XCTAssertGreaterThanOrEqual(
+            header.minY, timer.maxY - 1,
+            "the timer card begins under the header, not over it"
+        )
+    }
+
+    /// The default 1098×623 window — the size macOS opens the app at — must render the
+    /// timer card whole: its caption and clock stay inside the frame, because a window
+    /// shorter than its own cards is what drew them through the title bar.
+    func testTheDefaultWindowKeepsTheRightColumnInside() throws {
+        let controller = makeController()
+        let window = try XCTUnwrap(controller.window)
+        window.setFrame(
+            NSRect(x: 0, y: 0, width: 1098, height: 623), display: true
+        )
+        window.contentView?.layoutSubtreeIfNeeded()
+
+        let content = try XCTUnwrap(window.contentView)
+        let timer = controller.timerView.convert(controller.timerView.bounds, to: content)
+        XCTAssertLessThanOrEqual(
+            timer.maxY, controller.headerRow.convert(
+                controller.headerRow.bounds, to: content
+            ).minY + 1,
+            "the timer card sits under the header"
+        )
+        XCTAssertLessThanOrEqual(
+            timer.maxY, content.bounds.height,
+            "the timer card stays inside the window: \(timer)"
+        )
+    }
+
     /// At the minimum both columns are gone and the frequencies remain — the least a
     /// session can be steered by stays on screen.
     func testTheMinimumHidesBothColumnsAndKeepsTheFrequencies() {
@@ -308,41 +381,43 @@ final class InterfaceStateTests: XCTestCase {
         XCTAssertEqual(field.fieldText, String(format: "%.1f", original), "the readout did")
     }
 
-    // MARK: - The timer's manual input
+    // MARK: - The timer applies on choice
 
-    /// A typed duration lands on the nearest offered duration — the offered ones are
-    /// data, so the popup keeps saying what can be clicked.
-    func testATypedDurationSnapsToTheNearestOffer() {
+    /// Tapping a quick chip applies its duration at once — the card has no field and
+    /// no Apply button, per the review: a picker that waits for a second button would
+    /// promise to remember a value it does not hold.
+    func testAQuickChipAppliesItsDurationAtOnce() {
         let controller = makeController()
 
-        controller.typeTimerMinutes("17")
-        XCTAssertEqual(controller.selectedTimerMinutes, 15)
-
-        controller.typeTimerMinutes("52")
-        XCTAssertEqual(controller.selectedTimerMinutes, 45)
-
-        controller.typeTimerMinutes("999")
-        XCTAssertEqual(controller.selectedTimerMinutes, Session.timerChoices.last ?? 120)
-    }
-
-    /// `0` switches the timer off, not onto some duration.
-    func testZeroSwitchesTheTimerOff() {
-        let controller = makeController()
-        controller.typeTimerMinutes("20")
-        XCTAssertEqual(controller.selectedTimerMinutes, 20)
-
-        controller.typeTimerMinutes("0")
-        XCTAssertEqual(controller.selectedTimerMinutes, Session.timerOff)
-    }
-
-    /// Words in the field leave the choice where it was — a bad answer is ignored,
-    /// not half-applied.
-    func testGarbageInTheManualFieldChangesNothing() {
-        let controller = makeController()
-        controller.typeTimerMinutes("30")
+        controller.tapTimerQuickChoice(30)
         XCTAssertEqual(controller.selectedTimerMinutes, 30)
 
-        controller.typeTimerMinutes("abc")
-        XCTAssertEqual(controller.selectedTimerMinutes, 30)
+        controller.tapTimerQuickChoice(5)
+        XCTAssertEqual(controller.selectedTimerMinutes, 5)
+    }
+
+    /// The quick chips are durations of the session's own list — they are shortcuts,
+    /// never a second source of what may be picked.
+    func testTheQuickChipsComeFromTheSessionList() {
+        let controller = makeController()
+        for choice in controller.timerQuickChoices {
+            XCTAssertTrue(Session.timerChoices.contains(choice))
+        }
+    }
+
+    /// Words could not have entered the card anyway now the manual field is gone: the
+    /// picker is the popup, and the popup only offers the session's own durations.
+    func testThePopupStillCarriesEveryOfferedDuration() {
+        let controller = makeController()
+        XCTAssertEqual(
+            controller.timerChoiceTitles.count,
+            Session.timerChoices.count,
+            "the popup is the one place the full list lives"
+        )
+        XCTAssertEqual(
+            Array(Session.timerChoices.prefix(3)),
+            [Session.timerOff, 5, 10],
+            "off first, then the short durations the session offers"
+        )
     }
 }

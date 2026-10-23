@@ -64,13 +64,23 @@ final class WindowLanguageTests: XCTestCase {
         let window = try XCTUnwrap(controller.window)
         window.contentView?.layoutSubtreeIfNeeded()
 
-        // The header carries the navigation, and the corner menu is the last thing in
-        // it, at its right edge.
+        // The header carries what a run reaches for: the quick path to the presets and
+        // the corner menu, an icon without a title. Language, the theme and the
+        // reference live in the menus now — per the review, the header reads nothing
+        // they would duplicate.
         let row = try XCTUnwrap(controller.headerRow)
         let titles = row.arrangedSubviews.compactMap { ($0 as? NSButton)?.title }
-        XCTAssertTrue(titles.contains("Reference"), "\(titles)")
+        XCTAssertTrue(titles.contains("All presets"), "\(titles)")
         XCTAssertTrue(
             titles.contains(""), "the corner menu is an icon, so it has no title: \(titles)"
+        )
+        XCTAssertFalse(
+            titles.contains("Reference"),
+            "the reference lives in the corner menu: \(titles)"
+        )
+        XCTAssertFalse(
+            controller.themeMenuTitles.isEmpty,
+            "the theme is offered in the menu, not the header"
         )
 
         let rowFrame = row.convert(row.bounds, to: window.contentView)

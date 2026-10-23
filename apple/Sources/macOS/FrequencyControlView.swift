@@ -277,7 +277,6 @@ final class FrequencyControlView: NSView {
     func retranslate(caption: String, rangeHint: String) {
         captionLabel.stringValue = caption
         rangeHintLabel.stringValue = rangeHint
-        field.placeholderString = rangeHint
         setAccessibilityLabel(caption)
         setAccessibilityHelp(
             L10n.tr(
