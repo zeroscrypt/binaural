@@ -39,6 +39,12 @@ final class MainWindowController: NSWindowController {
     private let volumeSlider = NSSlider()
     private let volumeLabel = NSTextField(labelWithString: "")
     private let timerView = TimerControlView()
+    /// The right-hand column's headphone card: its caption, its own speaker state and
+    /// the check button, all fed the same facts the bottom status line gets, so the
+    /// two views cannot disagree.
+    private let headphoneCardCaption = NSTextField(labelWithString: "")
+    private let sessionIndicator = HeadphoneIndicatorView()
+    private let checkButton = NSButton(title: "", target: nil, action: nil)
     /// Transient note under the preset bar — Python's `statusBar().showMessage`, reused for
     /// the difference lock because the same "we just changed your state, here is why" message
     /// needs saying in both places.
@@ -149,6 +155,7 @@ final class MainWindowController: NSWindowController {
     /// The language switch in the header: RU and EN, side by side.
     private let languageControl = NSSegmentedControl()
     /// The brand, in the header's left corner.
+    private let brandMark = BrandMark()
     private let brandName = NSTextField(labelWithString: "Binaural")
     private let brandTagline = NSTextField(labelWithString: "")
     /// The navigation, in the header's right corner.
@@ -159,6 +166,8 @@ final class MainWindowController: NSWindowController {
     private let themeButton = NSButton()
     /// The catalogue down the left: the preset categories.
     private let categorySidebar = CategorySidebarView()
+    /// The presets, as cards.
+    private let presetCards = PresetCardsView()
     /// The mode's own switch: ticked while the mode is on, and unticking it is the
     /// explicit way out.
     private let chakraModeCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: nil)
@@ -353,9 +362,19 @@ final class MainWindowController: NSWindowController {
         // in it, and the things worth reaching for — the reference, the settings, the
         // language, the theme — are about the application.
         brandName.font = .systemFont(ofSize: 17, weight: .semibold)
+        brandMark.widthAnchor.constraint(equalToConstant: 30).isActive = true
+        brandMark.heightAnchor.constraint(equalToConstant: 22).isActive = true
         brandTagline.font = .systemFont(ofSize: 11)
         brandTagline.textColor = .secondaryLabelColor
-        let brand = NSStackView(views: [brandName, brandTagline])
+        brandMark.strokeColor = .controlAccentColor
+        let brandText = NSStackView(views: [brandName, brandTagline])
+        brandText.orientation = .vertical
+        brandText.alignment = .leading
+        brandText.spacing = 0
+        let brand = NSStackView(views: [brandMark, brandText])
+        brand.orientation = .horizontal
+        brand.alignment = .centerY
+        brand.spacing = 8
         brand.orientation = .vertical
         brand.alignment = .leading
         brand.spacing = 0
@@ -441,14 +460,12 @@ final class MainWindowController: NSWindowController {
         volumeLabel.textColor = .secondaryLabelColor
         volumeLabel.alignment = .right
 
-        // The timer sits in the transport row, to the left of the volume: it is one
-        // more control of the same kind, and a row of its own underneath put the
-        // window's controls in two places for no reason.
-        //
-        // `NSView()` at the end is the `addStretch` of the Python transport row: the
-        // controls sit at the left and the row's slack goes to the right.
+        // The timer has moved to the right-hand column, where the layout shows it as
+        // a card of its own; the transport row is the sound itself. `NSView()` at the
+        // end is the `addStretch` of the Python transport row: the controls sit at the
+        // left and the row's slack goes to the right.
         let transport = NSStackView(views: [
-            playButton, timerView, volumeIcon, volumeSlider, volumeLabel, NSView()
+            playButton, volumeIcon, volumeSlider, volumeLabel, NSView()
         ])
         transport.orientation = .horizontal
         transport.alignment = .centerY
@@ -470,6 +487,10 @@ final class MainWindowController: NSWindowController {
         noticeLabel.isHidden = true
 
         presetBlock.addArrangedSubview(presetBar)
+        // The chips are hidden: the cards say the same thing with a picture, and the
+        // two together would say it twice. The bar is still there, because the tests
+        // drive it and because it knows how to mark a preset.
+        presetBar.isHidden = true
         presetBlock.addArrangedSubview(presetStatusLabel)
         presetBlock.addArrangedSubview(noticeLabel)
         presetBlock.orientation = .vertical
@@ -499,29 +520,65 @@ final class MainWindowController: NSWindowController {
 
         // The mode takes the middle: the panel sits where the frequency cards are, so
         // switching to the mode replaces them rather than being added below them.
+        // The presets as cards, the way the mock-up shows them: a colour, an icon and
+        // the range of beats. The chips they replace are still there, because they are
+        // what the tests drive, and they are hidden.
+        presetCards.onPick = { [weak self] id in self?.presetPicked(id) }
+        let presetsBlock = NSStackView(views: [
+            NSTextField(labelWithString: L10n.tr("Presets")), presetCards, presetBlock
+        ])
+        presetsBlock.orientation = .vertical
+        presetsBlock.alignment = .leading
+        presetsBlock.spacing = 8
+        presetsBlock.translatesAutoresizingMaskIntoConstraints = false
+
         let centre = NSStackView(views: [
-            frequencyRow, chakraView, transport, presetBlock
+            frequencyRow, chakraView, transport, presetsBlock
         ])
         centre.orientation = .vertical
         centre.alignment = .leading
         centre.spacing = 16
         centre.translatesAutoresizingMaskIntoConstraints = false
 
-        // The right: the session. The timer says how long it lasts, the headphone check
-        // says whether it can be heard at all.
-        let checkButton = NSButton(
-            title: L10n.tr("Check headphones…"),
-            target: self,
-            action: #selector(headphoneCheckTapped)
-        )
+        // The right: the session, on cards, the way the hand-drawn layout puts it.
+        // The timer says how long it lasts; the headphone card says whether it can be
+        // heard at all, with the state the checks have concluded so far on its face.
+        headphoneCardCaption.font = .systemFont(ofSize: 12, weight: .semibold)
+        headphoneCardCaption.textColor = .secondaryLabelColor
+        headphoneCardCaption.alignment = .left
+        checkButton.title = L10n.tr("Check headphones…")
+        checkButton.target = self
+        checkButton.action = #selector(headphoneCheckTapped)
         checkButton.bezelStyle = .rounded
         checkButton.controlSize = .regular
+        checkButton.translatesAutoresizingMaskIntoConstraints = false
 
-        let right = NSStackView(views: [timerView, checkButton])
-        right.orientation = .vertical
-        right.alignment = .leading
-        right.spacing = 12
+        let headphoneContent = NSStackView(views: [
+            headphoneCardCaption, sessionIndicator, checkButton
+        ])
+        headphoneContent.orientation = .vertical
+        headphoneContent.alignment = .leading
+        headphoneContent.spacing = 8
+        headphoneContent.translatesAutoresizingMaskIntoConstraints = false
+        let timerCard = CardBox(content: timerView, padding: 12)
+        let headphoneCard = CardBox(content: headphoneContent, padding: 12)
+        // A plain view with hand-set anchors rather than a stack: a vertical stack
+        // stretches its cards to whatever height the column is given, and a card twice
+        // as tall as its content is a lie about what is in it.
+        let right = NSView()
         right.translatesAutoresizingMaskIntoConstraints = false
+        right.addSubview(timerCard)
+        right.addSubview(headphoneCard)
+        NSLayoutConstraint.activate([
+            timerCard.topAnchor.constraint(equalTo: right.topAnchor),
+            timerCard.leadingAnchor.constraint(equalTo: right.leadingAnchor),
+            timerCard.trailingAnchor.constraint(equalTo: right.trailingAnchor),
+            headphoneCard.topAnchor.constraint(equalTo: timerCard.bottomAnchor, constant: 12),
+            headphoneCard.leadingAnchor.constraint(equalTo: right.leadingAnchor),
+            headphoneCard.trailingAnchor.constraint(equalTo: right.trailingAnchor),
+            headphoneCard.bottomAnchor.constraint(equalTo: right.bottomAnchor),
+            checkButton.widthAnchor.constraint(equalTo: headphoneContent.widthAnchor)
+        ])
 
         let body = NSStackView(views: [sidebar, centre, right])
         body.orientation = .horizontal
@@ -550,12 +607,15 @@ final class MainWindowController: NSWindowController {
             // left, which is where the frequencies and the mode live.
             sidebar.widthAnchor.constraint(equalToConstant: 200),
             right.widthAnchor.constraint(equalToConstant: 260),
+            timerCard.widthAnchor.constraint(equalTo: right.widthAnchor),
+            headphoneCard.widthAnchor.constraint(equalTo: right.widthAnchor),
             frequencyRow.widthAnchor.constraint(lessThanOrEqualTo: centre.widthAnchor),
             // The beat is the difference between the two numbers beside it, so it is a
             // column of its own rather than a panel that takes the room they need.
-            beatView.widthAnchor.constraint(equalToConstant: 290),
+            beatView.widthAnchor.constraint(equalToConstant: 320),
             chakraView.widthAnchor.constraint(equalTo: centre.widthAnchor),
             presetBlock.widthAnchor.constraint(equalTo: centre.widthAnchor),
+            presetsBlock.widthAnchor.constraint(equalTo: centre.widthAnchor),
             transport.widthAnchor.constraint(equalTo: centre.widthAnchor),
             errorLabel.widthAnchor.constraint(equalTo: stack.widthAnchor),
             statusBar.widthAnchor.constraint(equalTo: stack.widthAnchor)
@@ -994,7 +1054,22 @@ final class MainWindowController: NSWindowController {
         // An unknown id from a hand-edited file degrades to the default (F3), so the
         // document and the chips cannot drift apart.
         presetCategoryID = PresetCatalogue.resolvedCategoryID(id)
+        refreshPresetCards()
         scheduleSave()
+    }
+
+    /// A preset was picked on a card.
+    private func presetPicked(_ id: String) {
+        guard let preset = PresetCatalogue.presets.first(where: { $0.id == id }) else { return }
+        applyPreset(preset)
+    }
+
+    /// The cards show the presets of the chosen category.
+    private func refreshPresetCards() {
+        let shown = PresetCatalogue.presets.filter { $0.categoryID == presetCategoryID }
+        presetCards.presets = shown
+        presetCards.markedPresetID = lastPresetID
+        presetCards.needsDisplay = true
     }
 
     /// One click sets **both** channels so their difference is the preset's beat —
@@ -1018,6 +1093,7 @@ final class MainWindowController: NSWindowController {
         // F3: "Показывает, что получилось" — the beat card carries the numbers, and this
         // names the preset that produced them, the way Python's status bar does.
         presetBar.markPreset(preset.id)
+        presetCards.markedPresetID = preset.id
         // Stored the way Python stores it (`last_preset`), so the chip is highlighted
         // again on the next launch.
         lastPresetID = preset.id
@@ -1060,6 +1136,8 @@ final class MainWindowController: NSWindowController {
         // chip whose label the session remembers.
         presetBar.select(categoryID: presetCategoryID)
         presetBar.markPreset(lastPresetID)
+        presetCards.markedPresetID = lastPresetID
+        refreshPresetCards()
         // SPEC §7's lock comes back ticked, and its difference is captured from the pair just
         // restored — the stored flag alone would say "locked" without saying *what* is locked.
         beatView.setLocked(differenceLock.isLocked)
@@ -1349,10 +1427,17 @@ final class MainWindowController: NSWindowController {
 
     /// The button as a view, so a host can place it somewhere other than the status row.
 
-    /// Feed a report straight into the indicator — the coordinator's `Target` path.
+    /// Feed a report straight into the indicators — the coordinator's `Target` path.
     func apply(headphoneReport: HeadphoneReport) {
-        indicator.apply(report: headphoneReport)
-        noteHeadphoneReport(headphoneReport)
+        showReport(headphoneReport)
+    }
+
+    /// One report to every surface that shows the headphone state: the bottom status
+    /// line and the right-hand column's card, so the two cannot disagree.
+    private func showReport(_ report: HeadphoneReport) {
+        indicator.apply(report: report)
+        sessionIndicator.apply(report: report)
+        noteHeadphoneReport(report)
     }
 
     /// Remember which report the window is showing, without touching the indicator.
@@ -1497,6 +1582,11 @@ final class MainWindowController: NSWindowController {
 
         timerView.retranslate()
         chakraView.retranslate()
+        // The right-hand column's cards, and the preset cards' band names.
+        headphoneCardCaption.stringValue = L10n.tr("Headphones")
+        checkButton.title = L10n.tr("Check headphones…")
+        sessionIndicator.retranslate()
+        presetCards.retranslate()
         chakraButton.title = L10n.tr("Chakras")
         chakraButton.setAccessibilityLabel(L10n.tr("Chakras"))
         chakraModeCheckbox.title = L10n.tr("On")
@@ -1670,6 +1760,7 @@ final class MainWindowController: NSWindowController {
     /// the perceptual L/R test to it.
     func setHeadphoneState(_ state: HeadphoneIndicatorView.State, deviceName: String? = nil) {
         indicator.setState(state, deviceName: deviceName)
+        sessionIndicator.setState(state, deviceName: deviceName)
     }
 
     // MARK: - Headphone check (SPEC §4)
@@ -1686,8 +1777,7 @@ final class MainWindowController: NSWindowController {
         init(controller: MainWindowController) { self.controller = controller }
 
         func apply(headphoneReport report: HeadphoneReport) {
-            controller.indicator.apply(report: report)
-            controller.noteHeadphoneReport(report)
+            controller.showReport(report)
         }
 
         func persistHeadphoneState(acknowledged: Bool, report: HeadphoneReport) {

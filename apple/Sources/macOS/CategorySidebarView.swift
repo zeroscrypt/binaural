@@ -53,6 +53,24 @@ final class CategorySidebarView: NSView {
         }
     }
 
+    /// The mark beside a category, the way the mock-up shows it.
+    ///
+    /// The categories are not frequencies, so the marks are pictures of what the
+    /// categories are for rather than numbers: sleep, a still mind, a leaf, a lamp.
+    private static func symbol(for id: String?) -> String? {
+        switch id {
+        case nil: return "square.grid.2x2.fill"
+        case "sleep": return "moon.zzz.fill"
+        case "meditation": return "camera.macro"
+        case "relaxation": return "leaf.fill"
+        case "awareness": return "sun.max.fill"
+        case "concentration": return "brain.head.profile"
+        case "energy": return "bolt.fill"
+        case "user": return "person.fill"
+        default: return nil
+        }
+    }
+
     private func addRow(id: String?, title: String, count: Int) {
         let button = CategoryButton(
             checkboxWithTitle: title,
@@ -61,6 +79,10 @@ final class CategorySidebarView: NSView {
         )
         button.categoryID = id
         button.setAccessibilityLabel(title)
+        if let symbol = Self.symbol(for: id) {
+            button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
+            button.imagePosition = .imageLeading
+        }
         button.font = .systemFont(ofSize: 13)
         // The count is part of the row's caption, so a reader knows what a category
         // holds before clicking it.
