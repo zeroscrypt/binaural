@@ -427,9 +427,13 @@ example: 205 Hz left, 215 Hz right, and you get a 10 Hz beat at a 210 Hz carrier
 active channel by 0.1 Hz, `←`/`→` switch between ears. Frequencies can be changed while playing
 without a click — the phase is continuous and the amplitude ramps.
 
-What you see in the window: the two frequency controls, the BEAT and CARRIER metrics with the
-*Lock difference* checkbox under the beat, the play button, volume, the playback timer and its
-countdown, and the two-level preset chips along the bottom.
+What you see in the window: three zones. The catalogue on the left — the search field, the
+categories with their preset counts, the chakra trigger. The middle holds the two frequency
+controls, the BEAT and CARRIER metrics with the *Lock difference* checkbox, the play button and
+volume, and the preset cards. The right column carries the session: the timer card and the
+headphone card. The header stays out of the way — brand, the session state (*Playing*/*Stopped*),
+the *All presets* button and one corner menu; theme, language and the reference live in the
+menus, not in the window chrome.
 
 ### Presets
 
@@ -443,8 +447,10 @@ click sets **both** frequencies around the 200 Hz carrier so the difference is t
 ### The timer
 
 0 means off — play until you stop it. Otherwise pick from 5, 10, 15, 20, 30, 45, 60, 90 or 120
-minutes; the default is 15. The remaining time counts down on screen and playback stops by
-itself when it runs out.
+minutes; the default is 15. The choice applies the moment you make it — the quick chips
+(`5/10/15/30/60`) and the dropdown in the timer card wait for no second button — and the
+remaining time counts down on screen. Playback stops by itself, with a smooth fade, when the
+time runs out.
 
 ### Lock difference
 
@@ -463,12 +469,17 @@ in its own right, independently of the interface language.
 
 *Settings* (`Ctrl+,` / `⌘,`) holds the interface language, the default timer, volume, and the
 button that re-runs the headphone check. Every control writes straight through to the running
-window.
+window. The window itself opens never smaller than its own columns: the least size is measured
+from the layout, not invented, and a narrow window loses the columns in layout order — the
+catalogue first, the session column after — at ≈1280 and ≈1050 px.
 
-The interface is **English or Russian**, switchable from *View → Language* or from Settings. The
-switch applies immediately — including the open window and the open dialog — and the choice is
-remembered under `ui/language`. On the very first start there is nothing stored yet, so the app
-follows the system locale. Both implementations share the key and the Russian text: the Swift
+The interface is **English or Russian**, switchable from *View → Language*. The switch applies
+immediately — including the open window and the open dialog — and the choice is remembered under
+`ui/language`. The theme is its own menu (*View → Theme*, the corner menu's submenu in the Swift
+app) with three states: light, whatever the system says, dark. The choice is stored and survives
+a restart; "as the system says" is the absence of a stored choice, not a third setting. On the
+very first start with no language stored either, the app follows the system locale. Both
+implementations share the key and the Russian text: the Swift
 catalogue is **generated** from the Python one (`src/binaural/locales/ru.py`), and a test fails
 the build if the two ever disagree about which strings are translated.
 
@@ -689,11 +700,11 @@ The Swift side has its own suites. They ran only on the machine that wrote them 
 v0.2.2; CI runs both now, and running them locally still finds things faster:
 
 ```bash
-cd apple && xcodegen generate                               # 246 core tests
+cd apple && xcodegen generate                               # 269 core tests
 xcodebuild -project Binaural.xcodeproj -scheme BinauralCore \
   -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test
 xcodebuild -project Binaural.xcodeproj -scheme Binaural \
-  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test # + 182 window tests
+  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO test # + 237 window tests
 ```
 
 `CODE_SIGNING_ALLOWED=NO` is required: no Apple Developer certificate is configured.
@@ -744,7 +755,7 @@ because an unsigned `.app` cannot be distributed. Alpha otherwise.
 | Python UI | main window with live beat/carrier, the 7-category / 20-preset registry, frequency reference dialog, headphone-check and L/R dialogs, Settings, tray — implemented, tested |
 | Python suite | **488 passed**, 2 skipped |
 | `apple/` core | `BinauralCore` — provably equal to Python by test, not merely compiling |
-| `apple/` macOS | live audio, main window, the full preset registry, the frequency reference, headphone check, Settings, About, playback timer, menu-bar item, session persistence, *Lock difference*, EN/RU — implemented, **208 core + 141 macOS tests** |
+| `apple/` macOS | live audio, main window, the full preset registry, the frequency reference, headphone check, Settings, About, playback timer, menu-bar item, session persistence, *Lock difference*, EN/RU, three-state theme — implemented, **269 core + 237 macOS tests** |
 | `apple/` Release | `apple/dist/Binaural.app`, **unsigned** |
 | Linux packaging | `install.sh`, PyInstaller spec and the release script in place; **no archive published yet** |
 | Windows | not started |

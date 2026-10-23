@@ -72,9 +72,12 @@ final class L10nKeysTests: XCTestCase {
         "Step", "Beat", "%1 s",
         // the mode's own switch, beside the button that selects the mode
         "On",
-        // the header: the brand's line, the navigation, the catalogue and the theme
-        "Two frequencies. One effect.", "All presets", "Reference", "Theme",
-        "Switches between the light and the dark theme.",
+        // the header: the brand's line, the navigation, the catalogue
+        "Two frequencies. One effect.", "All presets", "Theme",
+        // the save-preset alert's own button and its AX announcement of the pair
+        "Cancel", "Current frequencies: left %1, right %2.",
+        // the save-preset dialog: its field and its confirm button
+        "Preset name", "Save preset",
         // the step the session settles on and holds
         "Hold", "Auto",
         // the picture of the waves, as against the beat that makes them
@@ -287,8 +290,13 @@ final class L10nKeysTests: XCTestCase {
     ///   positional arguments of `tr(key, value…)` never merge into one key.
     private static func catalogKeys(inArguments arguments: String) -> Set<String> {
         let fullRange = NSRange(arguments.startIndex..., in: arguments)
-        let cut = namedArgumentLabel.firstMatch(in: arguments, range: fullRange)
+        let namedCut = namedArgumentLabel.firstMatch(in: arguments, range: fullRange)
             .flatMap { Range($0.range, in: arguments)?.lowerBound }
+        // `tr(_ key: String, _ arguments: CVarArg…)` puts the key first, so for a plain
+        // call the scan stops at the first argument: literals after it are values, and a
+        // value's `?? ""` fallback would otherwise pose as a translatable string.
+        let commaCut = namedCut == nil ? firstTopLevelComma(in: arguments) : nil
+        let cut = namedCut ?? commaCut
         let head = cut.map { String(arguments[arguments.startIndex..<$0]) } ?? arguments
 
         let range = NSRange(head.startIndex..., in: head)
@@ -311,6 +319,47 @@ final class L10nKeysTests: XCTestCase {
         pattern: "\"(?:[^\"\\\\]|\\\\.)*\"(?:[ \\t\\n\\r]*(?:\\+[ \\t\\n\\r]*)?\"(?:[^\"\\\\]|\\\\.)*\")*"
     )
     private static let literalPattern = try! NSRegularExpression(pattern: "\"((?:[^\"\\\\]|\\\\.)*)\"")
+
+    /// Where a top-level argument separator sits: the first comma outside every string
+    /// literal and outside every nested parenthesised expression.
+    ///
+    /// A key may hold a comma of its own — "Current frequencies: left %1, right %2." —
+    /// so a naive comma search would cut the readout in half and lose the key. The walk
+    /// steps over `\"` the same way the literal pattern does.
+    private static func firstTopLevelComma(in text: String) -> String.Index? {
+        var depth = 0
+        var cursor = text.startIndex
+        while cursor < text.endIndex {
+            let character = text[cursor]
+            if character == "\"" {
+                cursor = endOfLiteral(in: text, from: cursor) ?? text.endIndex
+                continue
+            }
+            if character == "(" { depth += 1 }
+            if character == ")" { depth -= 1 }
+            if character == ",", depth == 0 { return cursor }
+            cursor = text.index(after: cursor)
+        }
+        return nil
+    }
+
+    /// The index past a literal's closing quote, so the comma walk reads the string as
+    /// one character rather than many.
+    private static func endOfLiteral(in text: String, from start: String.Index) -> String.Index? {
+        var cursor = text.index(after: start)
+        while cursor < text.endIndex {
+            let character = text[cursor]
+            if character == "\\" {
+                // An escape holds two characters: jump over both.
+                let afterBackslash = text.index(after: cursor)
+                cursor = afterBackslash < text.endIndex ? text.index(after: afterBackslash) : afterBackslash
+                continue
+            }
+            if character == "\"" { return text.index(after: cursor) }
+            cursor = text.index(after: cursor)
+        }
+        return nil
+    }
 
     private static func matches(inString text: String) -> [String] {
         let range = NSRange(text.startIndex..., in: text)

@@ -114,6 +114,20 @@ public enum RussianCatalogue {
 
         // The corner menu: the headphone check, the frequency reference and the language.
         "More": "Ещё",
+        "Lower the frequency": "Ниже",
+        "Lowers the frequency by 0.1 hertz. Keep it held down to repeat.": "Понижает частоту на 0,1 Гц. Удерживайте, чтобы повторять.",
+        "Raise the frequency": "Выше",
+        "Raises the frequency by 0.1 hertz. Keep it held down to repeat.": "Повышает частоту на 0,1 Гц. Удерживайте, чтобы повторять.",
+        "Theme": "Тема",
+        "Light": "Светлая",
+        "Follow the system": "Как в системе",
+        "Dark": "Тёмная",
+        "Playing": "Играет",
+        "Stopped": "Остановлено",
+        "Search presets…": "Поиск по пресетам…",
+        "All presets": "Все пресеты",
+        "Shows every preset in the registry.": "Показывает все пресеты реестра.",
+        "Filters every category at once while you type.": "Ищет по всем категориям сразу, пока вы печатаете.",
         "&Settings…": "&Настройки…",
         "&Help": "&Справка",
         "Frequency &reference…": "Справочник &частот…",
@@ -147,7 +161,6 @@ public enum RussianCatalogue {
         "%1 frequency in hertz": "Частота %1 в герцах",
         "%1 frequency slider": "Ползунок частоты %1",
         "Type an exact value between 1 and 20000, in steps of 0.1 hertz.": "Введите точное значение от 1 до 20000 с шагом 0,1 Гц.",
-        "Raises or lowers the frequency by 0.1 hertz. Keep it held down to repeat.": "Повышает или понижает частоту на 0,1 Гц. Удерживайте, чтобы повторять.",
         "Sweeps the frequency from 1 to 20000 hertz.": "Плавно меняет частоту от 1 до 20000 Гц.",
 
         // status indicator

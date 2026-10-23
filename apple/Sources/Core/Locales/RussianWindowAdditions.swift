@@ -28,12 +28,16 @@ enum RussianWindowAdditions {
         "Unmute": "Включить звук",
         // The mode's own switch, beside the button that selects it.
         "On": "Вкл.",
-        // The header: the brand's line, the navigation, the catalogue and the theme.
+        // The header: the brand's line and the navigation.
         "Two frequencies. One effect.": "Две частоты. Один эффект.",
-        "All presets": "Все пресеты",
-        "Reference": "Справочник",
-        "Theme": "Тема",
-        "Switches between the light and the dark theme.": "Переключает светлую и тёмную темы.",
+        // The save-preset confirmation dialog's second button: the alert's other
+        // choice says "OK", which is the same in both languages, but a cancel
+        // deserves its own word.
+        "Cancel": "Отмена",
+        // The frequency fields' help: one wording for both step buttons.
+        "Raises or lowers the frequency by 0.1 hertz. Keep it held down to repeat.": (
+            "Повышает или понижает частоту на 0,1 Гц. Удерживайте, чтобы повторять."
+        ),
         // The step the session settles on and holds, and the choice of leaving it to
         // the timer.
         "Hold": "Держать",
@@ -68,20 +72,11 @@ enum RussianWindowAdditions {
         ),
         // The preset cards speak of the beat itself; a card outside the tabulated bands
         // (a hand-edited preset) falls back to the bare number.
-        "%1 Hz": "%1 Гц",
-        // The three theme states the shared task names: the control's segments carry
-        // pictures, so the words live in the labels the ears read.
-        "Light": "Светлая",
-        "Follow the system": "Как в системе",
-        "Dark": "Тёмная",
-        // The one-line session status in the header.
-        "Playing": "Играет",
-        "Stopped": "Стоит",
-        // The search among the presets: the sidebar's own field and the library's.
-        "Search presets…": "Поиск по пресетам…",
-        // The two mouse steps beside the number, one each.
-        "Raise the frequency": "Повысить частоту",
-        "Lower the frequency": "Понизить частоту"
+        "%1 Hz": "%1 Гц"
+        // The three theme states ("Light"/"Follow the system"/"Dark"), the session status
+        // ("Playing"/"Stopped"), the preset search ("Search presets…"), the "All presets"
+        // button and the two step buttons ("Raise"/"Lower the frequency") all moved into
+        // the generated catalogue when `ru.py` grew them this phase.
     ]
 }
 
